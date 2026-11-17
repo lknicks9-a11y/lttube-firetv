@@ -35,6 +35,14 @@ public class TvFeedTest {
                         System.out.println("LTT    " + it.type + " | " + it.title + " | ch=" + it.channel + " | sub=" + it.sub + " | dur=" + it.duration + " short=" + it.isShort);
                     }
                 }
+                java.util.Map<String,Integer> keys = new java.util.TreeMap<>();
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"(\\w+(Renderer|ViewModel|Model))\"").matcher(text);
+                while (m.find()) keys.merge(m.group(1), 1, Integer::sum);
+                System.out.println("LTT KEYS " + keys);
+                for (String k : new String[]{"lockupViewModel", "tileRenderer", "shelfRenderer", "gridRenderer", "horizontalListRenderer", "richItemRenderer"}) {
+                    int at = text.indexOf("\"" + k + "\"");
+                    if (at > 0) System.out.println("LTT RAW " + k + " " + text.substring(at, Math.min(text.length(), at + 3000)));
+                }
                 // raw shape of the first tile, to see the fields
                 int t = text.indexOf("\"tileRenderer\"");
                 if (t > 0) System.out.println("LTT RAW TILE " + text.substring(t, Math.min(text.length(), t + 2500)));
