@@ -30,6 +30,13 @@ public class Item {
     public long position;      // resume point, ms
     public String action = ""; // for ACTION cards
     public int color;          // for ACTION cards
+    public int icon;           // drawable for ACTION cards
+
+    public static Item action(String id, String title, String sub, int color, int icon) {
+        Item i = action(id, title, sub, color);
+        i.icon = icon;
+        return i;
+    }
 
     public static Item action(String id, String title, String sub, int color) {
         Item i = new Item();

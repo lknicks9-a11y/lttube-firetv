@@ -83,7 +83,10 @@ public class SearchActivity extends FragmentActivity {
         root.addView(holder, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         setContentView(root);
 
-        rows = new ArrayObjectAdapter(new ListRowPresenter());
+        ListRowPresenter rp = new ListRowPresenter(androidx.leanback.widget.FocusHighlight.ZOOM_FACTOR_NONE, false);
+        rp.setShadowEnabled(false);
+        rp.setSelectEffectEnabled(false);
+        rows = new ArrayObjectAdapter(rp);
         suggestListRow = new ListRow(new HeaderItem("Recent searches"), suggestRow);
         videoRow = new ListRow(new HeaderItem("Videos"), videos);
         channelRow = new ListRow(new HeaderItem("Channels"), channels);

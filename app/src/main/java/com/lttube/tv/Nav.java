@@ -41,10 +41,9 @@ public final class Nav {
 
     public static void channel(Context c, String url, String title) {
         if (url == null || url.isEmpty()) return;
-        Intent i = new Intent(c, GridActivity.class);
-        i.putExtra(GridActivity.MODE, GridActivity.CHANNEL);
-        i.putExtra(GridActivity.URL, url);
-        i.putExtra(GridActivity.TITLE, title);
+        Intent i = new Intent(c, ChannelActivity.class);
+        i.putExtra(ChannelActivity.URL, url);
+        i.putExtra(ChannelActivity.TITLE, title);
         c.startActivity(i);
     }
 

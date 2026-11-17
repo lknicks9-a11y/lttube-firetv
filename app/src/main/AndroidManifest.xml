@@ -40,6 +40,12 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode" />
 
         <activity
+            android:name=".ChannelActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode" />
+
+        <activity
             android:name=".GridActivity"
             android:exported="false"
             android:screenOrientation="landscape"

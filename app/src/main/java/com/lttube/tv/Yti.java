@@ -210,6 +210,115 @@ public final class Yti {
         return b.toString();
     }
 
+    /** A feed split into YouTube's own shelves ("Recommended music videos", …). */
+    public static List<Shelf> sections(String feed, String looseTitle) throws Exception {
+        boolean tvFirst = p.getBoolean("tv", true);
+        Exception last = null;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            boolean tv = attempt == 0 ? tvFirst : !tvFirst;
+            try {
+                JSONObject r = call("browse", new JSONObject().put("browseId", browseId(feed, tv)), tv);
+                List<Shelf> out = shelves(r, looseTitle, tv, feed.equals(CHANNELS) ? Item.CHANNEL : null);
+                int n = 0;
+                for (Shelf sh : out) n += sh.items.size();
+                if (n > 0 || attempt == 1) {
+                    if (!feed.equals(CHANNELS) && n > 0) p.edit().putBoolean("tv", tv).apply();
+                    return out;
+                }
+            } catch (Exception e) {
+                last = e;
+            }
+        }
+        if (last != null) throw last;
+        return new ArrayList<>();
+    }
+
+    private static final Set<String> SHELF_KEYS = new HashSet<>(java.util.Arrays.asList(
+            "shelfRenderer", "richShelfRenderer", "reelShelfRenderer", "gridShelfViewModel"));
+
+    static List<Shelf> shelves(JSONObject root, String looseTitle, boolean tv, String only) {
+        List<Shelf> out = new ArrayList<>();
+        Page loose = new Page();
+        Set<String> seen = new HashSet<>();
+        collectShelves(root, out, loose, seen, tv, only);
+        if (!loose.items.isEmpty()) {
+            Shelf sh = new Shelf(looseTitle, loose.items);
+            sh.cont = loose.continuation;
+            sh.contTv = tv;
+            sh.only = only;
+            out.add(0, sh);
+        } else if (loose.continuation != null && !out.isEmpty()) {
+            out.get(out.size() - 1).cont = loose.continuation;
+            out.get(out.size() - 1).contTv = tv;
+        }
+        List<Shelf> keep = new ArrayList<>();
+        for (Shelf sh : out) if (!sh.items.isEmpty()) keep.add(sh);
+        return keep;
+    }
+
+    private static void collectShelves(Object node, List<Shelf> out, Page loose, Set<String> seen, boolean tv, String only) {
+        if (node instanceof JSONArray) {
+            JSONArray a = (JSONArray) node;
+            for (int i = 0; i < a.length(); i++) collectShelves(a.opt(i), out, loose, seen, tv, only);
+            return;
+        }
+        if (!(node instanceof JSONObject)) return;
+        JSONObject o = (JSONObject) node;
+        Iterator<String> keys = o.keys();
+        while (keys.hasNext()) {
+            String k = keys.next();
+            Object v = o.opt(k);
+            if (v instanceof JSONObject && SHELF_KEYS.contains(k)) {
+                JSONObject r = (JSONObject) v;
+                String title = text(r.optJSONObject("title"));
+                if (title.isEmpty()) {
+                    JSONObject hr = r.optJSONObject("headerRenderer");
+                    if (hr == null) hr = r.optJSONObject("header");
+                    JSONObject t = hr == null ? null : findObject(hr, "title");
+                    title = text(t);
+                    if (title.isEmpty() && hr != null) {
+                        String tt = findString(hr, "content");
+                        if (tt != null) title = tt;
+                    }
+                }
+                Page pg = new Page();
+                walk(r, pg, seen, only);
+                if ("reelShelfRenderer".equals(k)) for (Item it : pg.items) it.isShort = it.isShort || Item.VIDEO.equals(it.type);
+                Shelf sh = new Shelf(title.isEmpty() ? "More" : title, pg.items);
+                sh.cont = pg.continuation;
+                sh.contTv = tv;
+                sh.only = only;
+                out.add(sh);
+                continue;
+            }
+            if (v instanceof JSONObject && isItemKey(k)) {
+                JSONObject wrap = new JSONObject();
+                try { wrap.put(k, v); } catch (Exception ignored) { }
+                walk(wrap, loose, seen, only);
+                continue;
+            }
+            if (v instanceof JSONObject && ("continuationItemRenderer".equals(k) || "nextContinuationData".equals(k))) {
+                JSONObject wrap = new JSONObject();
+                try { wrap.put(k, v); } catch (Exception ignored) { }
+                walk(wrap, loose, seen, only);
+                continue;
+            }
+            collectShelves(v, out, loose, seen, tv, only);
+        }
+    }
+
+    private static boolean isItemKey(String k) {
+        switch (k) {
+            case "videoRenderer": case "gridVideoRenderer": case "compactVideoRenderer": case "playlistVideoRenderer":
+            case "playlistPanelVideoRenderer": case "videoWithContextRenderer": case "reelItemRenderer":
+            case "shortsLockupViewModel": case "lockupViewModel": case "tileRenderer": case "channelRenderer":
+            case "gridChannelRenderer": case "gridPlaylistRenderer": case "playlistRenderer":
+                return true;
+            default:
+                return false;
+        }
+    }
+
     // ------------------------------------------------------------------ reading YouTube's responses
     /** Finds every video / channel / playlist anywhere in a response (web and TV layouts). */
     static Page parse(JSONObject root, String only) {

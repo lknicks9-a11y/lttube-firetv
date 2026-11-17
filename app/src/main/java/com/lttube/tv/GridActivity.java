@@ -50,8 +50,9 @@ public class GridActivity extends FragmentActivity {
             title = a.getString(TITLE, "");
             setTitle(title);
 
-            VerticalGridPresenter gp = new VerticalGridPresenter(FocusHighlight.ZOOM_FACTOR_MEDIUM, false);
-            gp.setNumberOfColumns(5);
+            VerticalGridPresenter gp = new VerticalGridPresenter(FocusHighlight.ZOOM_FACTOR_NONE, false);
+            gp.setNumberOfColumns(3);
+            gp.setShadowEnabled(false);
             setGridPresenter(gp);
             setAdapter(adapter);
 
