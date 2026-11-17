@@ -1,0 +1,38 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.lttube.tv'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.lttube.tv'
+        minSdk 22          // Fire OS 5 (oldest Fire TV sticks) and newer
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    signingConfigs {
+        // Fixed key so new versions install over old ones.
+        release {
+            storeFile file('lttube.keystore')
+            storePassword 'lttubetv'
+            keyAlias 'lttube'
+            keyPassword 'lttubetv'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
