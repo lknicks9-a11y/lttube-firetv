@@ -88,7 +88,7 @@ public final class Yti {
         return pg;
     }
 
-    private static final Set<String> GUEST_OK = new HashSet<>(java.util.Arrays.asList("next", "search"));
+    private static final Set<String> GUEST_OK = new HashSet<>(java.util.Arrays.asList("next", "search", "browse"));
 
     /**
      * YouTube's own "Up next" for a video: the same list and order the YouTube app shows
@@ -112,6 +112,35 @@ public final class Yti {
         }
         if (last != null) throw last;
         return new ArrayList<>();
+    }
+
+    /**
+     * A channel's most viewed videos: the Videos tab with YouTube's "Popular" sort chip.
+     * Uses the web flavour (that's where the sort chips are).
+     */
+    public static List<Item> channelPopular(String channelId) throws Exception {
+        String acct = Account.signedInSafe() ? Account.activeKey() : "";
+        JSONObject r = callAs(acct, "", "browse", new JSONObject().put("browseId", channelId).put("params", "EgZ2aWRlb3PyBgQKAjoA"), false);
+        String token = null;
+        List<JSONObject> chips = new ArrayList<>();
+        collectWith(r, "chipViewModel", chips);
+        for (JSONObject c : chips) {
+            JSONObject cv = c.optJSONObject("chipViewModel");
+            if (cv != null && "Popular".equalsIgnoreCase(cv.optString("text"))) token = findString(cv, "token");
+        }
+        if (token == null) {
+            List<JSONObject> old = new ArrayList<>();
+            collectWith(r, "chipCloudChipRenderer", old);
+            for (JSONObject c : old) {
+                JSONObject cr = c.optJSONObject("chipCloudChipRenderer");
+                if (cr != null && "Popular".equalsIgnoreCase(text(cr.optJSONObject("text")))) token = findString(cr, "token");
+            }
+        }
+        if (token == null) return new ArrayList<>();
+        JSONObject more = callAs(acct, "", "browse", new JSONObject().put("continuation", token), false);
+        List<Item> out = new ArrayList<>();
+        for (Item it : parse(more, Item.VIDEO).items) out.add(it);
+        return out;
     }
 
     /** The next screenful of shelves (YouTube's home keeps going as you scroll down). */

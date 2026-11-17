@@ -13,6 +13,15 @@ import okhttp3.Response;
 /** Dumps how YouTube's TV home (signed out) is parsed, to check titles. Never fails. */
 public class TvFeedTest {
     @Test
+    public void popular() {
+        try {
+            java.util.List<Item> l = Yti.channelPopular("UCWJ2lWNubArHWmf3FIHbfcQ");
+            System.out.println("LTT POPULAR " + l.size());
+            for (int i = 0; i < Math.min(5, l.size()); i++) System.out.println("LTT POP  " + l.get(i).title + " | " + l.get(i).sub);
+        } catch (Throwable e) { System.out.println("LTT POPULAR FAILED " + e); e.printStackTrace(System.out); }
+    }
+
+    @Test
     public void tvHome() {
         for (String id : new String[]{"search:nba highlights", "UCWJ2lWNubArHWmf3FIHbfcQ"}) {
             boolean tv = true;

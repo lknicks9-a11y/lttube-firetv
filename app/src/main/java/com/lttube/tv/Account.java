@@ -108,6 +108,8 @@ public final class Account {
     public static void watchAsGuest() { setActive(-1); }
 
     public static boolean signedIn() { return active() != null; }
+    /** Like signedIn(), but false (not a crash) before init — for code that may run in tests. */
+    public static boolean signedInSafe() { return p != null && signedIn(); }
     public static String name() { Profile a = active(); return a == null ? "" : a.name; }
     public static String photo() { Profile a = active(); return a == null ? "" : a.photo; }
     public static String handle() { Profile a = active(); return a == null ? "" : a.handle; }
