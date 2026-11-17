@@ -154,6 +154,22 @@ public class MainActivity extends FragmentActivity {
         });
         loadAvatar();
         show("home", false);
+        updateLoop.run();
+    }
+
+    // Update Center: check now and every 20 minutes, like LTTV
+    private final android.os.Handler timer = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable updateLoop = new Runnable() {
+        @Override public void run() {
+            Updater.check(MainActivity.this, false, null);
+            timer.postDelayed(this, Updater.EVERY);
+        }
+    };
+
+    @Override
+    protected void onDestroy() {
+        timer.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 
     @Override
@@ -304,6 +320,9 @@ public class MainActivity extends FragmentActivity {
         s.add(Account.signedIn()
                 ? Item.action("account", Account.name().isEmpty() ? "Signed in" : Account.name(), "Select to sign out", 0xFFFF0033, R.drawable.ic_account)
                 : Item.action("account", "Sign in to YouTube", "Code at yt.be/activate", 0xFFFF0033, R.drawable.ic_account));
+        boolean upd = Updater.latest != null && Updater.latest.build > Updater.currentBuild(this);
+        s.add(Item.action("update", upd ? "Update to " + Updater.latest.version : "Update Center",
+                "Version " + Updater.currentVersion(this) + " • " + Updater.lastStatus, upd ? 0xFF2E7D32 : 0xFF37474F, R.drawable.ic_replay));
         if (Account.signedIn()) s.add(Item.action("check", "Check account sync", "Test history, likes, subscriptions", 0xFF1E88E5, R.drawable.ic_check));
         s.add(Item.action("quality", "Video quality", qualityName(Store.maxHeight()) + " max", 0xFF26A69A, R.drawable.ic_settings));
         s.add(Item.action("autoplay", "Autoplay", Store.autoplay() ? "On" : "Off", 0xFF5C6BC0, R.drawable.ic_next));
@@ -318,6 +337,10 @@ public class MainActivity extends FragmentActivity {
         switch (a) {
             case "account": accountMenu(); break;
             case "check": AccountCheck.run(this); break;
+            case "update":
+                if (Updater.latest != null && Updater.latest.build > Updater.currentBuild(this)) Updater.offer(this, Updater.latest);
+                else Updater.check(this, true, () -> { if ("settings".equals(section)) show("settings", true); });
+                break;
             case "import":
                 new Importer(this, added -> show(section, false)).start();
                 break;

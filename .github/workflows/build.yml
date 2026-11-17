@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
 
       - uses: actions/setup-java@v5
         with:
@@ -49,4 +51,4 @@ jobs:
           gh release create "v1.0.${{ github.run_number }}" LTTube-TV.apk \
             --title "LTTube TV 1.0.${{ github.run_number }}" \
             --latest \
-            --notes "Fire TV: open Downloader and enter github.com/${{ github.repository }}/releases/latest/download/LTTube-TV.apk"
+            --notes "$(git log -1 --pretty=%B | grep -v -e '^Co-Authored-By' -e '^Claude-Session' | sed '/^$/N;/^\n$/D')"
