@@ -1,12 +1,11 @@
 package com.lttube.tv;
 
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.util.TypedValue;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -14,8 +13,8 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.fragment.app.FragmentActivity;
 
@@ -25,253 +24,299 @@ import com.bumptech.glide.request.RequestOptions;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Home: a YouTube TV-style side rail, top bar, and rows of videos. */
+/** Home: the YouTube TV side menu, and rows / Subscriptions / Settings on the right. */
 public class MainActivity extends FragmentActivity {
 
-    private static final String[][] RAIL = {
-            {"search", "Search"}, {"home", "Home"}, {"shorts", "Shorts"}, {"subs", "Subscriptions"},
-            {"you", "You"}, {"music", "Music"}, {"gaming", "Gaming"}, {"live", "Live"}, {"settings", "Settings"}};
-    private static final int[] RAIL_ICONS = {R.drawable.ic_search, R.drawable.ic_home, R.drawable.ic_shorts,
-            R.drawable.ic_subs, R.drawable.ic_library, R.drawable.ic_music, R.drawable.ic_gaming, R.drawable.ic_live,
-            R.drawable.ic_settings};
+    private static final String[][] NAV = {
+            {"search", "Search"}, {"home", "Home"}, {"shorts", "Shorts"}, {"subs", "Subscriptions"}, {"library", "Library"},
+            {"-", ""},
+            {"music", "Music"}, {"movies", "Movies & TV"}, {"live", "Live"}, {"gaming", "Gaming"}, {"news", "News"},
+            {"sports", "Sports"}, {"podcasts", "Podcasts"},
+            {"-", ""},
+            {"settings", "Settings"}};
+    private static final int[] NAV_ICONS = {R.drawable.ic_search, R.drawable.ic_home, R.drawable.ic_shorts,
+            R.drawable.ic_subs, R.drawable.ic_library, 0, R.drawable.ic_music, R.drawable.ic_live, R.drawable.ic_live,
+            R.drawable.ic_gaming, R.drawable.ic_info, R.drawable.ic_check, R.drawable.ic_comment, 0, R.drawable.ic_settings};
 
     private RowsController rows;
-    private LinearLayout rail;
-    private final List<LinearLayout> railItems = new ArrayList<>();
-    private final List<TextView> railLabels = new ArrayList<>();
-    private final List<ImageView> railIcons = new ArrayList<>();
+    private FrameLayout rowsHolder, paneHolder;
+    private SubsPane subsPane;
+    private SettingsPane settingsPane;
+    private LinearLayout nav, navList;
+    private final List<View> navItems = new ArrayList<>();
+    private final List<String> navKeys = new ArrayList<>();
+    private final List<TextView> navLabels = new ArrayList<>();
+    private LinearLayout profileItem;
     private ImageView avatar;
+    private TextView profileName;
+    private TextView searchPill;
     private String section = "";
-    private boolean railOpen;
-    private float d;
+    private boolean navOpen;
+    private final Handler timer = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        d = getResources().getDisplayMetrics().density;
-
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(0xFF0F0F0F);
+        root.setBackgroundColor(Ui.BG);
 
-        // ---- content: top bar + rows
+        // ---- content
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(-1, -1);
-        cl.leftMargin = dp(84);
+        cl.leftMargin = dp(88);
         root.addView(content, cl);
 
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        top.setPadding(0, dp(18), dp(40), dp(4));
-
-        avatar = new ImageView(this);
-        avatar.setFocusable(true);
-        avatar.setPadding(dp(3), dp(3), dp(3), dp(3));
-        avatar.setBackground(focusCircle(false));
-        avatar.setOnFocusChangeListener((v, has) -> avatar.setBackground(focusCircle(has)));
-        avatar.setOnClickListener(v -> accountMenu());
-        top.addView(avatar, new LinearLayout.LayoutParams(dp(40), dp(40)));
-
-        TextView search = new TextView(this);
-        search.setText("Search");
-        search.setTextColor(0xFFAAAAAA);
-        search.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        search.setGravity(Gravity.CENTER_VERTICAL);
-        search.setCompoundDrawablesRelativeWithIntrinsicBounds(tinted(R.drawable.ic_search, 0xFFAAAAAA), null, null, null);
-        search.setCompoundDrawablePadding(dp(12));
-        search.setPadding(dp(18), 0, dp(18), 0);
-        search.setFocusable(true);
-        search.setBackground(pill(0xFF272727, 0));
-        search.setOnFocusChangeListener((v, has) -> {
-            search.setBackground(pill(has ? 0xFFFFFFFF : 0xFF272727, 0));
-            search.setTextColor(has ? 0xFF0F0F0F : 0xFFAAAAAA);
+        searchPill = Ui.text(this, 18, Color.WHITE, true);
+        searchPill.setText("Search");
+        searchPill.setGravity(Gravity.CENTER_VERTICAL);
+        searchPill.setPadding(dp(24), 0, dp(24), 0);
+        searchPill.setFocusable(true);
+        searchPill.setBackground(Ui.pill(this, Ui.SURFACE, 24));
+        searchPill.setOnFocusChangeListener((v, has) -> {
+            searchPill.setBackground(Ui.pill(this, has ? Ui.FOCUS : Ui.SURFACE, 24));
+            searchPill.setTextColor(has ? 0xFF0F0F0F : Color.WHITE);
         });
-        search.setOnClickListener(v -> startActivity(new Intent(this, SearchActivity.class)));
-        LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(dp(380), dp(40));
-        sl.leftMargin = dp(18);
-        top.addView(search, sl);
+        searchPill.setOnClickListener(v -> startActivity(new Intent(this, SearchActivity.class)));
+        LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(dp(520), dp(46));
+        sl.setMargins(dp(26), dp(26), 0, dp(6));
+        content.addView(searchPill, sl);
 
-        View spacer = new View(this);
-        top.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1f));
+        FrameLayout stack = new FrameLayout(this);
+        content.addView(stack, new LinearLayout.LayoutParams(-1, 0, 1f));
+        rowsHolder = new FrameLayout(this);
+        rowsHolder.setId(View.generateViewId());
+        stack.addView(rowsHolder, new FrameLayout.LayoutParams(-1, -1));
+        paneHolder = new FrameLayout(this);
+        paneHolder.setVisibility(View.GONE);
+        stack.addView(paneHolder, new FrameLayout.LayoutParams(-1, -1));
 
-        ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.logo_wordmark);
-        logo.setAdjustViewBounds(true);
-        top.addView(logo, new LinearLayout.LayoutParams(-2, dp(26)));
-        content.addView(top, new LinearLayout.LayoutParams(-1, -2));
+        // ---- side menu
+        nav = new LinearLayout(this);
+        nav.setOrientation(LinearLayout.VERTICAL);
+        nav.setBackgroundColor(Ui.BG);
+        nav.setPadding(dp(14), dp(26), dp(14), dp(14));
+        root.addView(nav, new FrameLayout.LayoutParams(dp(88), -1));
 
-        FrameLayout holder = new FrameLayout(this);
-        holder.setId(View.generateViewId());
-        content.addView(holder, new LinearLayout.LayoutParams(-1, 0, 1f));
+        profileItem = navRow(0, "");
+        avatar = (ImageView) profileItem.getChildAt(0);
+        profileName = (TextView) profileItem.getChildAt(1);
+        profileItem.setOnClickListener(v -> openProfiles());
+        nav.addView(profileItem, rowLp());
 
-        // ---- side rail (expands with labels when focused)
-        rail = new LinearLayout(this);
-        rail.setOrientation(LinearLayout.VERTICAL);
-        rail.setPadding(dp(14), dp(80), dp(14), dp(20));
-        for (int i = 0; i < RAIL.length; i++) {
-            final String key = RAIL[i][0];
-            LinearLayout item = new LinearLayout(this);
-            item.setOrientation(LinearLayout.HORIZONTAL);
-            item.setGravity(Gravity.CENTER_VERTICAL);
-            item.setFocusable(true);
-            item.setPadding(dp(14), 0, dp(18), 0);
-            ImageView ic = new ImageView(this);
-            ic.setImageResource(RAIL_ICONS[i]);
-            item.addView(ic, new LinearLayout.LayoutParams(dp(24), dp(24)));
-            TextView lab = new TextView(this);
-            lab.setText(RAIL[i][1]);
-            lab.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
-            lab.setPadding(dp(20), 0, 0, 0);
-            lab.setVisibility(View.GONE);
-            item.addView(lab);
-            item.setOnFocusChangeListener((v, has) -> { styleRail(); if (has) openRail(true); else rail.post(this::maybeCloseRail); });
+        ScrollView navScroll = new ScrollView(this);
+        navScroll.setVerticalScrollBarEnabled(false);
+        navList = new LinearLayout(this);
+        navList.setOrientation(LinearLayout.VERTICAL);
+        navScroll.addView(navList);
+        nav.addView(navScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        for (int i = 0; i < NAV.length; i++) {
+            final String key = NAV[i][0];
+            if ("-".equals(key)) {
+                View line = new View(this);
+                line.setBackgroundColor(0x40FFFFFF);
+                LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(-1, dp(1));
+                ll.setMargins(dp(12), dp(8), dp(12), dp(10));
+                navList.addView(line, ll);
+                continue;
+            }
+            LinearLayout item = navRow(NAV_ICONS[i], NAV[i][1]);
             item.setOnClickListener(v -> {
                 if ("search".equals(key)) { startActivity(new Intent(this, SearchActivity.class)); return; }
                 show(key, true);
             });
-            item.setOnKeyListener((v, code, ev) -> {
-                if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_RIGHT && !rows.isEmpty()) {
-                    rows.focus();
-                    return true;
-                }
-                return false;
-            });
-            LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(-1, dp(48));
-            il.bottomMargin = dp(6);
-            if ("settings".equals(key)) il.topMargin = dp(24);
-            rail.addView(item, il);
-            railItems.add(item);
-            railLabels.add(lab);
-            railIcons.add(ic);
+            navList.addView(item, rowLp());
+            navItems.add(item);
+            navKeys.add(key);
         }
-        root.addView(rail, new FrameLayout.LayoutParams(dp(84), -1));
         setContentView(root);
 
-        rows = new RowsController(this, holder.getId(), (it, row) -> {
+        rows = new RowsController(this, rowsHolder.getId(), (it, row) -> {
             if (Item.ACTION.equals(it.type)) { onAction(it.action); return; }
             Nav.open(this, it, row);
         });
-        loadAvatar();
+        loadProfile();
         show("home", false);
         updateLoop.run();
-    }
-
-    // Update Center: check now and every 20 minutes, like LTTV
-    private final android.os.Handler timer = new android.os.Handler(android.os.Looper.getMainLooper());
-    private final Runnable updateLoop = new Runnable() {
-        @Override public void run() {
-            Updater.check(MainActivity.this, false, null);
-            timer.postDelayed(this, Updater.EVERY);
-        }
-    };
-
-    @Override
-    protected void onDestroy() {
-        timer.removeCallbacksAndMessages(null);
-        super.onDestroy();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        loadAvatar();
-        // refresh lists that change while watching
-        if ("you".equals(section) || "settings".equals(section)) show(section, false);
+        loadProfile();
+        if ("library".equals(section)) show(section, false);
+        if (settingsPane != null && "settings".equals(section)) settingsPane.refresh();
     }
 
-    // ------------------------------------------------------------------ rail
-    private void openRail(boolean open) {
-        if (railOpen == open) return;
-        railOpen = open;
-        ViewGroup.LayoutParams lp = rail.getLayoutParams();
-        lp.width = dp(open ? 250 : 84);
-        rail.setLayoutParams(lp);
-        rail.setBackground(open ? new android.graphics.drawable.GradientDrawable(
-                GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0xF20F0F0F, 0xE60F0F0F}) : null);
-        for (TextView t : railLabels) t.setVisibility(open ? View.VISIBLE : View.GONE);
-        styleRail();
+    // ------------------------------------------------------------------ side menu
+    private LinearLayout navRow(int icon, String label) {
+        final LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.HORIZONTAL);
+        item.setGravity(Gravity.CENTER_VERTICAL);
+        item.setFocusable(true);
+        item.setPadding(dp(14), 0, dp(14), 0);
+        ImageView ic = new ImageView(this);
+        if (icon != 0) { ic.setImageResource(icon); ic.setColorFilter(Color.WHITE); }
+        item.addView(ic, new LinearLayout.LayoutParams(icon != 0 ? dp(24) : dp(32), icon != 0 ? dp(24) : dp(32)));
+        TextView lab = Ui.text(this, 18, Color.WHITE, true);
+        lab.setText(label);
+        lab.setSingleLine(true);
+        lab.setPadding(dp(18), 0, 0, 0);
+        lab.setVisibility(View.GONE);
+        item.addView(lab);
+        navLabels.add(lab);
+        item.setOnFocusChangeListener((v, has) -> {
+            styleNav();
+            if (has) openNav(true); else nav.post(this::maybeCloseNav);
+        });
+        item.setOnKeyListener((v, code, ev) -> {
+            if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_RIGHT) { focusContent(); return true; }
+            return false;
+        });
+        return item;
     }
 
-    private void maybeCloseRail() {
+    private LinearLayout.LayoutParams rowLp() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(46));
+        lp.bottomMargin = dp(4);
+        return lp;
+    }
+
+    private void openNav(boolean open) {
+        if (navOpen == open) return;
+        navOpen = open;
+        ViewGroup.LayoutParams lp = nav.getLayoutParams();
+        lp.width = dp(open ? 300 : 88);
+        nav.setLayoutParams(lp);
+        nav.setBackgroundColor(open ? Ui.NAV : Ui.BG);
+        nav.setElevation(open ? dp(12) : 0);
+        for (TextView t : navLabels) t.setVisibility(open ? View.VISIBLE : View.GONE);
+        styleNav();
+    }
+
+    private void maybeCloseNav() {
         View f = getCurrentFocus();
-        if (f == null || !railItems.contains(f)) openRail(false);
+        if (f == null || !(navItems.contains(f) || f == profileItem)) openNav(false);
     }
 
-    private void styleRail() {
-        for (int i = 0; i < railItems.size(); i++) {
-            LinearLayout item = railItems.get(i);
-            boolean focused = item.hasFocus() || item.isFocused();
-            boolean current = RAIL[i][0].equals(section);
-            int fg = focused ? 0xFF0F0F0F : current ? Color.WHITE : 0xFF9E9E9E;
-            item.setBackground(focused ? pill(Color.WHITE, 0) : current && railOpen ? pill(0xFF272727, 0) : null);
-            railIcons.get(i).setColorFilter(fg);
-            railLabels.get(i).setTextColor(fg);
+    private void styleNav() {
+        for (int i = 0; i < navItems.size(); i++) {
+            View item = navItems.get(i);
+            boolean focused = item.isFocused();
+            boolean current = navKeys.get(i).equals(section);
+            item.setBackground(focused ? Ui.pill(this, Ui.FOCUS, 10) : current ? Ui.pill(this, 0xFF333746, 10) : null);
+            ImageView ic = (ImageView) ((LinearLayout) item).getChildAt(0);
+            TextView lab = (TextView) ((LinearLayout) item).getChildAt(1);
+            ic.setColorFilter(focused ? 0xFF0F0F0F : current || navOpen ? Color.WHITE : 0xFFB0B4BE);
+            lab.setTextColor(focused ? 0xFF0F0F0F : Color.WHITE);
         }
+        boolean pf = profileItem.isFocused();
+        profileItem.setBackground(pf ? Ui.pill(this, Ui.FOCUS, 10) : null);
+        profileName.setTextColor(pf ? 0xFF0F0F0F : Color.WHITE);
+    }
+
+    private void focusContent() {
+        if (paneHolder.getVisibility() == View.VISIBLE) {
+            if (subsPane != null && "subs".equals(section)) subsPane.focus();
+            else if (settingsPane != null && "settings".equals(section)) settingsPane.focus();
+        } else if (!rows.isEmpty()) {
+            rows.focus();
+        }
+    }
+
+    private void loadProfile() {
+        if (Account.signedIn()) {
+            profileName.setText(Account.name().isEmpty() ? "You" : Account.name());
+            avatar.setColorFilter(null);
+            if (!Account.photo().isEmpty()) {
+                Glide.with(this).load(Account.photo()).apply(RequestOptions.circleCropTransform()).into(avatar);
+            } else {
+                avatar.setImageResource(R.drawable.ic_account);
+                avatar.setColorFilter(Color.WHITE);
+                Bg.run(() -> { Yti.loadProfile(); return true; }, (r, e) -> { if (!Account.photo().isEmpty()) loadProfile(); });
+            }
+        } else {
+            profileName.setText("Guest • Sign in");
+            avatar.setImageResource(R.drawable.ic_account);
+            avatar.setColorFilter(Color.WHITE);
+        }
+    }
+
+    private void openProfiles() {
+        Intent i = new Intent(this, WelcomeActivity.class);
+        if (Account.profiles().isEmpty()) i.putExtra(WelcomeActivity.MODE, WelcomeActivity.SIGN_IN);
+        startActivity(i);
     }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
-        if (e.getKeyCode() == KeyEvent.KEYCODE_BACK && e.getAction() == KeyEvent.ACTION_UP) {
+        if (e.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            if (e.getAction() != KeyEvent.ACTION_UP) return true;
             View f = getCurrentFocus();
-            boolean inRail = f != null && railItems.contains(f);
-            if (!inRail) {
-                // like YouTube: Back jumps to the menu first
-                int idx = indexOf(section);
-                railItems.get(Math.max(0, idx)).requestFocus();
+            boolean inNav = f != null && (navItems.contains(f) || f == profileItem);
+            if (!inNav) {
+                int idx = navKeys.indexOf(section);
+                navItems.get(Math.max(0, idx)).requestFocus();
                 return true;
             }
-            if (!"home".equals(section)) { show("home", false); railItems.get(1).requestFocus(); return true; }
+            if (!"home".equals(section)) { show("home", false); navItems.get(navKeys.indexOf("home")).requestFocus(); return true; }
             finish();
             return true;
         }
-        if (e.getKeyCode() == KeyEvent.KEYCODE_BACK) return true;
         return super.dispatchKeyEvent(e);
     }
 
-    private int indexOf(String key) {
-        for (int i = 0; i < RAIL.length; i++) if (RAIL[i][0].equals(key)) return i;
-        return 1;
-    }
-
     // ------------------------------------------------------------------ sections
-    private void show(String key, boolean focusContent) {
+    void show(String key, boolean focusContent) {
         section = key;
-        styleRail();
+        styleNav();
+        boolean pane = "subs".equals(key) || "settings".equals(key);
+        paneHolder.setVisibility(pane ? View.VISIBLE : View.GONE);
+        rowsHolder.setVisibility(pane ? View.GONE : View.VISIBLE);
+        searchPill.setVisibility("home".equals(key) ? View.VISIBLE : View.GONE);
         rows.clear();
+        if (pane) {
+            paneHolder.removeAllViews();
+            if ("subs".equals(key)) {
+                subsPane = new SubsPane(this);
+                paneHolder.addView(subsPane.view, new FrameLayout.LayoutParams(-1, -1));
+                if (focusContent) subsPane.focusWhenReady();
+            } else {
+                settingsPane = new SettingsPane(this);
+                paneHolder.addView(settingsPane.view, new FrameLayout.LayoutParams(-1, -1));
+                if (focusContent) settingsPane.focus();
+            }
+            return;
+        }
         if (focusContent) rows.onFirstRow(() -> rows.focus());
         else rows.onFirstRow(() -> { View f = getCurrentFocus(); if (f == null) rows.focus(); });
         boolean in = Account.signedIn();
         switch (key) {
             case "home":
                 rows.add(Sources::continueWatching);
-                if (in) rows.add(() -> Yti.sections(Yti.HOME, "Recommended"));
+                if (in) rows.add(() -> {
+                    List<Shelf> l = Yti.sections(Yti.HOME, "Recommended");
+                    if (!l.isEmpty() && "Recommended".equals(l.get(0).title) && l.get(0).subtitle.isEmpty())
+                        l.get(0).subtitle = "Based on your Subscriptions and History";
+                    return l;
+                });
                 else rows.add(Sources::recommended);
                 rows.add(() -> Sources.kiosk("trending_music", "Trending music"));
                 rows.add(() -> Sources.kiosk("trending_gaming", "Trending in gaming"));
                 rows.add(() -> Sources.kiosk("live", "Live now"));
                 rows.add(() -> Sources.kiosk("trending_podcasts_episodes", "Podcasts"));
-                rows.add(() -> Sources.kiosk("trending_movies_and_shows", "Movies & trailers"));
                 if (!in) rows.addNow(signInShelf());
                 break;
             case "shorts":
                 if (in) rows.add(Sources::accountShorts);
                 rows.add(() -> Sources.searchShorts("#shorts", "Trending Shorts"));
-                rows.add(() -> Sources.searchShorts("#shorts funny", "Comedy Shorts"));
-                rows.add(() -> Sources.searchShorts("#shorts music", "Music Shorts"));
-                rows.add(() -> Sources.searchShorts("#shorts gaming", "Gaming Shorts"));
+                rows.add(() -> Sources.searchShorts("#shorts funny", "Comedy"));
+                rows.add(() -> Sources.searchShorts("#shorts sports", "Sports"));
+                rows.add(() -> Sources.searchShorts("#shorts gaming", "Gaming"));
+                rows.add(() -> Sources.searchShorts("#shorts music", "Music"));
                 break;
-            case "subs":
-                if (in) {
-                    rows.add(() -> Sources.accountRow(Yti.CHANNELS, "Your channels"));
-                    rows.add(() -> Yti.sections(Yti.SUBS, "Latest"));
-                } else {
-                    rows.add(Sources::localChannels);
-                    rows.add(Sources::localSubsFeed);
-                    rows.addNow(signInShelf());
-                }
-                break;
-            case "you":
+            case "library":
                 rows.add(Sources::continueWatching);
                 if (in) {
                     rows.add(() -> Sources.accountRow(Yti.HISTORY, "History"));
@@ -288,20 +333,35 @@ public class MainActivity extends FragmentActivity {
                 rows.add(() -> Sources.search("new music this week official video", "New releases"));
                 rows.add(() -> Sources.search("top hits 2026", "Top hits"));
                 rows.add(() -> Sources.search("live performance", "Live performances"));
-                rows.add(() -> Sources.kiosk("trending_podcasts_episodes", "Podcasts"));
+                break;
+            case "movies":
+                rows.add(() -> Sources.kiosk("trending_movies_and_shows", "Trending movies & shows"));
+                rows.add(() -> Sources.search("official trailer 2026", "New trailers"));
+                rows.add(() -> Sources.search("full movie free", "Free movies"));
+                break;
+            case "live":
+                rows.add(() -> Sources.kiosk("live", "Live now"));
+                rows.add(() -> Sources.search("live stream now", "Streaming now"));
                 break;
             case "gaming":
                 rows.add(() -> Sources.kiosk("trending_gaming", "Trending in gaming"));
                 rows.add(() -> Sources.search("gaming highlights", "Highlights"));
                 rows.add(() -> Sources.search("new game trailer", "Game trailers"));
                 break;
-            case "live":
-                rows.add(() -> Sources.kiosk("live", "Live now"));
-                rows.add(() -> Sources.search("live news", "News"));
-                rows.add(() -> Sources.search("live sports", "Sports"));
+            case "news":
+                rows.add(() -> Sources.search("news today", "Top news"));
+                rows.add(() -> Sources.search("breaking news live", "Live news"));
+                rows.add(() -> Sources.search("world news", "World"));
                 break;
-            case "settings":
-                rows.addNow(settingsShelf());
+            case "sports":
+                rows.add(() -> Sources.search("nba highlights", "NBA"));
+                rows.add(() -> Sources.search("nfl highlights", "NFL"));
+                rows.add(() -> Sources.search("college football highlights", "College football"));
+                rows.add(() -> Sources.search("sports highlights today", "Top highlights"));
+                break;
+            case "podcasts":
+                rows.add(() -> Sources.kiosk("trending_podcasts_episodes", "Trending podcasts"));
+                rows.add(() -> Sources.search("podcast full episode", "Full episodes"));
                 break;
             default:
                 break;
@@ -310,124 +370,50 @@ public class MainActivity extends FragmentActivity {
 
     private Shelf signInShelf() {
         List<Item> l = new ArrayList<>();
-        l.add(Item.action("account", "Sign in to YouTube", "Your home, subscriptions, history and playlists", 0xFFFF0033, R.drawable.ic_account));
+        l.add(Item.action("signin", "Sign in to YouTube", "Your home, subscriptions, history and playlists", Ui.RED, R.drawable.ic_account));
         l.add(Item.action("import", "Import subscriptions", "One time, from LTTube on your PC", 0xFF3A3A3A, R.drawable.ic_subs));
         return new Shelf("Make it yours", l);
     }
 
-    private Shelf settingsShelf() {
-        List<Item> s = new ArrayList<>();
-        s.add(Account.signedIn()
-                ? Item.action("account", Account.name().isEmpty() ? "Signed in" : Account.name(), "Select to sign out", 0xFFFF0033, R.drawable.ic_account)
-                : Item.action("account", "Sign in to YouTube", "Code at yt.be/activate", 0xFFFF0033, R.drawable.ic_account));
-        boolean upd = Updater.latest != null && Updater.latest.build > Updater.currentBuild(this);
-        s.add(Item.action("update", upd ? "Update to " + Updater.latest.version : "Update Center",
-                "Version " + Updater.currentVersion(this) + " • " + Updater.lastStatus, upd ? 0xFF2E7D32 : 0xFF37474F, R.drawable.ic_replay));
-        if (Account.signedIn()) s.add(Item.action("check", "Check account sync", "Test history, likes, subscriptions", 0xFF1E88E5, R.drawable.ic_check));
-        s.add(Item.action("quality", "Video quality", qualityName(Store.maxHeight()) + " max", 0xFF26A69A, R.drawable.ic_settings));
-        s.add(Item.action("autoplay", "Autoplay", Store.autoplay() ? "On" : "Off", 0xFF5C6BC0, R.drawable.ic_next));
-        s.add(Item.action("sponsor", "Skip sponsors", Store.sponsorBlock() ? "On (SponsorBlock)" : "Off", 0xFFFFA000, R.drawable.ic_speed));
-        s.add(Item.action("captions", "Subtitles", Store.captions() ? "On when available" : "Off", 0xFF8D6E63, R.drawable.ic_cc));
-        s.add(Item.action("clear", "Clear history on this TV", Store.history().size() + " videos", 0xFF546E7A, R.drawable.ic_history));
-        if (!Account.signedIn()) s.add(Item.action("import", "Import subscriptions", "From LTTube on your PC", 0xFF6D4C41, R.drawable.ic_subs));
-        return new Shelf("Settings", s);
-    }
-
-    private void onAction(String a) {
+    void onAction(String a) {
         switch (a) {
-            case "account": accountMenu(); break;
-            case "check": AccountCheck.run(this); break;
-            case "update":
-                if (Updater.latest != null && Updater.latest.build > Updater.currentBuild(this)) Updater.offer(this, Updater.latest);
-                else Updater.check(this, true, () -> { if ("settings".equals(section)) show("settings", true); });
-                break;
-            case "import":
-                new Importer(this, added -> show(section, false)).start();
-                break;
-            case "quality": {
-                final int[] hs = {2160, 1440, 1080, 720, 480, 360};
-                String[] names = new String[hs.length];
-                int cur = 2;
-                for (int i = 0; i < hs.length; i++) { names[i] = qualityName(hs[i]); if (hs[i] == Store.maxHeight()) cur = i; }
-                new AlertDialog.Builder(this).setTitle("Highest video quality")
-                        .setSingleChoiceItems(names, cur, (dd, w) -> { Store.setMaxHeight(hs[w]); dd.dismiss(); show("settings", true); })
-                        .show();
+            case "account": openProfiles(); break;
+            case "signin": {
+                Intent i = new Intent(this, WelcomeActivity.class);
+                i.putExtra(WelcomeActivity.MODE, WelcomeActivity.SIGN_IN);
+                startActivity(i);
                 break;
             }
-            case "autoplay": Store.setAutoplay(!Store.autoplay()); show("settings", true); break;
-            case "sponsor": Store.setSponsorBlock(!Store.sponsorBlock()); show("settings", true); break;
-            case "captions": Store.setCaptions(!Store.captions()); show("settings", true); break;
-            case "clear":
-                new AlertDialog.Builder(this).setTitle("Clear watch history on this TV?")
-                        .setPositiveButton("Clear", (dd, w) -> { Store.clearHistory(); show("settings", true); })
-                        .setNegativeButton("Cancel", null).show();
+            case "check": AccountCheck.run(this); break;
+            case "import": new Importer(this, added -> show(section, false)).start(); break;
+            case "update":
+                if (Updater.latest != null && Updater.latest.build > Updater.currentBuild(this)) Updater.offer(this, Updater.latest);
+                else Updater.check(this, true, () -> { if (settingsPane != null && "settings".equals(section)) settingsPane.refresh(); });
                 break;
             default: break;
         }
     }
 
-    private void accountMenu() {
-        if (!Account.signedIn()) {
-            SignIn.show(this, () -> { loadAvatar(); show("home", true); });
-            return;
+    // Update Center: check now and every 20 minutes, like LTTV
+    private final Runnable updateLoop = new Runnable() {
+        @Override public void run() {
+            Updater.check(MainActivity.this, false, null);
+            timer.postDelayed(this, Updater.EVERY);
         }
-        new AlertDialog.Builder(this)
-                .setTitle("Signed in as " + (Account.name().isEmpty() ? "your YouTube account" : Account.name()))
-                .setItems(new String[]{"Check account sync", "Sign out"}, (dd, w) -> {
-                    if (w == 0) AccountCheck.run(this);
-                    else {
-                        Account.signOut();
-                        loadAvatar();
-                        show("home", false);
-                        Toast.makeText(this, "Signed out", Toast.LENGTH_SHORT).show();
-                    }
-                }).show();
+    };
+
+    @Override
+    protected void onDestroy() {
+        timer.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 
-    private void loadAvatar() {
-        if (Account.signedIn() && !Account.photo().isEmpty()) {
-            avatar.setColorFilter(null);
-            Glide.with(this).load(Account.photo()).apply(RequestOptions.circleCropTransform()).into(avatar);
-        } else {
-            avatar.setImageResource(R.drawable.ic_account);
-            avatar.setColorFilter(Account.signedIn() ? 0xFFFF0033 : 0xFF9E9E9E);
-            if (Account.signedIn() && Account.photo().isEmpty())
-                Bg.run(() -> { Yti.loadProfile(); return true; }, (r, e) -> {
-                    if (!Account.photo().isEmpty()) loadAvatar();
-                });
-        }
-    }
-
-    private static String qualityName(int h) {
-        return h == 2160 ? "4K" : h + "p";
-    }
-
-    // ------------------------------------------------------------------ helpers
-    private GradientDrawable pill(int color, int stroke) {
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(color);
-        g.setCornerRadius(dp(24));
-        if (stroke != 0) g.setStroke(dp(2), stroke);
-        return g;
-    }
-
-    private GradientDrawable focusCircle(boolean focused) {
-        GradientDrawable g = new GradientDrawable();
-        g.setShape(GradientDrawable.OVAL);
-        g.setColor(Color.TRANSPARENT);
-        if (focused) g.setStroke(dp(3), Color.WHITE);
-        return g;
-    }
-
-    private android.graphics.drawable.Drawable tinted(int res, int color) {
-        android.graphics.drawable.Drawable dr = getResources().getDrawable(res, getTheme()).mutate();
+    Drawable icon(int res, int color, int sizeDp) {
+        Drawable dr = getResources().getDrawable(res, getTheme()).mutate();
         dr.setTint(color);
-        dr.setBounds(0, 0, dp(22), dp(22));
+        dr.setBounds(0, 0, dp(sizeDp), dp(sizeDp));
         return dr;
     }
 
-    private int dp(int v) { return Math.round(v * d); }
-
-    @SuppressWarnings("unused")
-    private static ColorDrawable none() { return new ColorDrawable(Color.TRANSPARENT); }
+    int dp(float v) { return Ui.dp(this, v); }
 }

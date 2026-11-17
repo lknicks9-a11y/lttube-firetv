@@ -39,6 +39,7 @@ public class RowsController {
         rp.setShadowEnabled(false);
         rp.setSelectEffectEnabled(false);
         rp.setKeepChildForeground(true);
+        rp.setHeaderPresenter(new LtHeaderPresenter());
         rows = new ArrayObjectAdapter(rp);
         fragment.setAdapter(rows);
         act.getSupportFragmentManager().beginTransaction().replace(containerId, fragment).commitNow();
@@ -84,7 +85,9 @@ public class RowsController {
                 if (sh.items.isEmpty()) continue;
                 ArrayObjectAdapter a = new ArrayObjectAdapter(cards);
                 a.addAll(0, sh.items);
-                ListRow lr = new ListRow(new HeaderItem(sh.title), a);
+                HeaderItem hi = new HeaderItem(sh.title);
+                if (sh.subtitle != null && !sh.subtitle.isEmpty()) hi.setDescription(sh.subtitle);
+                ListRow lr = new ListRow(hi, a);
                 shelves.put(lr, sh);
                 slots.get(slot).add(lr);
                 rows.add(at++, lr);

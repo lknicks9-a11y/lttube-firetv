@@ -145,6 +145,53 @@ public final class Yti {
         } catch (Exception ignored) { }
     }
 
+    /** The main account and each of its channels, for "Who's watching?". */
+    public static List<Account.Profile> accountsList(String acct) throws Exception {
+        List<Account.Profile> out = new ArrayList<>();
+        Exception last = null;
+        for (int i = 0; i < 2 && out.isEmpty(); i++) {
+            boolean tv = i == 0;
+            try {
+                JSONObject r = callAs(acct, "", tv ? "account/accounts_list" : "account/account_menu",
+                        tv ? new JSONObject().put("accountReadMask", new JSONObject().put("returnOwner", true)
+                                .put("returnBrandAccounts", true).put("returnPersonalAccount", true))
+                           : new JSONObject(), tv);
+                List<JSONObject> items = new ArrayList<>();
+                collectWith(r, "accountName", items);
+                Set<String> seen = new HashSet<>();
+                for (JSONObject it : items) {
+                    Account.Profile pr = new Account.Profile();
+                    pr.acct = acct;
+                    pr.name = text(it.optJSONObject("accountName"));
+                    pr.photo = bestThumb(it.optJSONObject("accountPhoto"));
+                    pr.handle = text(it.optJSONObject("channelHandle"));
+                    String pid = findString(it, "pageId");
+                    pr.pageId = pid == null ? "" : pid;
+                    if (pr.name.isEmpty() || !seen.add(pr.pageId + "|" + pr.name)) continue;
+                    if (pr.pageId.isEmpty()) out.add(0, pr); else out.add(pr);
+                }
+            } catch (Exception e) { last = e; }
+        }
+        if (out.isEmpty() && last != null) throw last;
+        return out;
+    }
+
+    /** Every object that has the given key, anywhere in a response. */
+    private static void collectWith(Object node, String key, List<JSONObject> out) {
+        if (node instanceof JSONArray) {
+            JSONArray a = (JSONArray) node;
+            for (int i = 0; i < a.length(); i++) collectWith(a.opt(i), key, out);
+        } else if (node instanceof JSONObject) {
+            JSONObject o = (JSONObject) node;
+            if (o.has(key)) { out.add(o); return; }
+            Iterator<String> it = o.keys();
+            while (it.hasNext()) collectWith(o.opt(it.next()), key, out);
+        }
+    }
+
+    /** Nothing cached per-account right now; kept for profile switches. */
+    public static void resetCaches() { }
+
     /** Your name and picture. */
     public static void loadProfile() {
         for (int i = 0; i < 2; i++) {
@@ -162,7 +209,12 @@ public final class Yti {
 
     // ------------------------------------------------------------------ the API call
     static JSONObject call(String endpoint, JSONObject body, boolean tv) throws Exception {
-        String token = Account.token();
+        return callAs(Account.activeKey(), Account.pageId(), endpoint, body, tv);
+    }
+
+    /** Calls YouTube as a Google account, optionally as one of its channels (pageId). */
+    static JSONObject callAs(String acct, String pageId, String endpoint, JSONObject body, boolean tv) throws Exception {
+        String token = acct == null || acct.isEmpty() ? null : Account.tokenFor(acct);
         if (token == null) throw new Exception("Not signed in");
         Locale l = Locale.getDefault();
         JSONObject client = new JSONObject()
@@ -171,7 +223,9 @@ public final class Yti {
                 .put("hl", l.getLanguage())
                 .put("gl", l.getCountry().isEmpty() ? "US" : l.getCountry());
         if (tv) client.put("platform", "TV").put("clientFormFactor", "UNKNOWN_FORM_FACTOR");
-        body.put("context", new JSONObject().put("client", client).put("user", new JSONObject()));
+        JSONObject user = new JSONObject();
+        if (pageId != null && !pageId.isEmpty()) user.put("onBehalfOfUser", pageId);
+        body.put("context", new JSONObject().put("client", client).put("user", user));
 
         Request r = new Request.Builder()
                 .url("https://www.youtube.com/youtubei/v1/" + endpoint + "?prettyPrint=false")
@@ -285,6 +339,12 @@ public final class Yti {
                 walk(r, pg, seen, only);
                 if ("reelShelfRenderer".equals(k)) for (Item it : pg.items) it.isShort = it.isShort || Item.VIDEO.equals(it.type);
                 Shelf sh = new Shelf(title.isEmpty() ? "More" : title, pg.items);
+                JSONObject sub = r.optJSONObject("subtitle");
+                if (sub == null) {
+                    JSONObject hr2 = r.optJSONObject("headerRenderer");
+                    if (hr2 != null) sub = findObject(hr2, "subtitle");
+                }
+                sh.subtitle = text(sub);
                 sh.cont = pg.continuation;
                 sh.contTv = tv;
                 sh.only = only;

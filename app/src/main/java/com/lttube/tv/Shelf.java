@@ -8,6 +8,7 @@ import java.util.List;
 /** One row of cards, and how to get more of it. */
 public class Shelf {
     public String title;
+    public String subtitle = "";
     public final List<Item> items = new ArrayList<>();
     // more items: either a YouTube-account continuation…
     public String cont;
