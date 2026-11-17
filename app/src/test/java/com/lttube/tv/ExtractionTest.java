@@ -52,6 +52,14 @@ public class ExtractionTest {
             t.printStackTrace(System.out);
         }
         try {
+            String[] id = Account.clientIdentity();
+            System.out.println("LTT tv client id found: " + id[0].substring(0, 12) + "… (fallback=" + id[0].startsWith("861556708454") + ")");
+            org.json.JSONObject code = Account.requestCode(id[0]);
+            System.out.println("LTT device code: " + (code.has("user_code") ? "OK, url " + code.optString("verification_url") : code.toString()));
+        } catch (Throwable t) {
+            System.out.println("LTT SIGN-IN CODE FAILED: " + t);
+        }
+        try {
             String url = ServiceList.YouTube.getKioskList().getListLinkHandlerFactoryByType("trending_music").fromId("trending_music").getUrl();
             System.out.println("LTT music kiosk items: " + KioskInfo.getInfo(ServiceList.YouTube, url).getRelatedItems().size());
             System.out.println("LTT search items: " + SearchInfo.getInfo(ServiceList.YouTube,

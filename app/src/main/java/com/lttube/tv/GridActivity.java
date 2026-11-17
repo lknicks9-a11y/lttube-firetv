@@ -65,6 +65,16 @@ public class GridActivity extends FragmentActivity {
                 if (adapter.indexOf(o) >= adapter.size() - 10) loadMore();
             });
             load();
+            // Your real subscription state from YouTube
+            if (CHANNEL.equals(mode) && Account.signedIn()) {
+                final String cid = Store.channelId(url);
+                Bg.run(() -> Yti.channelSubscribed(cid), (sub, e) -> {
+                    if (sub == null || !isAdded()) return;
+                    if (sub && !Store.isSubscribed(url)) Store.subscribe(url, title, "");
+                    if (!sub && Store.isSubscribed(url)) Store.unsubscribe(url);
+                    if (adapter.size() > 0) adapter.replace(0, header().get(0));
+                });
+            }
         }
 
         private List<Item> items() {
@@ -134,7 +144,14 @@ public class GridActivity extends FragmentActivity {
 
         private void onAction(String a) {
             if ("sub".equals(a)) {
-                if (Store.isSubscribed(url)) {
+                final boolean on = !Store.isSubscribed(url);
+                if (Account.signedIn()) {
+                    final String cid = Store.channelId(url);
+                    Bg.run(() -> { Yti.subscribe(cid, on); return true; }, (r, e) -> {
+                        if (r == null && isAdded()) Toast.makeText(requireContext(), "YouTube didn't save that: " + Bg.message(e), Toast.LENGTH_LONG).show();
+                    });
+                }
+                if (!on) {
                     Store.unsubscribe(url);
                     Toast.makeText(requireContext(), "Unsubscribed", Toast.LENGTH_SHORT).show();
                 } else {

@@ -84,6 +84,7 @@ public class PlayerActivity extends FragmentActivity {
     private Item nextItem;
     private int countdown;
     private long lastSave;
+    private String likeStatus = "INDIFFERENT";
     private final Handler h = new Handler(Looper.getMainLooper());
 
     // ------------------------------------------------------------------ setup
@@ -212,6 +213,7 @@ public class PlayerActivity extends FragmentActivity {
             fillItemFromInfo(si);
             start(si);
             loadSponsorBlock(it.videoId(), seq);
+            if (Account.signedIn()) loadAccountState(it.videoId(), seq);
         });
     }
 
@@ -351,6 +353,28 @@ public class PlayerActivity extends FragmentActivity {
             }
             return;
         }
+    }
+
+    // ------------------------------------------------------------------ your YouTube account
+    private void loadAccountState(final String id, final int seq) {
+        likeStatus = "INDIFFERENT";
+        Bg.run(() -> { Yti.markWatched(id); return Yti.videoState(id); }, (st, e) -> {
+            if (seq != loadSeq || st == null) return;
+            likeStatus = st[0];
+            if ("true".equals(st[1]) && !item.channelUrl.isEmpty() && !Store.isSubscribed(item.channelUrl))
+                Store.subscribe(item.channelUrl, item.channel, info != null ? Item.bestImage(info.getUploaderAvatars(), 176) : "");
+            if ("false".equals(st[1]) && Store.isSubscribed(item.channelUrl)) Store.unsubscribe(item.channelUrl);
+        });
+    }
+
+    private void rate(final String kind, final String msg) {
+        if (!Account.signedIn()) { Toast.makeText(this, "Sign in to YouTube first (Settings row on the home screen)", Toast.LENGTH_LONG).show(); return; }
+        final String id = item.videoId();
+        Bg.run(() -> { Yti.like(id, kind); return true; }, (r, e) -> {
+            if (r == null) { Toast.makeText(this, "YouTube didn't save that: " + Bg.message(e), Toast.LENGTH_LONG).show(); return; }
+            likeStatus = "like".equals(kind) ? "LIKE" : "dislike".equals(kind) ? "DISLIKE" : "INDIFFERENT";
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+        });
     }
 
     // ------------------------------------------------------------------ SponsorBlock
@@ -517,6 +541,19 @@ public class PlayerActivity extends FragmentActivity {
         final List<Runnable> actions = new ArrayList<>();
         final boolean subbed = Store.isSubscribed(item.channelUrl);
 
+        if (Account.signedIn()) {
+            boolean liked = "LIKE".equals(likeStatus), disliked = "DISLIKE".equals(likeStatus);
+            labels.add(liked ? "👍 Liked (select to remove)" : "👍 Like");
+            actions.add(() -> rate(liked ? "removelike" : "like", liked ? "Removed from Liked videos" : "Added to Liked videos"));
+            labels.add(disliked ? "👎 Disliked (select to remove)" : "👎 Dislike");
+            actions.add(() -> rate(disliked ? "removelike" : "dislike", disliked ? "Dislike removed" : "You disliked this"));
+            labels.add("Save to Watch later");
+            actions.add(() -> {
+                final String id = item.videoId();
+                Bg.run(() -> { Yti.watchLater(id, true); return true; }, (r, e) -> Toast.makeText(this,
+                        r == null ? "YouTube didn't save that: " + Bg.message(e) : "Saved to Watch later", Toast.LENGTH_SHORT).show());
+            });
+        }
         labels.add("Quality: " + (Store.maxHeight() >= 2160 ? "4K" : Store.maxHeight() + "p") + " max");
         actions.add(this::qualityMenu);
         labels.add("Audio language");
@@ -530,6 +567,12 @@ public class PlayerActivity extends FragmentActivity {
             actions.add(() -> Nav.channel(this, item.channelUrl, item.channel));
             labels.add(subbed ? "Unsubscribe" : "Subscribe to " + item.channel);
             actions.add(() -> {
+                if (Account.signedIn()) {
+                    final String cid = Store.channelId(item.channelUrl);
+                    Bg.run(() -> { Yti.subscribe(cid, !subbed); return true; }, (r, e) -> {
+                        if (r == null) Toast.makeText(this, "YouTube didn't save that: " + Bg.message(e), Toast.LENGTH_LONG).show();
+                    });
+                }
                 if (subbed) Store.unsubscribe(item.channelUrl);
                 else Store.subscribe(item.channelUrl, item.channel,
                         info != null ? Item.bestImage(info.getUploaderAvatars(), 176) : "");

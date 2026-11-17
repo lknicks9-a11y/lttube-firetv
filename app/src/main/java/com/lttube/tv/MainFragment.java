@@ -31,8 +31,8 @@ public class MainFragment extends BrowseSupportFragment {
     private ArrayObjectAdapter rows;
     private final CardPresenter cards = new CardPresenter();
     private final Map<String, RowState> state = new HashMap<>();
-    private final String[] order = {"continue", "subs", "recommended", "music", "gaming", "live",
-            "podcasts", "movies", "channels", "history", "settings"};
+    private final String[] order = {"continue", "home", "subs", "recommended", "music", "gaming", "live",
+            "podcasts", "movies", "wl", "liked", "playlists", "channels", "history", "settings"};
     private boolean feedLoading;
 
     /** One row on the home screen. */
@@ -43,6 +43,8 @@ public class MainFragment extends BrowseSupportFragment {
         ListRow row;
         Page next;
         Feeds.More more;
+        String cont;       // continuation for account feeds
+        boolean contTv;
         boolean loading;
 
         RowState(String key, String title) {
@@ -102,6 +104,7 @@ public class MainFragment extends BrowseSupportFragment {
         setAdapter(rows);
 
         add("continue", "Continue watching");
+        add("home", "Home");
         add("subs", "Subscriptions");
         add("recommended", "Recommended");
         add("music", "Music");
@@ -109,6 +112,9 @@ public class MainFragment extends BrowseSupportFragment {
         add("live", "Live");
         add("podcasts", "Podcasts");
         add("movies", "Movies & trailers");
+        add("wl", "Watch later");
+        add("liked", "Liked videos");
+        add("playlists", "Your playlists");
         add("channels", "Your channels");
         add("history", "History");
         add("settings", "Settings");
@@ -125,7 +131,9 @@ public class MainFragment extends BrowseSupportFragment {
         setOnItemViewSelectedListener((vh, o, rvh, row) -> {
             if (!(row instanceof ListRow) || o == null) return;
             RowState rs = stateFor((Row) row);
-            if (rs == null || rs.more == null || rs.next == null || rs.loading) return;
+            if (rs == null || rs.loading) return;
+            boolean canMore = (rs.more != null && rs.next != null) || rs.cont != null;
+            if (!canMore) return;
             int idx = rs.items.indexOf(o);
             if (idx >= rs.items.size() - 6) loadMore(rs);
         });
@@ -135,7 +143,8 @@ public class MainFragment extends BrowseSupportFragment {
         loadKiosk("live", "live");
         loadKiosk("podcasts", "trending_podcasts_episodes");
         loadKiosk("movies", "trending_movies_and_shows");
-        loadRecommended();
+        if (Account.signedIn()) loadAccount();
+        else loadRecommended();
     }
 
     @Override
@@ -161,15 +170,18 @@ public class MainFragment extends BrowseSupportFragment {
         List<Item> hist = Store.history();
         for (Item i : hist) if (i.position > 0 && cont.size() < 30) cont.add(i);
         state.get("continue").set(cont);
-        state.get("history").set(hist.size() > 60 ? new ArrayList<>(hist.subList(0, 60)) : hist);
+        if (!Account.signedIn()) state.get("history").set(hist.size() > 60 ? new ArrayList<>(hist.subList(0, 60)) : hist);
 
         List<Item> subs = Store.subs();
-        state.get("channels").set(subs);
+        if (!Account.signedIn() || state.get("channels").items.size() == 0) state.get("channels").set(subs);
 
         List<Item> s = new ArrayList<>();
+        s.add(Account.signedIn()
+                ? Item.action("account", Account.name().isEmpty() ? "Signed in" : Account.name(), "YouTube account • select to sign out", 0xFFFF0033)
+                : Item.action("account", "Sign in to YouTube", "Your home, subscriptions, history, playlists", 0xFFFF0033));
         s.add(Item.action("search", "Search", "Find videos and channels", 0xFF3EA6FF));
-        s.add(Item.action("import", "Import subscriptions", "From LTTube on your PC", 0xFFFF0033));
-        s.add(Item.action("refresh", "Refresh subscriptions", subs.size() + " channels", 0xFF7E57C2));
+        s.add(Item.action("refresh", "Refresh", Account.signedIn() ? "Reload your YouTube" : subs.size() + " channels", 0xFF7E57C2));
+        if (!Account.signedIn()) s.add(Item.action("import", "Import subscriptions", "From LTTube on your PC", 0xFF6D4C41));
         s.add(Item.action("quality", "Video quality", qualityName(Store.maxHeight()), 0xFF26A69A));
         s.add(Item.action("autoplay", "Autoplay", Store.autoplay() ? "On" : "Off", 0xFF5C6BC0));
         s.add(Item.action("sponsor", "Skip sponsors", Store.sponsorBlock() ? "On (SponsorBlock)" : "Off", 0xFFFFA000));
@@ -177,9 +189,10 @@ public class MainFragment extends BrowseSupportFragment {
         s.add(Item.action("clear", "Clear watch history", hist.size() + " videos", 0xFF546E7A));
         state.get("settings").set(s);
 
-        if (subs.isEmpty()) {
+        if (subs.isEmpty() && !Account.signedIn()) {
             List<Item> e = new ArrayList<>();
-            e.add(Item.action("import", "Import your subscriptions", "From LTTube on your PC", 0xFFFF0033));
+            e.add(Item.action("account", "Sign in to YouTube", "See your real subscriptions", 0xFFFF0033));
+            e.add(Item.action("import", "Import your subscriptions", "From LTTube on your PC", 0xFF6D4C41));
             e.add(Item.action("search", "Find channels", "Search, open a channel, press Subscribe", 0xFF3EA6FF));
             state.get("subs").set(e);
         }
@@ -204,6 +217,23 @@ public class MainFragment extends BrowseSupportFragment {
     }
 
     private void loadMore(RowState rs) {
+        if (rs.cont != null) {
+            rs.loading = true;
+            final String c = rs.cont;
+            final String only = "channels".equals(rs.key) ? Item.CHANNEL : null;
+            Bg.run(() -> Yti.more(c, rs.contTv, only), (pg, err) -> {
+                rs.loading = false;
+                if (!isAdded() || pg == null) return;
+                rs.cont = pg.continuation;
+                List<Item> have = rs.list();
+                for (Item i : pg.items) {
+                    boolean dup = false;
+                    for (Item h2 : have) if (h2.url.equals(i.url)) { dup = true; break; }
+                    if (!dup) rs.items.add(i);
+                }
+            });
+            return;
+        }
         rs.loading = true;
         final Page page = rs.next;
         Bg.run(() -> rs.more.load(page), (r, err) -> {
@@ -219,7 +249,48 @@ public class MainFragment extends BrowseSupportFragment {
         });
     }
 
+    // ---------------------------------------------------------------- your YouTube account
+    private boolean accountWarned;
+
+    private void loadAccount() {
+        if (!Account.signedIn()) return;
+        accountFeed("home", Yti.HOME);
+        accountFeed("subs", Yti.SUBS);
+        accountFeed("wl", Yti.WATCH_LATER);
+        accountFeed("liked", Yti.LIKED);
+        accountFeed("playlists", Yti.PLAYLISTS);
+        accountFeed("history", Yti.HISTORY);
+        accountFeed("channels", Yti.CHANNELS);
+        if (Account.name().isEmpty()) Bg.run(() -> { Yti.loadProfile(); return true; }, (r, e) -> { if (isAdded()) refreshLocalRows(); });
+    }
+
+    private void accountFeed(String key, String feed) {
+        RowState rs = state.get(key);
+        Bg.run(() -> Yti.feed(feed), (pg, err) -> {
+            if (!isAdded()) return;
+            if (pg == null) {
+                if (!accountWarned) {
+                    accountWarned = true;
+                    Toast.makeText(requireContext(), "Couldn't load your YouTube: " + Bg.message(err), Toast.LENGTH_LONG).show();
+                }
+                if (!Account.signedIn()) refreshLocalRows();
+                return;
+            }
+            List<Item> list = pg.items;
+            if ("channels".equals(key)) {
+                List<Item> ch = new ArrayList<>();
+                for (Item i : list) if (Item.CHANNEL.equals(i.type)) ch.add(i);
+                list = ch;
+                if (!ch.isEmpty()) Store.addSubs(ch);
+            }
+            rs.cont = pg.continuation;
+            rs.contTv = Yti.tvFlavour();
+            rs.set(list);
+        });
+    }
+
     private void loadSubsFeed(boolean force) {
+        if (Account.signedIn()) return; // your real subscription feed comes from YouTube
         RowState rs = state.get("subs");
         if (Store.subs().isEmpty()) return;
         List<Item> cached = Store.feed();
@@ -254,8 +325,33 @@ public class MainFragment extends BrowseSupportFragment {
                 }).start();
                 break;
             case "refresh":
-                Toast.makeText(requireContext(), "Updating subscriptions…", Toast.LENGTH_SHORT).show();
-                loadSubsFeed(true);
+                Toast.makeText(requireContext(), "Refreshing…", Toast.LENGTH_SHORT).show();
+                if (Account.signedIn()) { accountWarned = false; loadAccount(); }
+                else loadSubsFeed(true);
+                break;
+            case "account":
+                if (Account.signedIn()) {
+                    new AlertDialog.Builder(requireContext())
+                            .setTitle("Signed in as " + (Account.name().isEmpty() ? "your YouTube account" : Account.name()))
+                            .setPositiveButton("Sign out", (d, w) -> {
+                                Account.signOut();
+                                for (String k : new String[]{"home", "wl", "liked", "playlists", "history", "channels", "subs"})
+                                    state.get(k).set(new ArrayList<>());
+                                refreshLocalRows();
+                                loadSubsFeed(true);
+                                loadRecommended();
+                            })
+                            .setNegativeButton("Close", null)
+                            .show();
+                } else {
+                    SignIn.show(requireActivity(), () -> {
+                        state.get("recommended").set(new ArrayList<>());
+                        state.get("subs").set(new ArrayList<>());
+                        state.get("history").set(new ArrayList<>());
+                        refreshLocalRows();
+                        loadAccount();
+                    });
+                }
                 break;
             case "quality": {
                 final int[] hs = {2160, 1440, 1080, 720, 480, 360};

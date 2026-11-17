@@ -13,6 +13,8 @@ public class App extends Application {
     public void onCreate() {
         super.onCreate();
         Store.init(this);
+        Account.init(this);
+        Yti.init(this);
         Locale l = Locale.getDefault();
         String country = l.getCountry().isEmpty() ? "US" : l.getCountry();
         NewPipe.init(NpDownloader.get(), new Localization(l.getLanguage(), country), new ContentCountry(country));
