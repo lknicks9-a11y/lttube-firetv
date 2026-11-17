@@ -38,7 +38,7 @@ import java.util.List;
 public class ChannelActivity extends FragmentActivity {
     public static final String URL = "url", TITLE = "title";
 
-    private static final String[][] TABS = {{"home", "Home"}, {ChannelTabs.VIDEOS, "Videos"}, {ChannelTabs.SHORTS, "Shorts"},
+    private static final String[][] TABS = {{"home", "Home"}, {ChannelTabs.VIDEOS, "Videos"}, {"popular", "Most viewed"}, {ChannelTabs.SHORTS, "Shorts"},
             {ChannelTabs.LIVESTREAMS, "Live"}, {ChannelTabs.PLAYLISTS, "Playlists"}};
 
     private String url, title;
@@ -177,15 +177,17 @@ public class ChannelActivity extends FragmentActivity {
         subBtn.requestFocus();
         load();
 
-        if (Account.signedIn()) {
-            final String cid = Store.channelId(url);
-            Bg.run(() -> Yti.channelSubscribed(cid), (sub, e) -> {
-                if (sub == null) return;
-                if (sub && !Store.isSubscribed(url)) Store.subscribe(url, title, "");
-                if (!sub && Store.isSubscribed(url)) Store.unsubscribe(url);
-                styleSub();
-            });
-        }
+    }
+
+    private void checkSubscribed() {
+        if (!Account.signedIn()) return;
+        final String cid = ucId();
+        Bg.run(() -> Yti.channelSubscribed(cid), (sub, e) -> {
+            if (sub == null) return;
+            if (sub && !Store.isSubscribed(url)) Store.subscribe(url, title, "");
+            if (!sub && Store.isSubscribed(url)) Store.unsubscribe(url);
+            styleSub();
+        });
     }
 
     private final ViewTreeObserver.OnGlobalFocusChangeListener focusWatcher = (oldF, newF) -> {
@@ -216,8 +218,11 @@ public class ChannelActivity extends FragmentActivity {
             // hide tabs the channel doesn't have
             for (TextView tv : tabViews) {
                 String k = (String) tv.getTag();
-                if (!"home".equals(k) && Feeds.channelTab(c, k) == null) tv.setVisibility(View.GONE);
+                if (!"home".equals(k) && !"popular".equals(k) && Feeds.channelTab(c, k) == null) tv.setVisibility(View.GONE);
             }
+            if (c.getId() != null && c.getId().startsWith("UC")) url = "https://www.youtube.com/channel/" + c.getId();
+            checkSubscribed();
+            styleSub();
             selectTab("home");
         });
     }
@@ -231,7 +236,25 @@ public class ChannelActivity extends FragmentActivity {
             grid.setVisibility(View.GONE);
             rowsHolder.setVisibility(View.VISIBLE);
             rows.clear();
-            for (String[] t : TABS) if (!"home".equals(t[0])) addRow(t[0], t[1]);
+            for (String[] t : TABS) {
+                if ("home".equals(t[0])) continue;
+                if ("popular".equals(t[0])) addPopularRow();
+                else addRow(t[0], t[1]);
+            }
+            return;
+        }
+        if ("popular".equals(key)) {
+            rowsHolder.setVisibility(View.GONE);
+            grid.setVisibility(View.VISIBLE);
+            cards.clear();
+            next = null;
+            final String cid = ucId();
+            Bg.run(() -> Yti.channelPopular(cid), (list, err) -> {
+                if (s != seq) return;
+                if (list == null || list.isEmpty()) { Toast.makeText(this, "Couldn't load most viewed videos", Toast.LENGTH_SHORT).show(); return; }
+                fix(list, key);
+                cards.addAll(0, list);
+            });
             return;
         }
         rowsHolder.setVisibility(View.GONE);
@@ -269,6 +292,23 @@ public class ChannelActivity extends FragmentActivity {
         });
     }
 
+    /** The channel's UC… id (links can also be /@handle). */
+    private String ucId() {
+        if (info != null && info.getId() != null && info.getId().startsWith("UC")) return info.getId();
+        return Store.channelId(url);
+    }
+
+    private void addPopularRow() {
+        final String cid = ucId();
+        rows.add(() -> {
+            List<Item> l = Yti.channelPopular(cid);
+            fix(l, "popular");
+            List<Shelf> out = new ArrayList<>();
+            if (!l.isEmpty()) out.add(new Shelf("Most viewed", l));
+            return out;
+        });
+    }
+
     private void addRow(final String key, final String label) {
         final ListLinkHandler h = Feeds.channelTab(info, key);
         if (h == null) return;
@@ -300,7 +340,7 @@ public class ChannelActivity extends FragmentActivity {
     private void styleTabs() {
         for (TextView tv : tabViews) {
             boolean f = tv.isFocused(), cur = tab.equals(tv.getTag());
-            tv.setBackground(f ? Ui.pill(this, Ui.FOCUS, 22) : cur ? Ui.pill(this, 0xFF333746, 22) : null);
+            tv.setBackground(f ? Ui.pill(this, Ui.FOCUS, 22) : cur ? Ui.pill(this, Ui.SELECTED, 22) : null);
             tv.setTextColor(f ? 0xFF0F0F0F : cur ? Color.WHITE : Ui.TEXT2);
         }
     }
@@ -311,7 +351,7 @@ public class ChannelActivity extends FragmentActivity {
         else Store.unsubscribe(url);
         styleSub();
         if (Account.signedIn()) {
-            final String cid = Store.channelId(url);
+            final String cid = ucId();
             Bg.run(() -> { Yti.subscribe(cid, on); return true; }, (r, e) -> {
                 if (r == null) Toast.makeText(this, "YouTube didn't save that: " + Bg.message(e), Toast.LENGTH_LONG).show();
                 else Toast.makeText(this, on ? "Subscribed" : "Unsubscribed", Toast.LENGTH_SHORT).show();
@@ -325,7 +365,7 @@ public class ChannelActivity extends FragmentActivity {
         boolean subbed = Store.isSubscribed(url);
         boolean f = subBtn.isFocused();
         subBtn.setText(subbed ? "Subscribed" : "Subscribe");
-        subBtn.setBackground(Ui.pill(this, f ? Color.WHITE : subbed ? 0xFF333746 : 0xFFF1F1F1, 24));
+        subBtn.setBackground(Ui.pill(this, f ? Color.WHITE : subbed ? Ui.SELECTED : 0xFFF1F1F1, 24));
         subBtn.setTextColor(subbed && !f ? Color.WHITE : 0xFF0F0F0F);
     }
 

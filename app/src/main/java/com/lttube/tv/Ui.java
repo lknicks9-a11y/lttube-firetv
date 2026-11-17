@@ -43,11 +43,30 @@ public final class Ui {
         return t;
     }
 
+    public static final int SELECTED = 0xFF333746;
+
+    /** Rounded shape. The app's standard colors become frosted "liquid glass". */
     public static GradientDrawable pill(Context c, int color, float radiusDp) {
+        if (color == SURFACE) return glass(c, radiusDp, 0x2EFFFFFF, 0x12FFFFFF, 0x40FFFFFF);
+        if (color == SELECTED) return glass(c, radiusDp, 0x47FFFFFF, 0x24FFFFFF, 0x59FFFFFF);
+        if (color == FOCUS || color == 0xFFF1F1F1 || color == Color.WHITE) return glass(c, radiusDp, 0xFFFFFFFF, 0xE6EDEFF5, 0xFFFFFFFF);
         GradientDrawable g = new GradientDrawable();
         g.setColor(color);
         g.setCornerRadius(dp(c, radiusDp));
         return g;
+    }
+
+    /** Frosted glass: a soft top-to-bottom sheen with a thin bright edge. */
+    public static GradientDrawable glass(Context c, float radiusDp, int top, int bottom, int edge) {
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{top, bottom});
+        g.setCornerRadius(dp(c, radiusDp));
+        g.setStroke(Math.max(1, dp(c, 1)), edge);
+        return g;
+    }
+
+    /** A large dark glass panel (menus, side panels). */
+    public static GradientDrawable panel(Context c, float radiusDp) {
+        return glass(c, radiusDp, 0xD91C202B, 0xCC12141B, 0x33FFFFFF);
     }
 
     public static GradientDrawable circle(int color, int strokePx, int strokeColor) {

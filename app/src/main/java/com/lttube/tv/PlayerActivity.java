@@ -337,7 +337,7 @@ public class PlayerActivity extends FragmentActivity {
 
         shortsHint = text(16, Color.WHITE, true);
         shortsHint.setText("⌄   Press down for next video");
-        shortsHint.setBackground(rounded(0xCC1E2230));
+        shortsHint.setBackground(Ui.glass(this, 14, 0x40FFFFFF, 0x1FFFFFFF, 0x4DFFFFFF));
         shortsHint.setPadding(dp(18), dp(10), dp(18), dp(10));
         shortsHint.setVisibility(View.GONE);
         FrameLayout.LayoutParams hl = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
@@ -347,7 +347,7 @@ public class PlayerActivity extends FragmentActivity {
         // ---- side panel (comments / description)
         panel = new FrameLayout(this);
         panel.setVisibility(View.GONE);
-        panel.setBackgroundColor(0xF2181818);
+        panel.setBackground(Ui.panel(this, 0));
         panelScroll = new ScrollView(this);
         panelScroll.setFillViewport(true);
         panelList = new LinearLayout(this);
@@ -424,7 +424,7 @@ public class PlayerActivity extends FragmentActivity {
         g.setOrientation(LinearLayout.HORIZONTAL);
         g.setGravity(Gravity.CENTER_VERTICAL);
         if (pillBg) {
-            g.setBackground(rounded2(0x33FFFFFF, 30));
+            g.setBackground(Ui.glass(this, 30, 0x29FFFFFF, 0x10FFFFFF, 0x40FFFFFF));
             g.setPadding(dp(4), dp(3), dp(4), dp(3));
         }
         return g;
@@ -441,14 +441,14 @@ public class PlayerActivity extends FragmentActivity {
         b.setFocusable(true);
         final boolean isAvatar = icon == 0;
         if (!isAvatar) b.setColorFilter(Color.WHITE);
-        b.setBackground(null);
+        b.setBackground(isAvatar ? null : glassCircle());
         b.setOnFocusChangeListener((v, has) -> {
             if (b == btnPlay) {
                 b.setBackground(has ? circleStroke(Color.WHITE, dp(3), 0x99FFFFFF) : circle(Color.WHITE));
                 return;
             }
             if (isAvatar) { b.setBackground(has ? circleStroke(Color.TRANSPARENT, dp(3), Color.WHITE) : null); return; }
-            b.setBackground(has ? circle(Color.WHITE) : null);
+            b.setBackground(has ? circle(Color.WHITE) : glassCircle());
             b.setColorFilter(has ? 0xFF0F0F0F : Color.WHITE);
         });
         b.setOnClickListener(click);
@@ -1547,7 +1547,15 @@ public class PlayerActivity extends FragmentActivity {
         return g;
     }
 
+    private GradientDrawable glassCircle() {
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x2EFFFFFF, 0x0DFFFFFF});
+        g.setShape(GradientDrawable.OVAL);
+        g.setStroke(Math.max(1, dp(1)), 0x40FFFFFF);
+        return g;
+    }
+
     private GradientDrawable rounded2(int color, int radiusDp) {
+        if (color == 0x40FFFFFF) return Ui.glass(this, radiusDp, 0x38FFFFFF, 0x18FFFFFF, 0x4DFFFFFF);
         GradientDrawable g = new GradientDrawable();
         g.setColor(color);
         g.setCornerRadius(dp(radiusDp));

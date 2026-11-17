@@ -45,11 +45,11 @@ public class YtCard extends LinearLayout {
         setPadding(0, 0, 0, dp(6));
 
         frame = new FrameLayout(c);
-        frame.setBackgroundColor(0xFF272727);
+        frame.setBackgroundColor(0x33FFFFFF);
         frame.setOutlineProvider(new ViewOutlineProvider() {
             @Override public void getOutline(View v, Outline o) {
                 if (round) o.setOval(0, 0, v.getWidth(), v.getHeight());
-                else o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), 10 * d);
+                else o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), 14 * d);
             }
         });
         frame.setClipToOutline(true);
@@ -83,7 +83,7 @@ public class YtCard extends LinearLayout {
         focusRing = new GradientDrawable();
         focusRing.setColor(Color.TRANSPARENT);
         focusRing.setStroke(dp(3), Color.WHITE);
-        focusRing.setCornerRadius(10 * d);
+        focusRing.setCornerRadius(14 * d);
         addView(frame);
 
         title = text(c, 15, Color.WHITE, true);
@@ -104,6 +104,8 @@ public class YtCard extends LinearLayout {
 
         setOnFocusChangeListener((v, has) -> {
             frame.setForeground(has ? focusRing : null);
+            frame.setElevation(has ? 18 * d : 0);
+            frame.animate().scaleX(has ? 1.04f : 1f).scaleY(has ? 1.04f : 1f).setDuration(140).start();
             title.setTextColor(has ? Color.WHITE : 0xFFE6E6E6);
         });
     }
@@ -120,7 +122,7 @@ public class YtCard extends LinearLayout {
             fh = shortV ? fw * 16 / 9 : fixedWidthDp * 9 / 16;
         }
         round = channel;
-        focusRing.setCornerRadius(channel ? fw * d : 10 * d);
+        focusRing.setCornerRadius(channel ? fw * d : 14 * d);
         if (channel) focusRing.setShape(GradientDrawable.OVAL); else focusRing.setShape(GradientDrawable.RECTANGLE);
         ViewGroup.LayoutParams own = getLayoutParams();
         if (own == null) {

@@ -1,6 +1,6 @@
-- Home is YouTube's own Home (Continue watching moved to Library)
-- Up next and autoplay now come from YouTube, in the same order as the YouTube app
-- Up next row shows whole cards; player controls fit inside the screen
-- Profile names centered under pictures
-- Channel and Subscriptions pages: cards fit the screen, nothing cut off
-- Normal version numbers; only real releases are offered
+- New liquid-glass look: frosted buttons and menus, and a soft glow of the selected video behind Home
+- Channels: new "Most viewed" row and tab
+- Player: progress bar no longer cut off on the left
+- Subscriptions page fixed and more reliable
+- Subscribing from a channel page works for every channel link
+- If LTTube ever crashes, the next launch shows what happened (photo it and send it)

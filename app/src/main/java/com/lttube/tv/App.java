@@ -12,6 +12,7 @@ public class App extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        CrashLog.install(this);
         Store.init(this);
         Account.init(this);
         Yti.init(this);

@@ -42,6 +42,7 @@ public class WelcomeActivity extends FragmentActivity {
         if (SIGN_IN.equals(getIntent().getStringExtra(MODE)) || Account.profiles().isEmpty()) showSignIn();
         else showPicker();
         Updater.check(this, false, null);
+        CrashLog.showIfAny(this);
     }
 
     private void clear() {

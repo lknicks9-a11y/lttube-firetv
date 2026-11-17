@@ -131,15 +131,25 @@ public class SubsPane {
                 for (Shelf s : Sources.localSubsFeed()) latest.addAll(s.items);
             }
             if (channels.isEmpty()) channels.addAll(Store.subs());
-            return new Object[]{channels, latest};
+            // drop anything without a usable channel link or name
+            List<Item> clean = new ArrayList<>();
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            for (Item c : channels) if (c.url != null && !c.url.isEmpty() && c.title != null && !c.title.isEmpty() && seen.add(Store.channelId(c.url))) clean.add(c);
+            return new Object[]{clean, latest};
         }, (res, err) -> {
             if (res == null) { status.setText("Couldn't load subscriptions: " + Bg.message(err)); return; }
             @SuppressWarnings("unchecked") List<Item> channels = (List<Item>) res[0];
             @SuppressWarnings("unchecked") List<Item> latest = (List<Item>) res[1];
-            feed = latest;
-            buildList(channels);
-            show("all", null);
-            if (wantFocus && firstRow != null) firstRow.requestFocus();
+            try {
+                feed = latest;
+                buildList(channels);
+                showing = "";
+                show("all", "All");
+                if (wantFocus && firstRow != null) firstRow.requestFocus();
+            } catch (Exception e) {
+                status.setVisibility(View.VISIBLE);
+                status.setText("Couldn't show subscriptions: " + Bg.message(e));
+            }
         });
     }
 
@@ -152,6 +162,7 @@ public class SubsPane {
         for (Item c : channels) byName.put(c.title, c);
         List<Item> recent = new ArrayList<>();
         for (Item v : feed) {
+            if (v.channel == null) continue;
             Item c = byName.get(v.channel);
             if (c != null && !recent.contains(c)) recent.add(c);
             if (recent.size() >= 7) break;
@@ -188,7 +199,7 @@ public class SubsPane {
         t.setPadding(dp(14), 0, 0, 0);
         r.addView(t, new LinearLayout.LayoutParams(0, -2, 1f));
         r.setOnFocusChangeListener((v, has) -> {
-            r.setBackground(has ? Ui.pill(a, Ui.FOCUS, 10) : key.equals(showing) ? Ui.pill(a, 0xFF333746, 10) : null);
+            r.setBackground(has ? Ui.pill(a, Ui.FOCUS, 10) : key.equals(showing) ? Ui.pill(a, Ui.SELECTED, 10) : null);
             t.setTextColor(has ? 0xFF0F0F0F : Color.WHITE);
             if (icon != 0) img.setColorFilter(has ? 0xFF0F0F0F : Color.WHITE);
             if (has) {
@@ -230,7 +241,11 @@ public class SubsPane {
         status.setText("Loading…");
         status.setVisibility(View.VISIBLE);
         setCards(new ArrayList<>());
-        Bg.run(() -> Feeds.channel(key, org.schabi.newpipe.extractor.channel.tabs.ChannelTabs.VIDEOS).items, (items, err) -> {
+        Bg.run(() -> {
+            List<Item> l = Feeds.channel(key, org.schabi.newpipe.extractor.channel.tabs.ChannelTabs.VIDEOS).items;
+            if (l.isEmpty() && key.contains("/channel/UC")) l = Yti.sections(Store.channelId(key), name).isEmpty() ? l : Yti.sections(Store.channelId(key), name).get(0).items;
+            return l;
+        }, (items, err) -> {
             if (s != seq) return;
             if (items == null) { status.setText("Couldn't load: " + Bg.message(err)); return; }
             for (Item i : items) if (i.channel.isEmpty()) i.channel = name;

@@ -23,7 +23,10 @@ public class TimeBar extends View {
 
     @Override
     protected void onDraw(Canvas c) {
-        float w = getWidth(), h = getHeight();
+        float pad = 12 * d;               // room for the knob at both ends
+        c.save();
+        c.translate(pad, 0);
+        float w = getWidth() - 2 * pad, h = getHeight();
         boolean f = isFocused();
         float th = (f ? 6 : 4) * d;
         float cy = h / 2f;
@@ -54,5 +57,6 @@ public class TimeBar extends View {
                 p.setStyle(Paint.Style.FILL);
             }
         }
+        c.restore();
     }
 }

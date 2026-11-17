@@ -33,6 +33,10 @@ public class RowsController {
     private final Set<ListRow> loading = new HashSet<>();
     private int seq;
     private Runnable onFirstRow;
+    public interface Selected { void selected(Item item); }
+    private Selected onSelected;
+
+    public void onSelected(Selected s) { onSelected = s; }
 
     public RowsController(FragmentActivity act, int containerId, Click click) {
         ListRowPresenter rp = new ListRowPresenter(FocusHighlight.ZOOM_FACTOR_NONE, false);
@@ -51,6 +55,7 @@ public class RowsController {
         });
         fragment.setOnItemViewSelectedListener((vh, o, rvh, row) -> {
             if (!(row instanceof ListRow) || o == null) return;
+            if (onSelected != null && o instanceof Item) onSelected.selected((Item) o);
             ListRow lr = (ListRow) row;
             Shelf sh = shelves.get(lr);
             if (sh != null && sh.pageCont != null) moreRows(lr, sh);

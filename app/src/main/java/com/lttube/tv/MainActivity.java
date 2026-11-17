@@ -52,6 +52,8 @@ public class MainActivity extends FragmentActivity {
     private TextView searchPill;
     private String section = "";
     private boolean navOpen;
+    private ImageView ambient;
+    private String ambientUrl = "";
     private final Handler timer = new Handler(Looper.getMainLooper());
 
     @Override
@@ -59,6 +61,16 @@ public class MainActivity extends FragmentActivity {
         super.onCreate(state);
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Ui.BG);
+
+        // liquid-glass backdrop: a soft blurred glow of the video you're on
+        ambient = new ImageView(this);
+        ambient.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        ambient.setAlpha(0.55f);
+        root.addView(ambient, new FrameLayout.LayoutParams(-1, -1));
+        View veil = new View(this);
+        veil.setBackground(new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                new int[]{0xE614161E, 0xB314161E, 0xD914161E}));
+        root.addView(veil, new FrameLayout.LayoutParams(-1, -1));
 
         // ---- content
         LinearLayout content = new LinearLayout(this);
@@ -94,7 +106,7 @@ public class MainActivity extends FragmentActivity {
         // ---- side menu
         nav = new LinearLayout(this);
         nav.setOrientation(LinearLayout.VERTICAL);
-        nav.setBackgroundColor(Ui.BG);
+        nav.setBackgroundColor(Color.TRANSPARENT);
         nav.setPadding(dp(14), dp(26), dp(14), dp(14));
         root.addView(nav, new FrameLayout.LayoutParams(dp(88), -1));
 
@@ -136,9 +148,11 @@ public class MainActivity extends FragmentActivity {
             if (Item.ACTION.equals(it.type)) { onAction(it.action); return; }
             Nav.open(this, it, row);
         });
+        rows.onSelected(this::setAmbient);
         loadProfile();
         show("home", false);
         updateLoop.run();
+        CrashLog.showIfAny(this);
     }
 
     @Override
@@ -189,7 +203,7 @@ public class MainActivity extends FragmentActivity {
         ViewGroup.LayoutParams lp = nav.getLayoutParams();
         lp.width = dp(open ? 300 : 88);
         nav.setLayoutParams(lp);
-        nav.setBackgroundColor(open ? Ui.NAV : Ui.BG);
+        nav.setBackground(open ? Ui.panel(this, 0) : null);
         nav.setElevation(open ? dp(12) : 0);
         for (TextView t : navLabels) t.setVisibility(open ? View.VISIBLE : View.GONE);
         styleNav();
@@ -205,7 +219,7 @@ public class MainActivity extends FragmentActivity {
             View item = navItems.get(i);
             boolean focused = item.isFocused();
             boolean current = navKeys.get(i).equals(section);
-            item.setBackground(focused ? Ui.pill(this, Ui.FOCUS, 10) : current ? Ui.pill(this, 0xFF333746, 10) : null);
+            item.setBackground(focused ? Ui.pill(this, Ui.FOCUS, 10) : current ? Ui.pill(this, Ui.SELECTED, 10) : null);
             ImageView ic = (ImageView) ((LinearLayout) item).getChildAt(0);
             TextView lab = (TextView) ((LinearLayout) item).getChildAt(1);
             ic.setColorFilter(focused ? 0xFF0F0F0F : current || navOpen ? Color.WHITE : 0xFFB0B4BE);
@@ -223,6 +237,15 @@ public class MainActivity extends FragmentActivity {
         } else if (!rows.isEmpty()) {
             rows.focus();
         }
+    }
+
+    /** Tints the background with a heavily blurred copy of the selected video's thumbnail. */
+    void setAmbient(Item it) {
+        if (it == null || it.thumb == null || it.thumb.isEmpty() || it.thumb.equals(ambientUrl)) return;
+        ambientUrl = it.thumb;
+        Glide.with(this).load(it.thumb).override(24, 14).centerCrop()
+                .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade(450))
+                .into(ambient);
     }
 
     private void loadProfile() {
