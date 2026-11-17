@@ -32,7 +32,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          gradle :app:testReleaseUnitTest --tests com.lttube.tv.ExtractionTest --no-daemon -q 2>&1 | grep -E "LTT|FAIL|Exception" | head -60 || true
+          gradle :app:testReleaseUnitTest --tests com.lttube.tv.ExtractionTest --no-daemon 2>&1 | grep -E "LTT|FAILED|Exception" | head -80 || true
 
       - name: Rename
         run: cp app/build/outputs/apk/release/app-release.apk LTTube-TV.apk
