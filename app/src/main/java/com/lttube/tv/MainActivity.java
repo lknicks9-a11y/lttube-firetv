@@ -295,7 +295,6 @@ public class MainActivity extends FragmentActivity {
         switch (key) {
             case "home":
                 // Signed in: exactly YouTube's own Home, shelf after shelf as you scroll (no extra rows).
-                rows.add(Sources::continueWatching);
                 if (in) {
                     rows.add(() -> {
                         List<Shelf> l = Yti.sections(Yti.HOME, "Recommended");
@@ -391,7 +390,7 @@ public class MainActivity extends FragmentActivity {
             case "check": AccountCheck.run(this); break;
             case "import": new Importer(this, added -> show(section, false)).start(); break;
             case "update":
-                if (Updater.latest != null && Updater.latest.build > Updater.currentBuild(this)) Updater.offer(this, Updater.latest);
+                if (Updater.updateReady(this)) Updater.offer(this, Updater.latest);
                 else Updater.check(this, true, () -> { if (settingsPane != null && "settings".equals(section)) settingsPane.refresh(); });
                 break;
             default: break;

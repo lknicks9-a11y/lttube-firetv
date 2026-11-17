@@ -44,11 +44,14 @@ jobs:
           name: LTTube-TV
           path: LTTube-TV.apk
 
-      - name: Publish release
+      - name: Publish release (only when VERSION changed)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v1.0.${{ github.run_number }}" LTTube-TV.apk \
-            --title "LTTube TV 1.0.${{ github.run_number }}" \
-            --latest \
-            --notes "$(git log -1 --pretty=%B | grep -v -e '^Co-Authored-By' -e '^Claude-Session' | sed '/^$/N;/^\n$/D')"
+          V="$(cat VERSION | tr -d '[:space:]')"
+          if gh release view "v$V" >/dev/null 2>&1; then
+            echo "v$V already released; built only."
+            exit 0
+          fi
+          NOTES="$(cat RELEASE_NOTES.md 2>/dev/null || git log -1 --pretty=%B | grep -v -e '^Co-Authored-By' -e '^Claude-Session')"
+          gh release create "v$V" LTTube-TV.apk --title "LTTube $V" --latest --notes "$NOTES"

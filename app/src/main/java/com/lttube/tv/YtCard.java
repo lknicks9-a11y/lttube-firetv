@@ -31,6 +31,8 @@ public class YtCard extends LinearLayout {
     final View progressTrack, progress;
     private final GradientDrawable focusRing;
     private boolean round;
+    /** When set (grids), video cards use this width and keep 16:9. */
+    public int fixedWidthDp;
     private final float d;
 
     public YtCard(Context c) {
@@ -112,6 +114,11 @@ public class YtCard extends LinearLayout {
         boolean shortV = Item.VIDEO.equals(it.type) && it.isShort;
         int w = channel ? CHANNEL_W : shortV ? SHORT_W : VIDEO_W;
         int fw = channel ? AVATAR : w, fh = channel ? AVATAR : shortV ? SHORT_H : VIDEO_H;
+        if (fixedWidthDp > 0 && !channel) {
+            w = fixedWidthDp;
+            fw = shortV ? Math.min(fixedWidthDp, SHORT_W) : fixedWidthDp;
+            fh = shortV ? fw * 16 / 9 : fixedWidthDp * 9 / 16;
+        }
         round = channel;
         focusRing.setCornerRadius(channel ? fw * d : 10 * d);
         if (channel) focusRing.setShape(GradientDrawable.OVAL); else focusRing.setShape(GradientDrawable.RECTANGLE);

@@ -33,7 +33,7 @@ public class GridActivity extends FragmentActivity {
     }
 
     public static class GridFragment extends VerticalGridSupportFragment {
-        private final ArrayObjectAdapter adapter = new ArrayObjectAdapter(new CardPresenter());
+        private ArrayObjectAdapter adapter;
         private String mode, url, title;
         private String tab = ChannelTabs.VIDEOS;
         private ChannelInfo channel;
@@ -50,6 +50,9 @@ public class GridActivity extends FragmentActivity {
             title = a.getString(TITLE, "");
             setTitle(title);
 
+            float sw = getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density;
+            int cardW = (int) ((sw - 140 - 2 * 24) / 3);
+            adapter = new ArrayObjectAdapter(new CardPresenter(cardW));
             VerticalGridPresenter gp = new VerticalGridPresenter(FocusHighlight.ZOOM_FACTOR_NONE, false);
             gp.setNumberOfColumns(3);
             gp.setShadowEnabled(false);
@@ -59,7 +62,7 @@ public class GridActivity extends FragmentActivity {
             setOnItemViewClickedListener((vh, o, rvh, row) -> {
                 Item it = (Item) o;
                 if (Item.ACTION.equals(it.type)) { onAction(it.action); return; }
-                Nav.open(requireContext(), it, items());
+                Nav.open(requireContext(), it, items(), PLAYLIST.equals(mode));
             });
             setOnItemViewSelectedListener((vh, o, rvh, row) -> {
                 if (o == null || next == null || loading) return;

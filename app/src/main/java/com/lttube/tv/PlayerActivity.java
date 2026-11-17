@@ -103,6 +103,9 @@ public class PlayerActivity extends FragmentActivity {
     private LinearLayout shortsSide;
     private TextView shortsTitle, shortsChannel, shortsSub, shortsHint;
     private boolean shortsMode;
+    private LinearLayout timeRow;
+    private final List<Item> upNextList = new ArrayList<>();
+    private int sideMargin;
     private ImageView avatarView;
     private TimeBar bar;
     private ImageView btnPlay, btnLike, btnDislike, btnCC;
@@ -154,6 +157,8 @@ public class PlayerActivity extends FragmentActivity {
     }
 
     private void buildUi() {
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        sideMargin = Math.max(dp(48), Math.round(screenW * 0.055f));
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
         root.setFocusable(true);
@@ -194,7 +199,7 @@ public class PlayerActivity extends FragmentActivity {
 
         topInfo = new LinearLayout(this);
         topInfo.setOrientation(LinearLayout.VERTICAL);
-        topInfo.setPadding(dp(48), dp(30), dp(48), dp(56));
+        topInfo.setPadding(sideMargin, dp(30), sideMargin, dp(56));
         topInfo.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xCC000000, 0x00000000}));
         titleView = text(24, Color.WHITE, true);
         titleView.setMaxLines(2);
@@ -211,11 +216,11 @@ public class PlayerActivity extends FragmentActivity {
 
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
-        bottom.setPadding(dp(44), dp(64), dp(44), 0);
+        bottom.setPadding(sideMargin, dp(64), sideMargin, 0);
         bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0xF0000000, 0xA6000000, 0x00000000}));
         overlay.addView(bottom, new LinearLayout.LayoutParams(-1, -2));
 
-        LinearLayout timeRow = new LinearLayout(this);
+        timeRow = new LinearLayout(this);
         timeRow.setGravity(Gravity.CENTER_VERTICAL);
         timeView = text(15, Color.WHITE, true);
         chapterView = text(15, Color.WHITE, true);
@@ -375,6 +380,29 @@ public class PlayerActivity extends FragmentActivity {
             return false;
         });
         wireControlKeys(controls);
+        controls.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fitControls());
+    }
+
+    /** Never let the control row run off the screen: scale it down if it's too wide. */
+    private void fitControls() {
+        int avail = controls.getWidth();
+        if (avail <= 0) return;
+        int need = 0;
+        for (int i = 0; i < controls.getChildCount(); i++) {
+            View c = controls.getChildAt(i);
+            ViewGroup.LayoutParams lp = c.getLayoutParams();
+            if (lp instanceof LinearLayout.LayoutParams && ((LinearLayout.LayoutParams) lp).weight > 0) continue;
+            c.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+            need += c.getMeasuredWidth();
+            if (lp instanceof ViewGroup.MarginLayoutParams) need += ((ViewGroup.MarginLayoutParams) lp).leftMargin + ((ViewGroup.MarginLayoutParams) lp).rightMargin;
+        }
+        float scale = need > avail ? avail / (float) need : 1f;
+        if (Math.abs(controls.getScaleX() - scale) > 0.01f) {
+            controls.setPivotX(0);
+            controls.setPivotY(controls.getHeight() / 2f);
+            controls.setScaleX(scale);
+            controls.setScaleY(scale);
+        }
     }
 
     private void wireControlKeys(ViewGroup g) {
@@ -560,6 +588,7 @@ public class PlayerActivity extends FragmentActivity {
         closePanel();
         hideUpNextRow();
         upNextCards.removeAllViews();
+        upNextList.clear();
         bar.chapters = new long[0];
         bar.scrub = -1;
         player.stop();
@@ -586,6 +615,7 @@ public class PlayerActivity extends FragmentActivity {
             fillFromInfo(si);
             start(si);
             loadSponsorBlock(it.videoId(), seq);
+            loadUpNext(it.videoId(), seq);
             if (Account.signedIn()) loadAccountState(it.videoId(), seq);
         });
     }
@@ -878,18 +908,33 @@ public class PlayerActivity extends FragmentActivity {
         bar.invalidate();
     }
 
-    // ---- up next row
+    // ---- up next row (YouTube's own list and order)
+    private void loadUpNext(final String id, final int seq) {
+        Bg.run(() -> Yti.upNext(id), (list, err) -> {
+            if (seq != loadSeq || list == null || list.isEmpty()) return;
+            upNextList.clear();
+            upNextList.addAll(list);
+            buildUpNext();
+        });
+    }
+
     private void buildUpNext() {
         upNextCards.removeAllViews();
         List<Item> list = new ArrayList<>(Nav.queue);
-        if (info != null) {
-            for (InfoItem ii : info.getRelatedItems()) {
-                Item it = Item.from(ii);
-                if (Item.VIDEO.equals(it.type) && list.size() < 25 && !it.url.equals(item.url)) list.add(it);
-            }
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        seen.add(item.videoId());
+        for (Item q : list) seen.add(q.videoId());
+        List<Item> source = new ArrayList<>(upNextList);
+        if (source.isEmpty() && info != null) for (InfoItem ii : info.getRelatedItems()) source.add(Item.from(ii));
+        for (Item it : source) {
+            if (Item.VIDEO.equals(it.type) && seen.add(it.videoId())) list.add(it);
         }
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        float density = getResources().getDisplayMetrics().density;
+        int cardDp = (int) (((screenW - 2 * sideMargin) / density - 3 * 16) / 3.5f);
         for (final Item it : list) {
             YtCard card = new YtCard(this);
+            card.fixedWidthDp = cardDp;
             card.bind(it);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(card.getLayoutParams().width, -2);
             lp.rightMargin = dp(16);
@@ -917,8 +962,10 @@ public class PlayerActivity extends FragmentActivity {
         ViewGroup.LayoutParams lp = upNextRow.getLayoutParams();
         lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
         upNextRow.setLayoutParams(lp);
-        upNextRow.setPadding(0, 0, 0, dp(28));
+        upNextRow.setPadding(0, 0, 0, dp(24));
         topInfo.setVisibility(View.INVISIBLE);
+        timeRow.setVisibility(View.GONE);
+        bar.setVisibility(View.GONE);
         upNextScroll.scrollTo(0, 0);
         upNextCards.getChildAt(0).requestFocus();
         pokeOverlay();
@@ -931,6 +978,8 @@ public class PlayerActivity extends FragmentActivity {
         upNextRow.setLayoutParams(lp);
         upNextRow.setPadding(0, 0, 0, 0);
         topInfo.setVisibility(View.VISIBLE);
+        if (timeRow != null) timeRow.setVisibility(View.VISIBLE);
+        bar.setVisibility(View.VISIBLE);
     }
 
     private boolean upNextOpen() {
@@ -1304,6 +1353,10 @@ public class PlayerActivity extends FragmentActivity {
     // ================================================================== what plays next
     private Item findNext() {
         if (!Nav.queue.isEmpty()) return Nav.queue.get(0);
+        for (Item it : upNextList) {
+            if (!it.live && !it.url.equals(item.url) && it.isShort == item.isShort) return it;
+        }
+        if (!item.isShort && !upNextList.isEmpty()) return upNextList.get(0);
         if (info == null) return null;
         for (InfoItem ii : info.getRelatedItems()) {
             Item it = Item.from(ii);

@@ -88,6 +88,32 @@ public final class Yti {
         return pg;
     }
 
+    private static final Set<String> GUEST_OK = new HashSet<>(java.util.Arrays.asList("next", "search"));
+
+    /**
+     * YouTube's own "Up next" for a video: the same list and order the YouTube app shows
+     * (personal when signed in). The first one is what autoplay plays.
+     */
+    public static List<Item> upNext(String videoId) throws Exception {
+        Exception last = null;
+        boolean tvFirst = !Account.signedIn() || tvFlavour();
+        for (int i = 0; i < 2; i++) {
+            boolean tv = i == 0 ? tvFirst : !tvFirst;
+            try {
+                JSONObject r = call("next", new JSONObject().put("videoId", videoId), tv);
+                Page pg = parse(r, null);
+                List<Item> out = new ArrayList<>();
+                for (Item it : pg.items) {
+                    if (!Item.VIDEO.equals(it.type) || it.videoId().equals(videoId)) continue;
+                    out.add(it);
+                }
+                if (!out.isEmpty()) return out;
+            } catch (Exception e) { last = e; }
+        }
+        if (last != null) throw last;
+        return new ArrayList<>();
+    }
+
     /** The next screenful of shelves (YouTube's home keeps going as you scroll down). */
     public static List<Shelf> moreShelves(String continuation, boolean tv) throws Exception {
         JSONObject r = call("browse", new JSONObject().put("continuation", continuation), tv);
@@ -221,7 +247,7 @@ public final class Yti {
     /** Calls YouTube as a Google account, optionally as one of its channels (pageId). */
     static JSONObject callAs(String acct, String pageId, String endpoint, JSONObject body, boolean tv) throws Exception {
         String token = acct == null || acct.isEmpty() ? null : Account.tokenFor(acct);
-        if (token == null) throw new Exception("Not signed in");
+        if (token == null && !GUEST_OK.contains(endpoint)) throw new Exception("Not signed in");
         Locale l = Locale.getDefault();
         JSONObject client = new JSONObject()
                 .put("clientName", tv ? "TVHTML5" : "WEB")
@@ -235,7 +261,6 @@ public final class Yti {
 
         Request r = new Request.Builder()
                 .url("https://www.youtube.com/youtubei/v1/" + endpoint + "?prettyPrint=false")
-                .header("Authorization", "Bearer " + token)
                 .header("User-Agent", tv ? TV_UA : NpDownloader.USER_AGENT)
                 .header("X-Youtube-Client-Name", tv ? "7" : "1")
                 .header("X-Youtube-Client-Version", tv ? TV_VERSION : web())
@@ -243,6 +268,7 @@ public final class Yti {
                 .header("Referer", tv ? "https://www.youtube.com/tv" : "https://www.youtube.com/")
                 .post(RequestBody.create(body.toString(), JSON))
                 .build();
+        if (token != null) r = r.newBuilder().header("Authorization", "Bearer " + token).build();
         try (Response res = NpDownloader.get().client.newCall(r).execute()) {
             String text = res.body() == null ? "" : res.body().string();
             if (!res.isSuccessful()) {

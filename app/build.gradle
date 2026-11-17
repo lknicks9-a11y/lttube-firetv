@@ -13,7 +13,8 @@ android {
         // GitHub's build number is the version: build 12 = 1.0.12 (matches the release tag)
         def build = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int
         versionCode build
-        versionName "1.0.${build}"
+        // Shown to you (1.16, 1.17, …); bumped in the VERSION file for each real release
+        versionName file('../VERSION').text.trim()
     }
 
     signingConfigs {

@@ -208,7 +208,7 @@ public class SettingsPane {
                 break;
             case "update": {
                 title("Update Center");
-                boolean upd = Updater.latest != null && Updater.latest.build > Updater.currentBuild(a);
+                boolean upd = Updater.updateReady(a);
                 body("You have LTTube " + Updater.currentVersion(a) + ".\n" + Updater.lastStatus
                         + "\nLTTube checks for updates every 20 minutes.");
                 buttons(new String[]{upd ? "Install " + Updater.latest.version : "Check for updates"}, -1, i -> a.onAction("update"));

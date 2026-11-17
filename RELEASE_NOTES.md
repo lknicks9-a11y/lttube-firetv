@@ -1,0 +1,6 @@
+- Home is YouTube's own Home (Continue watching moved to Library)
+- Up next and autoplay now come from YouTube, in the same order as the YouTube app
+- Up next row shows whole cards; player controls fit inside the screen
+- Profile names centered under pictures
+- Channel and Subscriptions pages: cards fit the screen, nothing cut off
+- Normal version numbers; only real releases are offered

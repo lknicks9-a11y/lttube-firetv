@@ -40,7 +40,7 @@ public final class Updater {
     public static String lastStatus = "Not checked yet";
     public static long lastCheck;
     private static boolean downloading;
-    private static int promptedFor;
+    private static String promptedFor = "";
 
     public static int currentBuild(Context c) {
         try {
@@ -54,6 +54,23 @@ public final class Updater {
     public static String currentVersion(Context c) {
         try { return c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionName; }
         catch (Exception e) { return "?"; }
+    }
+
+    /** True if the release is a newer version than this app (1.17 > 1.16 > 1.0.15). */
+    public static boolean isNewer(Context c, Release rel) {
+        return rel != null && compare(rel.version, currentVersion(c)) > 0;
+    }
+
+    public static boolean updateReady(Context c) { return isNewer(c, latest); }
+
+    static int compare(String a, String b) {
+        String[] x = a.replaceAll("[^0-9.]", "").split("\\."), y = b.replaceAll("[^0-9.]", "").split("\\.");
+        for (int i = 0; i < Math.max(x.length, y.length); i++) {
+            int p = i < x.length && !x[i].isEmpty() ? Integer.parseInt(x[i]) : 0;
+            int q = i < y.length && !y[i].isEmpty() ? Integer.parseInt(y[i]) : 0;
+            if (p != q) return Integer.compare(p, q);
+        }
+        return 0;
     }
 
     /** Blocks. Returns the newest release, or null if it can't tell. */
@@ -97,13 +114,12 @@ public final class Updater {
                 return;
             }
             latest = rel;
-            int cur = currentBuild(act);
-            boolean newer = rel.build > cur;
+            boolean newer = isNewer(act, rel);
             lastStatus = newer ? "Update available: " + rel.version : "Up to date";
             if (changed != null) changed.run();
             if (act.isFinishing()) return;
-            if (newer && (userAsked || promptedFor != rel.build)) {
-                promptedFor = rel.build;
+            if (newer && (userAsked || !rel.version.equals(promptedFor))) {
+                promptedFor = rel.version;
                 offer(act, rel);
             } else if (!newer && userAsked) {
                 Toast.makeText(act, "LTTube is up to date (" + currentVersion(act) + ")", Toast.LENGTH_SHORT).show();

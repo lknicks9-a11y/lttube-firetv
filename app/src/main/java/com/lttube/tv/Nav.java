@@ -11,13 +11,18 @@ public final class Nav {
     /** Videos to play after the current one (a playlist or a row). */
     public static List<Item> queue = new ArrayList<>();
 
+    /** Opens an item. Like YouTube, only playlists and Shorts play "the rest of the list" next. */
     public static void open(Context c, Item it, List<Item> context) {
+        open(c, it, context, false);
+    }
+
+    public static void open(Context c, Item it, List<Item> context, boolean playlist) {
         if (Item.VIDEO.equals(it.type)) {
             queue = new ArrayList<>();
-            if (context != null) {
+            if (context != null && (playlist || it.isShort)) {
                 boolean after = false;
                 for (Item i : context) {
-                    if (after && Item.VIDEO.equals(i.type)) queue.add(i);
+                    if (after && Item.VIDEO.equals(i.type) && (playlist || i.isShort)) queue.add(i);
                     if (i == it) after = true;
                 }
             }

@@ -118,16 +118,22 @@ public class WelcomeActivity extends FragmentActivity {
             img.setColorFilter(Color.WHITE);
             img.setPadding(dp(34), dp(34), dp(34), dp(34));
         }
-        ring.addView(img, new FrameLayout.LayoutParams(dp(124), dp(124)));
-        tile.addView(ring);
+        ring.addView(img, new FrameLayout.LayoutParams(dp(124), dp(124), Gravity.CENTER));
+        // wrap the picture so it sits centered over the name (a full-width ring pushed it left)
+        tile.addView(ring, new LinearLayout.LayoutParams(-2, -2));
 
         TextView n = Ui.text(this, 19, Color.WHITE, true);
         n.setText(name.isEmpty() ? "YouTube account" : name);
+        n.setGravity(Gravity.CENTER);
+        n.setSingleLine(true);
+        n.setEllipsize(android.text.TextUtils.TruncateAt.END);
         n.setPadding(0, dp(10), 0, 0);
-        tile.addView(n);
+        tile.addView(n, new LinearLayout.LayoutParams(dp(170), -2));
         TextView hd = Ui.text(this, 14, 0xCCFFFFFF, false);
         hd.setText(handle == null ? "" : handle);
-        tile.addView(hd);
+        hd.setGravity(Gravity.CENTER);
+        hd.setSingleLine(true);
+        tile.addView(hd, new LinearLayout.LayoutParams(dp(170), -2));
 
         tile.setOnFocusChangeListener((v, has) -> {
             ring.setBackground(has ? Ui.circle(Color.TRANSPARENT, dp(4), Color.WHITE) : null);

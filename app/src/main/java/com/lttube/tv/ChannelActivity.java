@@ -50,7 +50,7 @@ public class ChannelActivity extends FragmentActivity {
     private final List<TextView> tabViews = new ArrayList<>();
     private FrameLayout rowsHolder;
     private VerticalGridView grid;
-    private final ArrayObjectAdapter cards = new ArrayObjectAdapter(new CardPresenter());
+    private ArrayObjectAdapter cards;
     private RowsController rows;
     private String tab = "home";
     private Page next;
@@ -134,8 +134,13 @@ public class ChannelActivity extends FragmentActivity {
         rowsHolder = new FrameLayout(this);
         rowsHolder.setId(View.generateViewId());
         content.addView(rowsHolder, new FrameLayout.LayoutParams(-1, -1));
+        float sw = getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density;
+        float avail = sw - 56 - 40;
+        int cols = avail >= 4 * 210 + 48 ? 4 : 3;
+        int cardW = (int) ((avail - (cols - 1) * 16) / cols);
+        cards = new ArrayObjectAdapter(new CardPresenter(cardW));
         grid = new VerticalGridView(this);
-        grid.setNumColumns(4);
+        grid.setNumColumns(cols);
         grid.setHorizontalSpacing(dp(16));
         grid.setVerticalSpacing(dp(18));
         grid.setClipToPadding(false);

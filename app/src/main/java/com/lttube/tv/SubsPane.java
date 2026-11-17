@@ -32,7 +32,7 @@ public class SubsPane {
     private final LinearLayout list;
     private final TextView gridTitle, status;
     private final VerticalGridView grid;
-    private final ArrayObjectAdapter cards = new ArrayObjectAdapter(new CardPresenter());
+    private final ArrayObjectAdapter cards;
     private final Handler h = new Handler(Looper.getMainLooper());
     private final Map<String, List<Item>> cache = new HashMap<>();
     private List<Item> feed = new ArrayList<>();
@@ -40,9 +40,16 @@ public class SubsPane {
     private boolean wantFocus;
     private int seq;
     private String showing = "";
+    private final int cols, cardW;
 
     SubsPane(MainActivity act) {
         a = act;
+        // fit whole cards in the space right of the channel list
+        float sw = a.getResources().getDisplayMetrics().widthPixels / a.getResources().getDisplayMetrics().density;
+        float avail = sw - 88 - 24 - 280 - 29 - 24;
+        cols = avail >= 3 * 230 + 36 ? 3 : 2;
+        cardW = (int) ((avail - (cols - 1) * 18) / cols);
+        cards = new ArrayObjectAdapter(new CardPresenter(cardW));
         view = new LinearLayout(a);
         view.setOrientation(LinearLayout.VERTICAL);
         view.setPadding(dp(24), dp(22), 0, 0);
@@ -82,11 +89,11 @@ public class SubsPane {
         right.addView(status);
 
         grid = new VerticalGridView(a);
-        grid.setNumColumns(3);
+        grid.setNumColumns(cols);
         grid.setHorizontalSpacing(dp(18));
         grid.setVerticalSpacing(dp(20));
         grid.setClipToPadding(false);
-        grid.setPadding(0, dp(4), dp(20), dp(40));
+        grid.setPadding(0, dp(4), 0, dp(40));
         ItemBridgeAdapter bridge = new ItemBridgeAdapter(cards);
         bridge.setAdapterListener(new ItemBridgeAdapter.AdapterListener() {
             @Override
