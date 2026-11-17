@@ -9,6 +9,10 @@ In the **Downloader** app, enter:
 
 The same link always gives the newest version.
 
+## Sign in
+Settings (bottom of the left menu) → Sign in to YouTube → enter the code shown on the TV at the address it shows, on your phone.
+Then Settings → Check account sync shows whether Home, Subscriptions, History, Liked videos, Watch later and Playlists load.
+
 ## What's in it
 - Home rows: Continue watching, Subscriptions, Recommended, Music, Gaming, Live, Podcasts, Movies & trailers, Your channels, History
 - Search with suggestions; channels (Videos, Shorts, Live, Playlists) with Subscribe; playlists

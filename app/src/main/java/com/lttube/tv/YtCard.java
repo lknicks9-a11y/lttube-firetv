@@ -115,7 +115,14 @@ public class YtCard extends LinearLayout {
         round = channel;
         focusRing.setCornerRadius(channel ? fw * d : 10 * d);
         if (channel) focusRing.setShape(GradientDrawable.OVAL); else focusRing.setShape(GradientDrawable.RECTANGLE);
-        setLayoutParams(new ViewGroup.LayoutParams(dp(w), ViewGroup.LayoutParams.WRAP_CONTENT));
+        ViewGroup.LayoutParams own = getLayoutParams();
+        if (own == null) {
+            setLayoutParams(new ViewGroup.LayoutParams(dp(w), ViewGroup.LayoutParams.WRAP_CONTENT));
+        } else {
+            own.width = dp(w);
+            own.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+            setLayoutParams(own);
+        }
         LayoutParams fl = new LayoutParams(dp(fw), dp(fh));
         fl.gravity = channel ? Gravity.CENTER_HORIZONTAL : Gravity.START;
         frame.setLayoutParams(fl);
