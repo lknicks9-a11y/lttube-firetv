@@ -28,6 +28,12 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           gradle :app:assembleRelease --no-daemon
 
+      - name: Check YouTube extraction (does not block the build)
+        continue-on-error: true
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          gradle :app:testReleaseUnitTest --tests com.lttube.tv.ExtractionTest --no-daemon -q 2>&1 | grep -E "LTT|FAIL|Exception" | head -60 || true
+
       - name: Rename
         run: cp app/build/outputs/apk/release/app-release.apk LTTube-TV.apk
 
