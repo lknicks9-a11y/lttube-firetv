@@ -14,14 +14,15 @@ import okhttp3.Response;
 public class TvFeedTest {
     @Test
     public void tvHome() {
-        for (String id : new String[]{"FEtopics", "FEwhat_to_watch"}) {
-            boolean tv = id.equals("FEtopics");
+        for (String id : new String[]{"search:nba highlights", "UCWJ2lWNubArHWmf3FIHbfcQ"}) {
+            boolean tv = true;
             try {
                 JSONObject client = new JSONObject().put("clientName", tv ? "TVHTML5" : "WEB")
                         .put("clientVersion", tv ? "7.20251113.10.00" : "2.20251113.01.00").put("hl", "en").put("gl", "US");
-                JSONObject body = new JSONObject().put("browseId", id)
-                        .put("context", new JSONObject().put("client", client));
-                Request r = new Request.Builder().url("https://www.youtube.com/youtubei/v1/browse?prettyPrint=false")
+                boolean search = id.startsWith("search:");
+                JSONObject body = search ? new JSONObject().put("query", id.substring(7)) : new JSONObject().put("browseId", id);
+                body.put("context", new JSONObject().put("client", client));
+                Request r = new Request.Builder().url("https://www.youtube.com/youtubei/v1/" + (search ? "search" : "browse") + "?prettyPrint=false")
                         .header("User-Agent", tv ? Account.TV_UA : NpDownloader.USER_AGENT)
                         .post(RequestBody.create(body.toString(), MediaType.get("application/json"))).build();
                 String text;
@@ -39,7 +40,7 @@ public class TvFeedTest {
                 java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"(\\w+(Renderer|ViewModel|Model))\"").matcher(text);
                 while (m.find()) keys.merge(m.group(1), 1, Integer::sum);
                 System.out.println("LTT KEYS " + keys);
-                for (String k : new String[]{"lockupViewModel", "tileRenderer", "shelfRenderer", "gridRenderer", "horizontalListRenderer", "richItemRenderer"}) {
+                for (String k : new String[]{"tileRenderer", "shelfRenderer", "lockupViewModel"}) {
                     int at = text.indexOf("\"" + k + "\"");
                     if (at > 0) System.out.println("LTT RAW " + k + " " + text.substring(at, Math.min(text.length(), at + 3000)));
                 }
