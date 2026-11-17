@@ -88,6 +88,12 @@ public final class Yti {
         return pg;
     }
 
+    /** The next screenful of shelves (YouTube's home keeps going as you scroll down). */
+    public static List<Shelf> moreShelves(String continuation, boolean tv) throws Exception {
+        JSONObject r = call("browse", new JSONObject().put("continuation", continuation), tv);
+        return shelves(r, "More for you", tv, null);
+    }
+
     public static boolean tvFlavour() { return p.getBoolean("tv", true); }
 
     // ------------------------------------------------------------------ actions
@@ -287,6 +293,13 @@ public final class Yti {
         return new ArrayList<>();
     }
 
+    /** Ads and promotions YouTube mixes into feeds; never shown. */
+    static final Set<String> AD_KEYS = new HashSet<>(java.util.Arrays.asList(
+            "adSlotRenderer", "inFeedAdLayoutRenderer", "promotedVideoRenderer", "compactPromotedVideoRenderer",
+            "promotedSparklesWebRenderer", "brandVideoShelfRenderer", "statementBannerRenderer", "adSlotMetadata",
+            "displayAdRenderer", "searchPyvRenderer", "bannerPromoRenderer", "mealbarPromoRenderer",
+            "primetimePromoRenderer", "movingThumbnailRenderer", "feedNudgeRenderer"));
+
     private static final Set<String> SHELF_KEYS = new HashSet<>(java.util.Arrays.asList(
             "shelfRenderer", "richShelfRenderer", "reelShelfRenderer", "gridShelfViewModel"));
 
@@ -302,8 +315,8 @@ public final class Yti {
             sh.only = only;
             out.add(0, sh);
         } else if (loose.continuation != null && !out.isEmpty()) {
-            out.get(out.size() - 1).cont = loose.continuation;
-            out.get(out.size() - 1).contTv = tv;
+            out.get(out.size() - 1).pageCont = loose.continuation;
+            out.get(out.size() - 1).pageTv = tv;
         }
         List<Shelf> keep = new ArrayList<>();
         for (Shelf sh : out) if (!sh.items.isEmpty()) keep.add(sh);
@@ -322,19 +335,10 @@ public final class Yti {
         while (keys.hasNext()) {
             String k = keys.next();
             Object v = o.opt(k);
+            if (AD_KEYS.contains(k)) continue;
             if (v instanceof JSONObject && SHELF_KEYS.contains(k)) {
                 JSONObject r = (JSONObject) v;
-                String title = text(r.optJSONObject("title"));
-                if (title.isEmpty()) {
-                    JSONObject hr = r.optJSONObject("headerRenderer");
-                    if (hr == null) hr = r.optJSONObject("header");
-                    JSONObject t = hr == null ? null : findObject(hr, "title");
-                    title = text(t);
-                    if (title.isEmpty() && hr != null) {
-                        String tt = findString(hr, "content");
-                        if (tt != null) title = tt;
-                    }
-                }
+                String title = shelfTitle(r);
                 Page pg = new Page();
                 walk(r, pg, seen, only);
                 if ("reelShelfRenderer".equals(k)) for (Item it : pg.items) it.isShort = it.isShort || Item.VIDEO.equals(it.type);
@@ -365,6 +369,28 @@ public final class Yti {
             }
             collectShelves(v, out, loose, seen, tv, only);
         }
+    }
+
+    /** A shelf's title from its header (TV: shelfHeaderRenderer / avatarLockupRenderer, web: title). */
+    static String shelfTitle(JSONObject r) {
+        String t = text(r.optJSONObject("title"));
+        JSONObject hr = r.optJSONObject("headerRenderer");
+        if (hr == null) hr = r.optJSONObject("header");
+        if (t.isEmpty() && hr != null) {
+            JSONObject sh = findObject(hr, "shelfHeaderRenderer");
+            JSONObject al = findObject(hr, "avatarLockupRenderer");
+            JSONObject src = sh != null ? sh : al != null ? al : hr;
+            t = text(src.optJSONObject("title"));
+            if (t.isEmpty()) t = text(findObject(src, "title"));
+            if (t.isEmpty()) {
+                JSONObject tvm = findObject(hr, "dynamicTextViewModel");
+                if (tvm != null) t = text(tvm.optJSONObject("text"));
+            }
+        }
+        t = t.trim();
+        // ignore counts / times / accessibility numbers that aren't real titles
+        if (t.matches("[\\d\\s.,:+KMB%•-]*") || t.matches("(?i)\\d+\\s*(videos?|views?|items?)")) t = "";
+        return t;
     }
 
     private static boolean isItemKey(String k) {
@@ -400,6 +426,7 @@ public final class Yti {
         while (keys.hasNext()) {
             String k = keys.next();
             Object v = o.opt(k);
+            if (AD_KEYS.contains(k)) continue;
             if (!(v instanceof JSONObject)) { walk(v, pg, seen, only); continue; }
             JSONObject r = (JSONObject) v;
             Item it = null;
@@ -523,10 +550,13 @@ public final class Yti {
             it.sub = parts.isEmpty() ? "Channel" : parts.get(0);
             return it;
         }
+        // TV-channel listings ("Pistons vs. Spurs, 4:00 PM") and other non-videos aren't playable
+        if (id.length() != 11 || (findObject(r, "watchEndpoint") == null && findObject(r, "reelWatchEndpoint") == null)) return null;
         it.type = Item.VIDEO;
         it.url = "https://www.youtube.com/watch?v=" + id;
         it.thumb = thumb.isEmpty() ? Item.videoThumb(it.url) : thumb;
         if (!parts.isEmpty()) it.channel = parts.get(0);
+        if (findObject(r, "reelWatchEndpoint") != null) it.isShort = true;
         String cid = meta == null ? null : findChannelId(meta);
         if (cid != null) it.channelUrl = "https://www.youtube.com/channel/" + cid;
         String badge = findBadge(r);

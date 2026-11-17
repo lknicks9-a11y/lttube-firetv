@@ -194,9 +194,9 @@ public class PlayerActivity extends FragmentActivity {
 
         topInfo = new LinearLayout(this);
         topInfo.setOrientation(LinearLayout.VERTICAL);
-        topInfo.setPadding(dp(56), dp(34), dp(56), dp(60));
+        topInfo.setPadding(dp(48), dp(30), dp(48), dp(56));
         topInfo.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xCC000000, 0x00000000}));
-        titleView = text(26, Color.WHITE, true);
+        titleView = text(24, Color.WHITE, true);
         titleView.setMaxLines(2);
         titleView.setEllipsize(TextUtils.TruncateAt.END);
         channelView = text(16, 0xFFE6E6E6, false);
@@ -211,7 +211,7 @@ public class PlayerActivity extends FragmentActivity {
 
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
-        bottom.setPadding(dp(56), dp(70), dp(56), 0);
+        bottom.setPadding(dp(44), dp(64), dp(44), 0);
         bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0xF0000000, 0xA6000000, 0x00000000}));
         overlay.addView(bottom, new LinearLayout.LayoutParams(-1, -2));
 
@@ -235,12 +235,12 @@ public class PlayerActivity extends FragmentActivity {
         controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
         controls.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams crl = new LinearLayout.LayoutParams(-1, dp(66));
+        LinearLayout.LayoutParams crl = new LinearLayout.LayoutParams(-1, dp(62));
         crl.topMargin = dp(4);
         bottom.addView(controls, crl);
 
         LinearLayout leftGroup = group(false);
-        ctrlAvatar = cbtn(leftGroup, 0, "Go to channel", 44, v -> { if (!item.channelUrl.isEmpty()) Nav.channel(this, item.channelUrl, item.channel); });
+        ctrlAvatar = cbtn(leftGroup, 0, "Go to channel", 40, v -> { if (!item.channelUrl.isEmpty()) Nav.channel(this, item.channelUrl, item.channel); });
         ctrlAvatar.setPadding(dp(2), dp(2), dp(2), dp(2));
         pillBtn(leftGroup, "Description", v -> openDescription());
         btnSub = pillBtn(leftGroup, "Subscribe", v -> toggleSub());
@@ -248,25 +248,25 @@ public class PlayerActivity extends FragmentActivity {
         controls.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
 
         LinearLayout mid = group(false);
-        cbtn(mid, R.drawable.ic_prev, "Restart", 44, v -> { player.seekTo(0); player.play(); });
-        btnPlay = cbtn(mid, R.drawable.ic_pause, "Pause", 58, v -> togglePlay());
+        cbtn(mid, R.drawable.ic_prev, "Restart", 40, v -> { player.seekTo(0); player.play(); });
+        btnPlay = cbtn(mid, R.drawable.ic_pause, "Pause", 54, v -> togglePlay());
         btnPlay.setBackground(circle(Color.WHITE));
         btnPlay.setColorFilter(0xFF0F0F0F);
-        cbtn(mid, R.drawable.ic_next, "Next video", 44, v -> { Item n = findNext(); if (n != null) playNext(n); });
+        cbtn(mid, R.drawable.ic_next, "Next video", 40, v -> { Item n = findNext(); if (n != null) playNext(n); });
         controls.addView(mid);
         controls.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
 
         LinearLayout acts = group(true);
-        btnLike = cbtn(acts, R.drawable.ic_like_o, "Like", 42, v -> rate(true));
-        btnDislike = cbtn(acts, R.drawable.ic_dislike_o, "Dislike", 42, v -> rate(false));
-        cbtn(acts, R.drawable.ic_comment, "Comments", 42, v -> openComments());
-        cbtn(acts, R.drawable.ic_save, "Save to Watch later", 42, v -> saveWatchLater());
+        btnLike = cbtn(acts, R.drawable.ic_like_o, "Like", 38, v -> rate(true));
+        btnDislike = cbtn(acts, R.drawable.ic_dislike_o, "Dislike", 38, v -> rate(false));
+        cbtn(acts, R.drawable.ic_comment, "Comments", 38, v -> openComments());
+        cbtn(acts, R.drawable.ic_save, "Save to Watch later", 38, v -> saveWatchLater());
         controls.addView(acts);
         LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(dp(10), 1);
         controls.addView(new View(this), gl);
         LinearLayout tail = group(true);
-        btnCC = cbtn(tail, R.drawable.ic_cc, "Subtitles", 42, v -> toggleCaptions());
-        cbtn(tail, R.drawable.ic_settings, "Settings", 42, v -> settingsMenu());
+        btnCC = cbtn(tail, R.drawable.ic_cc, "Subtitles", 38, v -> toggleCaptions());
+        cbtn(tail, R.drawable.ic_settings, "Settings", 38, v -> settingsMenu());
         controls.addView(tail);
 
         // up next: peeks at the bottom; press down to bring it up
@@ -425,18 +425,19 @@ public class PlayerActivity extends FragmentActivity {
         });
         b.setOnClickListener(click);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(size), dp(size));
-        lp.setMargins(dp(4), 0, dp(4), 0);
+        lp.setMargins(dp(3), 0, dp(3), 0);
         parent.addView(b, lp);
         return b;
     }
 
     private TextView pillBtn(LinearLayout parent, String label, View.OnClickListener click) {
-        final TextView t = text(16, Color.WHITE, true);
+        final TextView t = text(14, Color.WHITE, true);
         t.setShadowLayer(0, 0, 0, 0);
+        t.setSingleLine(true);
         t.setText(label);
         t.setFocusable(true);
         t.setGravity(Gravity.CENTER);
-        t.setPadding(dp(22), dp(9), dp(22), dp(9));
+        t.setPadding(dp(18), dp(8), dp(18), dp(8));
         t.setBackground(rounded2(0x40FFFFFF, 24));
         t.setOnFocusChangeListener((v, has) -> {
             if (t == btnSub || t == shortsSub) { styleSub(); return; }

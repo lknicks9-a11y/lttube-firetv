@@ -12,6 +12,9 @@ public class Shelf {
     public final List<Item> items = new ArrayList<>();
     // more items: either a YouTube-account continuation…
     public String cont;
+    // more rows after this one (YouTube home continues as you scroll down)
+    public String pageCont;
+    public boolean pageTv;
     public boolean contTv;
     public String only;
     // …or a public (NewPipe) page

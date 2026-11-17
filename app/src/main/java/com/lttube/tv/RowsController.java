@@ -53,6 +53,7 @@ public class RowsController {
             if (!(row instanceof ListRow) || o == null) return;
             ListRow lr = (ListRow) row;
             Shelf sh = shelves.get(lr);
+            if (sh != null && sh.pageCont != null) moreRows(lr, sh);
             if (sh == null || !sh.canLoadMore() || loading.contains(lr)) return;
             ArrayObjectAdapter a = (ArrayObjectAdapter) lr.getAdapter();
             if (a.indexOf(o) >= a.size() - 6) more(lr, sh);
@@ -119,6 +120,42 @@ public class RowsController {
             Set<String> have = new HashSet<>();
             for (int i = 0; i < a.size(); i++) have.add(((Item) a.get(i)).url);
             for (Item it : next.items) if (have.add(it.url)) { a.add(it); sh.items.add(it); }
+        });
+    }
+
+    private final Set<String> pagesLoading = new HashSet<>();
+
+    /** Adds YouTube's next shelves after this row. */
+    private void moreRows(ListRow lr, Shelf sh) {
+        final String c = sh.pageCont;
+        if (c == null || !pagesLoading.add(c)) return;
+        final int s = seq;
+        Bg.run(() -> Yti.moreShelves(c, sh.pageTv), (list, err) -> {
+            if (s != seq || list == null) return;
+            sh.pageCont = null;
+            int at = rows.indexOf(lr) + 1;
+            List<ListRow> slot = null;
+            for (List<ListRow> sl : slots) if (sl.contains(lr)) slot = sl;
+            Set<String> seen = new HashSet<>();
+            for (ListRow r : shelves.keySet()) for (Item i : shelves.get(r).items) seen.add(i.url);
+            for (Shelf n : list) {
+                List<Item> fresh = new ArrayList<>();
+                for (Item i : n.items) if (seen.add(i.url)) fresh.add(i);
+                if (fresh.isEmpty()) {
+                    if (n.pageCont != null) { sh.pageCont = n.pageCont; sh.pageTv = n.pageTv; }
+                    continue;
+                }
+                n.items.clear();
+                n.items.addAll(fresh);
+                ArrayObjectAdapter a = new ArrayObjectAdapter(cards);
+                a.addAll(0, n.items);
+                HeaderItem hi = new HeaderItem(n.title);
+                if (n.subtitle != null && !n.subtitle.isEmpty()) hi.setDescription(n.subtitle);
+                ListRow nr = new ListRow(hi, a);
+                shelves.put(nr, n);
+                if (slot != null) slot.add(nr);
+                rows.add(at++, nr);
+            }
         });
     }
 

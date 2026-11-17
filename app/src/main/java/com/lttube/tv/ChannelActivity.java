@@ -3,9 +3,11 @@ package com.lttube.tv;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
-import android.util.TypedValue;
+import android.text.TextUtils;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -13,11 +15,17 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.fragment.app.FragmentActivity;
+import androidx.leanback.widget.ArrayObjectAdapter;
+import androidx.leanback.widget.ItemBridgeAdapter;
+import androidx.leanback.widget.OnChildViewHolderSelectedListener;
+import androidx.leanback.widget.VerticalGridView;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.RequestOptions;
 
 import org.schabi.newpipe.extractor.InfoItem;
+import org.schabi.newpipe.extractor.Page;
 import org.schabi.newpipe.extractor.channel.ChannelInfo;
 import org.schabi.newpipe.extractor.channel.tabs.ChannelTabInfo;
 import org.schabi.newpipe.extractor.channel.tabs.ChannelTabs;
@@ -26,67 +34,141 @@ import org.schabi.newpipe.extractor.linkhandler.ListLinkHandler;
 import java.util.ArrayList;
 import java.util.List;
 
-/** A channel page like YouTube TV: header with Subscribe, then Videos / Shorts / Live / Playlists rows. */
+/** A channel page like YouTube TV: banner, name, Subscribe, tabs, then videos. */
 public class ChannelActivity extends FragmentActivity {
     public static final String URL = "url", TITLE = "title";
 
+    private static final String[][] TABS = {{"home", "Home"}, {ChannelTabs.VIDEOS, "Videos"}, {ChannelTabs.SHORTS, "Shorts"},
+            {ChannelTabs.LIVESTREAMS, "Live"}, {ChannelTabs.PLAYLISTS, "Playlists"}};
+
     private String url, title;
     private ChannelInfo info;
+    private FrameLayout header;
+    private ImageView banner, avatar;
     private TextView name, meta, subBtn;
-    private ImageView avatar, banner;
+    private LinearLayout tabsRow;
+    private final List<TextView> tabViews = new ArrayList<>();
+    private FrameLayout rowsHolder;
+    private VerticalGridView grid;
+    private final ArrayObjectAdapter cards = new ArrayObjectAdapter(new CardPresenter());
     private RowsController rows;
-    private float d;
+    private String tab = "home";
+    private Page next;
+    private boolean loading;
+    private int seq;
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        d = getResources().getDisplayMetrics().density;
         url = getIntent().getStringExtra(URL);
         title = getIntent().getStringExtra(TITLE);
         if (title == null) title = "";
 
-        FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(0xFF0F0F0F);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Ui.BG);
+
+        // ---- banner + channel info
+        header = new FrameLayout(this);
         banner = new ImageView(this);
         banner.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        banner.setAlpha(0.35f);
-        root.addView(banner, new FrameLayout.LayoutParams(-1, dp(170)));
+        header.addView(banner, new FrameLayout.LayoutParams(-1, -1));
+        View shade = new View(this);
+        shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{Ui.BG, 0xCC14161E, 0x5514161E}));
+        header.addView(shade, new FrameLayout.LayoutParams(-1, -1));
 
+        LinearLayout info = new LinearLayout(this);
+        info.setGravity(Gravity.CENTER_VERTICAL);
+        info.setPadding(dp(56), 0, dp(56), dp(14));
+        avatar = new ImageView(this);
+        info.addView(avatar, new LinearLayout.LayoutParams(dp(84), dp(84)));
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setPadding(dp(56), dp(36), 0, 0);
-        root.addView(col, new FrameLayout.LayoutParams(-1, -1));
-
-        LinearLayout head = new LinearLayout(this);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        avatar = new ImageView(this);
-        head.addView(avatar, new LinearLayout.LayoutParams(dp(88), dp(88)));
-        LinearLayout txt = new LinearLayout(this);
-        txt.setOrientation(LinearLayout.VERTICAL);
-        txt.setPadding(dp(20), 0, dp(24), 0);
-        name = tv(28, Color.WHITE, true);
+        col.setPadding(dp(20), 0, dp(20), 0);
+        name = Ui.text(this, 30, Color.WHITE, true);
         name.setText(title);
-        meta = tv(15, 0xFFAAAAAA, false);
-        txt.addView(name);
-        txt.addView(meta);
-        head.addView(txt);
-        subBtn = tv(16, Color.WHITE, true);
+        name.setSingleLine(true);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        meta = Ui.text(this, 15, Ui.TEXT2, false);
+        meta.setSingleLine(true);
+        meta.setEllipsize(TextUtils.TruncateAt.END);
+        col.addView(name);
+        col.addView(meta);
+        info.addView(col, new LinearLayout.LayoutParams(0, -2, 1f));
+        subBtn = Ui.text(this, 16, Color.WHITE, true);
         subBtn.setFocusable(true);
-        subBtn.setPadding(dp(22), dp(10), dp(22), dp(10));
+        subBtn.setPadding(dp(26), dp(11), dp(26), dp(11));
         subBtn.setOnFocusChangeListener((v, has) -> styleSub());
         subBtn.setOnClickListener(v -> toggleSub());
-        head.addView(subBtn);
-        col.addView(head);
+        info.addView(subBtn);
+        header.addView(info, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        root.addView(header, new LinearLayout.LayoutParams(-1, dp(190)));
 
-        FrameLayout holder = new FrameLayout(this);
-        holder.setId(View.generateViewId());
-        LinearLayout.LayoutParams hl = new LinearLayout.LayoutParams(-1, 0, 1f);
-        hl.topMargin = dp(10);
-        col.addView(holder, hl);
+        // ---- tabs
+        tabsRow = new LinearLayout(this);
+        tabsRow.setOrientation(LinearLayout.HORIZONTAL);
+        tabsRow.setPadding(dp(50), dp(6), dp(50), dp(10));
+        for (String[] t : TABS) {
+            final String key = t[0];
+            final TextView tv = Ui.text(this, 16, Color.WHITE, true);
+            tv.setText(t[1]);
+            tv.setFocusable(true);
+            tv.setPadding(dp(20), dp(8), dp(20), dp(8));
+            tv.setTag(key);
+            tv.setOnFocusChangeListener((v, has) -> styleTabs());
+            tv.setOnClickListener(v -> selectTab(key));
+            tv.setOnKeyListener((v, code, ev) -> {
+                if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_DOWN) { focusContent(); return true; }
+                return false;
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.rightMargin = dp(8);
+            tabsRow.addView(tv, lp);
+            tabViews.add(tv);
+        }
+        root.addView(tabsRow);
+
+        // ---- content: rows (Home) or a grid (other tabs)
+        FrameLayout content = new FrameLayout(this);
+        root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1f));
+        rowsHolder = new FrameLayout(this);
+        rowsHolder.setId(View.generateViewId());
+        content.addView(rowsHolder, new FrameLayout.LayoutParams(-1, -1));
+        grid = new VerticalGridView(this);
+        grid.setNumColumns(4);
+        grid.setHorizontalSpacing(dp(16));
+        grid.setVerticalSpacing(dp(18));
+        grid.setClipToPadding(false);
+        grid.setPadding(dp(56), dp(10), dp(40), dp(40));
+        grid.setVisibility(View.GONE);
+        ItemBridgeAdapter bridge = new ItemBridgeAdapter(cards);
+        bridge.setAdapterListener(new ItemBridgeAdapter.AdapterListener() {
+            @Override
+            public void onBind(ItemBridgeAdapter.ViewHolder vh) {
+                vh.itemView.setOnClickListener(v -> {
+                    List<Item> ctx = new ArrayList<>();
+                    for (int i = 0; i < cards.size(); i++) ctx.add((Item) cards.get(i));
+                    Nav.open(ChannelActivity.this, (Item) vh.getItem(), ctx);
+                });
+            }
+        });
+        grid.setAdapter(bridge);
+        grid.setOnChildViewHolderSelectedListener(new OnChildViewHolderSelectedListener() {
+            @Override
+            public void onChildViewHolderSelected(RecyclerView parent, RecyclerView.ViewHolder child, int position, int subposition) {
+                if (position >= cards.size() - 8) loadMore();
+            }
+        });
+        content.addView(grid, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
 
-        rows = new RowsController(this, holder.getId(), (it, row) -> Nav.open(this, it, row));
+        rows = new RowsController(this, rowsHolder.getId(), (it, row) -> Nav.open(this, it, row));
+
+        // header slides away while you browse videos, like YouTube
+        root.getViewTreeObserver().addOnGlobalFocusChangeListener(focusWatcher);
+
         styleSub();
+        styleTabs();
         subBtn.requestFocus();
         load();
 
@@ -101,6 +183,17 @@ public class ChannelActivity extends FragmentActivity {
         }
     }
 
+    private final ViewTreeObserver.OnGlobalFocusChangeListener focusWatcher = (oldF, newF) -> {
+        if (newF == null) return;
+        boolean top = newF == subBtn || tabViews.contains(newF);
+        header.setVisibility(top ? View.VISIBLE : View.GONE);
+    };
+
+    private void focusContent() {
+        if ("home".equals(tab)) rows.focus();
+        else grid.requestFocus();
+    }
+
     private void load() {
         Bg.run(() -> ChannelInfo.getInfo(Feeds.yt(), url), (c, err) -> {
             if (c == null) { Toast.makeText(this, "Couldn't load channel: " + Bg.message(err), Toast.LENGTH_LONG).show(); return; }
@@ -108,40 +201,103 @@ public class ChannelActivity extends FragmentActivity {
             title = c.getName();
             name.setText(title);
             List<String> bits = new ArrayList<>();
+            String handle = c.getUrl() != null && c.getUrl().contains("/@") ? c.getUrl().substring(c.getUrl().indexOf("/@") + 1) : "";
+            if (!handle.isEmpty()) bits.add(handle);
             if (c.getSubscriberCount() >= 0) bits.add(Item.count(c.getSubscriberCount()) + " subscribers");
-            String desc = c.getDescription();
-            if (desc != null && !desc.isEmpty()) bits.add(desc.replace('\n', ' ').length() > 90 ? desc.replace('\n', ' ').substring(0, 90) + "…" : desc.replace('\n', ' '));
-            meta.setText(android.text.TextUtils.join("  •  ", bits));
+            meta.setText(TextUtils.join("  •  ", bits));
             Glide.with(this).load(Item.bestImage(c.getAvatars(), 176)).apply(RequestOptions.circleCropTransform()).into(avatar);
-            String b = Item.bestImage(c.getBanners(), 400);
+            String b = Item.bestImage(c.getBanners(), 600);
             if (!b.isEmpty()) Glide.with(this).load(b).centerCrop().into(banner);
-            addTab(ChannelTabs.VIDEOS, "Videos");
-            addTab(ChannelTabs.SHORTS, "Shorts");
-            addTab(ChannelTabs.LIVESTREAMS, "Live");
-            addTab(ChannelTabs.PLAYLISTS, "Playlists");
+            // hide tabs the channel doesn't have
+            for (TextView tv : tabViews) {
+                String k = (String) tv.getTag();
+                if (!"home".equals(k) && Feeds.channelTab(c, k) == null) tv.setVisibility(View.GONE);
+            }
+            selectTab("home");
         });
     }
 
-    private void addTab(String tab, String label) {
-        final ListLinkHandler h = Feeds.channelTab(info, tab);
+    private void selectTab(String key) {
+        tab = key;
+        styleTabs();
+        final int s = ++seq;
+        if (info == null) return;
+        if ("home".equals(key)) {
+            grid.setVisibility(View.GONE);
+            rowsHolder.setVisibility(View.VISIBLE);
+            rows.clear();
+            for (String[] t : TABS) if (!"home".equals(t[0])) addRow(t[0], t[1]);
+            return;
+        }
+        rowsHolder.setVisibility(View.GONE);
+        grid.setVisibility(View.VISIBLE);
+        cards.clear();
+        next = null;
+        loading = true;
+        final ListLinkHandler h = Feeds.channelTab(info, key);
+        if (h == null) { loading = false; return; }
+        Bg.run(() -> ChannelTabInfo.getInfo(Feeds.yt(), h), (t, err) -> {
+            if (s != seq) return;
+            loading = false;
+            if (t == null) { Toast.makeText(this, "Couldn't load: " + Bg.message(err), Toast.LENGTH_SHORT).show(); return; }
+            Feeds.Result r = new Feeds.Result();
+            Feeds.addAll(r, new ArrayList<InfoItem>(t.getRelatedItems()), false);
+            fix(r.items, key);
+            cards.addAll(0, r.items);
+            next = t.getNextPage();
+        });
+    }
+
+    private void loadMore() {
+        if (loading || next == null || info == null || "home".equals(tab)) return;
+        loading = true;
+        final int s = seq;
+        final String key = tab;
+        final Page page = next;
+        Bg.run(() -> Feeds.channelMore(info, key, page), (r, err) -> {
+            if (s != seq) return;
+            loading = false;
+            if (r == null) return;
+            fix(r.items, key);
+            cards.addAll(cards.size(), r.items);
+            next = r.next;
+        });
+    }
+
+    private void addRow(final String key, final String label) {
+        final ListLinkHandler h = Feeds.channelTab(info, key);
         if (h == null) return;
+        final ChannelInfo ci = info;
         rows.add(() -> {
             ChannelTabInfo t = ChannelTabInfo.getInfo(Feeds.yt(), h);
             Feeds.Result r = new Feeds.Result();
-            List<InfoItem> items = new ArrayList<>(t.getRelatedItems());
-            Feeds.addAll(r, items, false);
-            if (ChannelTabs.SHORTS.equals(tab)) for (Item i : r.items) i.isShort = true;
-            for (Item i : r.items) if (i.channel.isEmpty()) i.channel = title;
+            Feeds.addAll(r, new ArrayList<InfoItem>(t.getRelatedItems()), false);
+            fix(r.items, key);
             r.next = t.getNextPage();
-            final ChannelInfo ci = info;
             List<Shelf> l = new ArrayList<>();
             if (!r.items.isEmpty()) l.add(Shelf.of(label, r, page -> {
-                Feeds.Result m = Feeds.channelMore(ci, tab, page);
-                if (ChannelTabs.SHORTS.equals(tab)) for (Item i : m.items) i.isShort = true;
+                Feeds.Result m = Feeds.channelMore(ci, key, page);
+                fix(m.items, key);
                 return m;
             }));
             return l;
         });
+    }
+
+    private void fix(List<Item> items, String key) {
+        for (Item i : items) {
+            if (ChannelTabs.SHORTS.equals(key)) i.isShort = true;
+            if (i.channel.isEmpty()) i.channel = title;
+            if (i.channelUrl.isEmpty()) i.channelUrl = url;
+        }
+    }
+
+    private void styleTabs() {
+        for (TextView tv : tabViews) {
+            boolean f = tv.isFocused(), cur = tab.equals(tv.getTag());
+            tv.setBackground(f ? Ui.pill(this, Ui.FOCUS, 22) : cur ? Ui.pill(this, 0xFF333746, 22) : null);
+            tv.setTextColor(f ? 0xFF0F0F0F : cur ? Color.WHITE : Ui.TEXT2);
+        }
     }
 
     private void toggleSub() {
@@ -164,22 +320,19 @@ public class ChannelActivity extends FragmentActivity {
         boolean subbed = Store.isSubscribed(url);
         boolean f = subBtn.isFocused();
         subBtn.setText(subbed ? "Subscribed" : "Subscribe");
-        int bg = f ? Color.WHITE : subbed ? 0xFF303030 : 0xFFF1F1F1;
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(bg);
-        g.setCornerRadius(dp(22));
-        if (f) g.setStroke(dp(3), 0xFFFF0033);
-        subBtn.setBackground(g);
+        subBtn.setBackground(Ui.pill(this, f ? Color.WHITE : subbed ? 0xFF333746 : 0xFFF1F1F1, 24));
         subBtn.setTextColor(subbed && !f ? Color.WHITE : 0xFF0F0F0F);
     }
 
-    private TextView tv(int sp, int color, boolean bold) {
-        TextView t = new TextView(this);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
-        t.setTextColor(color);
-        if (bold) t.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
-        return t;
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent e) {
+        // Back from the videos goes to the tabs first
+        if (e.getKeyCode() == KeyEvent.KEYCODE_BACK && e.getAction() == KeyEvent.ACTION_UP && header.getVisibility() == View.GONE) {
+            for (TextView tv : tabViews) if (tab.equals(tv.getTag())) { tv.requestFocus(); return true; }
+        }
+        if (e.getKeyCode() == KeyEvent.KEYCODE_BACK && e.getAction() == KeyEvent.ACTION_DOWN && header.getVisibility() == View.GONE) return true;
+        return super.dispatchKeyEvent(e);
     }
 
-    private int dp(int v) { return Math.round(v * d); }
+    private int dp(float v) { return Ui.dp(this, v); }
 }

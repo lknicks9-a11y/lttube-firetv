@@ -294,19 +294,23 @@ public class MainActivity extends FragmentActivity {
         boolean in = Account.signedIn();
         switch (key) {
             case "home":
+                // Signed in: exactly YouTube's own Home, shelf after shelf as you scroll (no extra rows).
                 rows.add(Sources::continueWatching);
-                if (in) rows.add(() -> {
-                    List<Shelf> l = Yti.sections(Yti.HOME, "Recommended");
-                    if (!l.isEmpty() && "Recommended".equals(l.get(0).title) && l.get(0).subtitle.isEmpty())
-                        l.get(0).subtitle = "Based on your Subscriptions and History";
-                    return l;
-                });
-                else rows.add(Sources::recommended);
-                rows.add(() -> Sources.kiosk("trending_music", "Trending music"));
-                rows.add(() -> Sources.kiosk("trending_gaming", "Trending in gaming"));
-                rows.add(() -> Sources.kiosk("live", "Live now"));
-                rows.add(() -> Sources.kiosk("trending_podcasts_episodes", "Podcasts"));
-                if (!in) rows.addNow(signInShelf());
+                if (in) {
+                    rows.add(() -> {
+                        List<Shelf> l = Yti.sections(Yti.HOME, "Recommended");
+                        if (!l.isEmpty() && "Recommended".equals(l.get(0).title) && l.get(0).subtitle.isEmpty())
+                            l.get(0).subtitle = "Based on your Subscriptions and History";
+                        return l;
+                    });
+                } else {
+                    rows.add(Sources::recommended);
+                    rows.add(() -> Sources.kiosk("trending_music", "Trending music"));
+                    rows.add(() -> Sources.kiosk("trending_gaming", "Trending in gaming"));
+                    rows.add(() -> Sources.kiosk("live", "Live now"));
+                    rows.add(() -> Sources.kiosk("trending_podcasts_episodes", "Podcasts"));
+                    rows.addNow(signInShelf());
+                }
                 break;
             case "shorts":
                 if (in) rows.add(Sources::accountShorts);
