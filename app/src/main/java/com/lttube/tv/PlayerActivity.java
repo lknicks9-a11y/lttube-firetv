@@ -95,7 +95,14 @@ public class PlayerActivity extends FragmentActivity {
     private FrameLayout root;
     private LinearLayout overlay, topInfo, controls, upNextRow, upNextCards;
     private HorizontalScrollView upNextScroll;
-    private TextView titleView, channelView, metaView, timeView, chapterView, focusLabel, upNextHint;
+    private TextView titleView, channelView, metaView, timeView, chapterView, durView, upNextHint;
+    private static final int PEEK = 64;
+    private ImageView blurBg, ctrlAvatar, shortsAvatar, shortsLike;
+    private View blurDim;
+    private FrameLayout videoBox;
+    private LinearLayout shortsSide;
+    private TextView shortsTitle, shortsChannel, shortsSub, shortsHint;
+    private boolean shortsMode;
     private ImageView avatarView;
     private TimeBar bar;
     private ImageView btnPlay, btnLike, btnDislike, btnCC;
@@ -151,12 +158,25 @@ public class PlayerActivity extends FragmentActivity {
         root.setBackgroundColor(Color.BLACK);
         root.setFocusable(true);
 
+        // blurred background for Shorts
+        blurBg = new ImageView(this);
+        blurBg.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        blurBg.setVisibility(View.GONE);
+        root.addView(blurBg, match());
+        blurDim = new View(this);
+        blurDim.setBackgroundColor(0x99101418);
+        blurDim.setVisibility(View.GONE);
+        root.addView(blurDim, match());
+
+        videoBox = new FrameLayout(this);
         video = new PlayerView(this);
         video.setUseController(false);
         video.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
         video.setKeepScreenOn(true);
         video.setFocusable(false);
-        root.addView(video, match());
+        video.setShutterBackgroundColor(Color.BLACK);
+        videoBox.addView(video, match());
+        root.addView(videoBox, match());
 
         spinner = new ProgressBar(this);
         root.addView(spinner, new FrameLayout.LayoutParams(dp(56), dp(56), Gravity.CENTER));
@@ -167,111 +187,104 @@ public class PlayerActivity extends FragmentActivity {
         status.setVisibility(View.GONE);
         root.addView(status, new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER));
 
+        // ---- regular player overlay
         overlay = new LinearLayout(this);
         overlay.setOrientation(LinearLayout.VERTICAL);
         root.addView(overlay, match());
 
         topInfo = new LinearLayout(this);
-        topInfo.setOrientation(LinearLayout.HORIZONTAL);
-        topInfo.setGravity(Gravity.CENTER_VERTICAL);
-        topInfo.setPadding(dp(56), dp(32), dp(56), dp(48));
-        topInfo.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xD9000000, 0x00000000}));
-        avatarView = new ImageView(this);
-        topInfo.addView(avatarView, new LinearLayout.LayoutParams(dp(44), dp(44)));
-        LinearLayout tcol = new LinearLayout(this);
-        tcol.setOrientation(LinearLayout.VERTICAL);
-        tcol.setPadding(dp(16), 0, 0, 0);
-        titleView = text(24, Color.WHITE, true);
+        topInfo.setOrientation(LinearLayout.VERTICAL);
+        topInfo.setPadding(dp(56), dp(34), dp(56), dp(60));
+        topInfo.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xCC000000, 0x00000000}));
+        titleView = text(26, Color.WHITE, true);
         titleView.setMaxLines(2);
         titleView.setEllipsize(TextUtils.TruncateAt.END);
-        channelView = text(16, 0xFFE0E0E0, false);
-        tcol.addView(titleView);
-        tcol.addView(channelView);
-        topInfo.addView(tcol, new LinearLayout.LayoutParams(0, -2, 1f));
+        channelView = text(16, 0xFFE6E6E6, false);
+        channelView.setPadding(0, dp(4), 0, 0);
+        topInfo.addView(titleView);
+        topInfo.addView(channelView);
         overlay.addView(topInfo, new LinearLayout.LayoutParams(-1, -2));
+        avatarView = new ImageView(this);
+        metaView = text(15, 0xFFBDBDBD, false);
 
         overlay.addView(new View(this), new LinearLayout.LayoutParams(-1, 0, 1f));
 
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
-        bottom.setPadding(dp(56), dp(60), dp(56), dp(24));
-        bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0xF2000000, 0xB3000000, 0x00000000}));
+        bottom.setPadding(dp(56), dp(70), dp(56), 0);
+        bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0xF0000000, 0xA6000000, 0x00000000}));
         overlay.addView(bottom, new LinearLayout.LayoutParams(-1, -2));
-
-        metaView = text(15, 0xFFBDBDBD, false);
-        metaView.setSingleLine(true);
-        metaView.setEllipsize(TextUtils.TruncateAt.END);
-        bottom.addView(metaView);
 
         LinearLayout timeRow = new LinearLayout(this);
         timeRow.setGravity(Gravity.CENTER_VERTICAL);
-        timeView = text(16, Color.WHITE, true);
-        chapterView = text(16, 0xFFE0E0E0, false);
+        timeView = text(15, Color.WHITE, true);
+        chapterView = text(15, Color.WHITE, true);
         chapterView.setSingleLine(true);
         chapterView.setEllipsize(TextUtils.TruncateAt.END);
-        chapterView.setPadding(dp(16), 0, 0, 0);
+        durView = text(15, Color.WHITE, true);
         timeRow.addView(timeView);
         timeRow.addView(chapterView, new LinearLayout.LayoutParams(0, -2, 1f));
-        LinearLayout.LayoutParams trl = new LinearLayout.LayoutParams(-1, -2);
-        trl.topMargin = dp(6);
-        bottom.addView(timeRow, trl);
+        timeRow.addView(durView);
+        bottom.addView(timeRow);
 
         bar = new TimeBar(this);
         bar.setId(View.generateViewId());
-        bottom.addView(bar, new LinearLayout.LayoutParams(-1, dp(28)));
+        bottom.addView(bar, new LinearLayout.LayoutParams(-1, dp(26)));
 
+        // control row: [avatar] [Description] [Subscribe]   [prev] (play) [next]   [like dislike comments save] [CC settings]
         controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
         controls.setGravity(Gravity.CENTER_VERTICAL);
-        bottom.addView(controls, new LinearLayout.LayoutParams(-1, dp(60)));
+        LinearLayout.LayoutParams crl = new LinearLayout.LayoutParams(-1, dp(66));
+        crl.topMargin = dp(4);
+        bottom.addView(controls, crl);
 
-        button(R.drawable.ic_replay, "Restart", v -> { player.seekTo(0); player.play(); });
-        btnPlay = button(R.drawable.ic_pause, "Pause", v -> togglePlay());
-        button(R.drawable.ic_next, "Next video", v -> { Item n = findNext(); if (n != null) playNext(n); });
-        gap(controls, 18);
-        btnLike = button(R.drawable.ic_like_o, "Like", v -> rate(true));
-        btnDislike = button(R.drawable.ic_dislike_o, "Dislike", v -> rate(false));
-        btnSub = new TextView(this);
-        btnSub.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        btnSub.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        btnSub.setPadding(dp(18), dp(8), dp(18), dp(8));
-        btnSub.setFocusable(true);
-        btnSub.setOnFocusChangeListener((v, has) -> { styleSub(); if (has) focusLabel.setText(""); });
-        btnSub.setOnClickListener(v -> toggleSub());
-        LinearLayout.LayoutParams sbl = new LinearLayout.LayoutParams(-2, -2);
-        sbl.setMargins(dp(6), 0, dp(6), 0);
-        controls.addView(btnSub, sbl);
-        button(R.drawable.ic_save, "Save to Watch later", v -> saveWatchLater());
-        gap(controls, 18);
-        btnCC = button(R.drawable.ic_cc, "Subtitles", v -> toggleCaptions());
-        button(R.drawable.ic_comment, "Comments", v -> openComments());
-        button(R.drawable.ic_info, "Description", v -> openDescription());
-        button(R.drawable.ic_person, "Go to channel", v -> { if (!item.channelUrl.isEmpty()) Nav.channel(this, item.channelUrl, item.channel); });
-        button(R.drawable.ic_settings, "Settings", v -> settingsMenu());
-        focusLabel = text(14, 0xFFE0E0E0, false);
-        focusLabel.setPadding(dp(18), 0, 0, 0);
-        controls.addView(focusLabel);
+        LinearLayout leftGroup = group(false);
+        ctrlAvatar = cbtn(leftGroup, 0, "Go to channel", 44, v -> { if (!item.channelUrl.isEmpty()) Nav.channel(this, item.channelUrl, item.channel); });
+        ctrlAvatar.setPadding(dp(2), dp(2), dp(2), dp(2));
+        pillBtn(leftGroup, "Description", v -> openDescription());
+        btnSub = pillBtn(leftGroup, "Subscribe", v -> toggleSub());
+        controls.addView(leftGroup);
+        controls.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
 
-        upNextHint = text(14, 0xFFBDBDBD, false);
-        upNextHint.setText("▼  Up next");
-        upNextHint.setPadding(0, dp(4), 0, 0);
-        bottom.addView(upNextHint);
+        LinearLayout mid = group(false);
+        cbtn(mid, R.drawable.ic_prev, "Restart", 44, v -> { player.seekTo(0); player.play(); });
+        btnPlay = cbtn(mid, R.drawable.ic_pause, "Pause", 58, v -> togglePlay());
+        btnPlay.setBackground(circle(Color.WHITE));
+        btnPlay.setColorFilter(0xFF0F0F0F);
+        cbtn(mid, R.drawable.ic_next, "Next video", 44, v -> { Item n = findNext(); if (n != null) playNext(n); });
+        controls.addView(mid);
+        controls.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
 
+        LinearLayout acts = group(true);
+        btnLike = cbtn(acts, R.drawable.ic_like_o, "Like", 42, v -> rate(true));
+        btnDislike = cbtn(acts, R.drawable.ic_dislike_o, "Dislike", 42, v -> rate(false));
+        cbtn(acts, R.drawable.ic_comment, "Comments", 42, v -> openComments());
+        cbtn(acts, R.drawable.ic_save, "Save to Watch later", 42, v -> saveWatchLater());
+        controls.addView(acts);
+        LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(dp(10), 1);
+        controls.addView(new View(this), gl);
+        LinearLayout tail = group(true);
+        btnCC = cbtn(tail, R.drawable.ic_cc, "Subtitles", 42, v -> toggleCaptions());
+        cbtn(tail, R.drawable.ic_settings, "Settings", 42, v -> settingsMenu());
+        controls.addView(tail);
+
+        // up next: peeks at the bottom; press down to bring it up
         upNextRow = new LinearLayout(this);
         upNextRow.setOrientation(LinearLayout.VERTICAL);
-        upNextRow.setVisibility(View.GONE);
-        TextView unTitle = text(18, Color.WHITE, true);
-        unTitle.setText("Up next");
-        unTitle.setPadding(0, dp(8), 0, dp(8));
-        upNextRow.addView(unTitle);
+        upNextHint = text(15, Color.WHITE, true);
+        upNextHint.setText("Up next");
+        upNextHint.setPadding(0, dp(10), 0, dp(8));
+        upNextRow.addView(upNextHint);
         upNextScroll = new HorizontalScrollView(this);
         upNextScroll.setHorizontalScrollBarEnabled(false);
         upNextCards = new LinearLayout(this);
         upNextCards.setOrientation(LinearLayout.HORIZONTAL);
         upNextScroll.addView(upNextCards);
         upNextRow.addView(upNextScroll);
-        bottom.addView(upNextRow);
+        bottom.addView(upNextRow, new LinearLayout.LayoutParams(-1, dp(PEEK)));
 
+        // scrub preview
         previewBox = new FrameLayout(this);
         previewBox.setVisibility(View.GONE);
         GradientDrawable pb = new GradientDrawable();
@@ -289,6 +302,44 @@ public class PlayerActivity extends FragmentActivity {
         previewBox.addView(previewTime, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         root.addView(previewBox, new FrameLayout.LayoutParams(dp(212), dp(121)));
 
+        // ---- Shorts side panel
+        shortsSide = new LinearLayout(this);
+        shortsSide.setOrientation(LinearLayout.VERTICAL);
+        shortsSide.setGravity(Gravity.BOTTOM);
+        shortsSide.setVisibility(View.GONE);
+        shortsTitle = text(22, Color.WHITE, true);
+        shortsTitle.setMaxLines(3);
+        shortsTitle.setEllipsize(TextUtils.TruncateAt.END);
+        shortsSide.addView(shortsTitle);
+        LinearLayout chRow = new LinearLayout(this);
+        chRow.setGravity(Gravity.CENTER_VERTICAL);
+        chRow.setPadding(0, dp(18), 0, dp(10));
+        shortsAvatar = new ImageView(this);
+        chRow.addView(shortsAvatar, new LinearLayout.LayoutParams(dp(32), dp(32)));
+        shortsChannel = text(17, Color.WHITE, true);
+        shortsChannel.setPadding(dp(12), 0, 0, 0);
+        chRow.addView(shortsChannel);
+        shortsSide.addView(chRow);
+        shortsSub = pillBtn(shortsSide, "+  Subscribe", v -> toggleSub());
+        LinearLayout sActs = new LinearLayout(this);
+        sActs.setPadding(0, dp(14), 0, 0);
+        shortsLike = cbtn(sActs, R.drawable.ic_like_o, "Like", 44, v -> rate(true));
+        cbtn(sActs, R.drawable.ic_dislike_o, "Dislike", 44, v -> rate(false));
+        cbtn(sActs, R.drawable.ic_comment, "Comments", 44, v -> openComments());
+        cbtn(sActs, R.drawable.ic_more, "More", 44, v -> settingsMenu());
+        shortsSide.addView(sActs);
+        root.addView(shortsSide, new FrameLayout.LayoutParams(dp(380), -2, Gravity.BOTTOM | Gravity.START));
+
+        shortsHint = text(16, Color.WHITE, true);
+        shortsHint.setText("⌄   Press down for next video");
+        shortsHint.setBackground(rounded(0xCC1E2230));
+        shortsHint.setPadding(dp(18), dp(10), dp(18), dp(10));
+        shortsHint.setVisibility(View.GONE);
+        FrameLayout.LayoutParams hl = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
+        hl.setMargins(0, dp(32), dp(40), 0);
+        root.addView(shortsHint, hl);
+
+        // ---- side panel (comments / description)
         panel = new FrameLayout(this);
         panel.setVisibility(View.GONE);
         panel.setBackgroundColor(0xF2181818);
@@ -323,8 +374,13 @@ public class PlayerActivity extends FragmentActivity {
             if (code == KeyEvent.KEYCODE_DPAD_UP) return true;
             return false;
         });
-        for (int i = 0; i < controls.getChildCount(); i++) {
-            View c = controls.getChildAt(i);
+        wireControlKeys(controls);
+    }
+
+    private void wireControlKeys(ViewGroup g) {
+        for (int i = 0; i < g.getChildCount(); i++) {
+            View c = g.getChildAt(i);
+            if (c instanceof LinearLayout && !c.isFocusable()) { wireControlKeys((ViewGroup) c); continue; }
             if (!c.isFocusable()) continue;
             c.setOnKeyListener((v, code, ev) -> {
                 if (ev.getAction() != KeyEvent.ACTION_DOWN) return false;
@@ -332,6 +388,115 @@ public class PlayerActivity extends FragmentActivity {
                 if (code == KeyEvent.KEYCODE_DPAD_DOWN) { showUpNextRow(); return true; }
                 return false;
             });
+        }
+    }
+
+    private LinearLayout group(boolean pillBg) {
+        LinearLayout g = new LinearLayout(this);
+        g.setOrientation(LinearLayout.HORIZONTAL);
+        g.setGravity(Gravity.CENTER_VERTICAL);
+        if (pillBg) {
+            g.setBackground(rounded2(0x33FFFFFF, 30));
+            g.setPadding(dp(4), dp(3), dp(4), dp(3));
+        }
+        return g;
+    }
+
+    /** A round icon button like YouTube TV's. icon 0 = channel picture. */
+    private ImageView cbtn(LinearLayout parent, int icon, String label, int size, View.OnClickListener click) {
+        final ImageView b = new ImageView(this);
+        b.setId(View.generateViewId());
+        if (icon != 0) b.setImageResource(icon);
+        b.setContentDescription(label);
+        int pad = Math.round(size * 0.24f);
+        b.setPadding(dp(pad), dp(pad), dp(pad), dp(pad));
+        b.setFocusable(true);
+        final boolean isAvatar = icon == 0;
+        if (!isAvatar) b.setColorFilter(Color.WHITE);
+        b.setBackground(null);
+        b.setOnFocusChangeListener((v, has) -> {
+            if (b == btnPlay) {
+                b.setBackground(has ? circleStroke(Color.WHITE, dp(3), 0x99FFFFFF) : circle(Color.WHITE));
+                return;
+            }
+            if (isAvatar) { b.setBackground(has ? circleStroke(Color.TRANSPARENT, dp(3), Color.WHITE) : null); return; }
+            b.setBackground(has ? circle(Color.WHITE) : null);
+            b.setColorFilter(has ? 0xFF0F0F0F : Color.WHITE);
+        });
+        b.setOnClickListener(click);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(size), dp(size));
+        lp.setMargins(dp(4), 0, dp(4), 0);
+        parent.addView(b, lp);
+        return b;
+    }
+
+    private TextView pillBtn(LinearLayout parent, String label, View.OnClickListener click) {
+        final TextView t = text(16, Color.WHITE, true);
+        t.setShadowLayer(0, 0, 0, 0);
+        t.setText(label);
+        t.setFocusable(true);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(dp(22), dp(9), dp(22), dp(9));
+        t.setBackground(rounded2(0x40FFFFFF, 24));
+        t.setOnFocusChangeListener((v, has) -> {
+            if (t == btnSub || t == shortsSub) { styleSub(); return; }
+            t.setBackground(rounded2(has ? Color.WHITE : 0x40FFFFFF, 24));
+            t.setTextColor(has ? 0xFF0F0F0F : Color.WHITE);
+        });
+        t.setOnClickListener(click);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.setMargins(dp(6), 0, dp(6), 0);
+        if (parent.getOrientation() == LinearLayout.VERTICAL) lp.gravity = Gravity.START;
+        parent.addView(t, lp);
+        return t;
+    }
+
+    /** Switches between the normal player and the vertical Shorts player. */
+    private void applyMode(boolean shorts) {
+        shortsMode = shorts;
+        FrameLayout.LayoutParams vl = (FrameLayout.LayoutParams) videoBox.getLayoutParams();
+        int H = root.getHeight() > 0 ? root.getHeight() : getResources().getDisplayMetrics().heightPixels;
+        int W = root.getWidth() > 0 ? root.getWidth() : getResources().getDisplayMetrics().widthPixels;
+        if (shorts) {
+            int vh = H - dp(28);
+            int vw = vh * 9 / 16;
+            vl.width = vw;
+            vl.height = vh;
+            vl.gravity = Gravity.CENTER;
+            videoBox.setFocusable(true);
+            videoBox.setClipToOutline(true);
+            videoBox.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                @Override public void getOutline(View v, android.graphics.Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(16)); }
+            });
+            GradientDrawable ring = new GradientDrawable();
+            ring.setColor(Color.TRANSPARENT);
+            ring.setCornerRadius(dp(16));
+            ring.setStroke(dp(3), Color.WHITE);
+            videoBox.setForeground(ring);
+            video.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+            FrameLayout.LayoutParams sl = (FrameLayout.LayoutParams) shortsSide.getLayoutParams();
+            sl.leftMargin = (W + vw) / 2 + dp(40);
+            sl.bottomMargin = dp(60);
+            sl.width = Math.min(dp(380), W - sl.leftMargin - dp(30));
+            shortsSide.setLayoutParams(sl);
+        } else {
+            vl.width = -1;
+            vl.height = -1;
+            videoBox.setFocusable(false);
+            videoBox.setClipToOutline(false);
+            videoBox.setForeground(null);
+            video.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+        }
+        videoBox.setLayoutParams(vl);
+        blurBg.setVisibility(shorts ? View.VISIBLE : View.GONE);
+        blurDim.setVisibility(shorts ? View.VISIBLE : View.GONE);
+        shortsSide.setVisibility(shorts ? View.VISIBLE : View.GONE);
+        shortsHint.setVisibility(shorts ? View.VISIBLE : View.GONE);
+        root.setBackgroundColor(shorts ? 0xFF1A1E26 : Color.BLACK);
+        if (shorts) {
+            overlay.setVisibility(View.GONE);
+            Glide.with(this).load("https://i.ytimg.com/vi/" + item.videoId() + "/default.jpg").override(24, 32).centerCrop().into(blurBg);
+            videoBox.requestFocus();
         }
     }
 
@@ -400,12 +565,17 @@ public class PlayerActivity extends FragmentActivity {
         player.clearMediaItems();
         player.setRepeatMode(it.isShort ? Player.REPEAT_MODE_ONE : Player.REPEAT_MODE_OFF);
         titleView.setText(it.title);
-        channelView.setText(it.channel);
+        channelView.setText(it.sub);
         metaView.setText(it.sub);
         avatarView.setImageDrawable(null);
+        ctrlAvatar.setImageDrawable(null);
+        shortsTitle.setText(it.title);
+        shortsChannel.setText(it.channel);
+        shortsAvatar.setImageDrawable(null);
+        applyMode(it.isShort);
         styleRating();
         styleSub();
-        showOverlay(btnPlay);
+        if (!shortsMode) showOverlay(btnPlay);
         final int seq = ++loadSeq;
 
         Bg.run(() -> StreamInfo.getInfo(Feeds.yt(), it.url), (si, err) -> {
@@ -427,19 +597,27 @@ public class PlayerActivity extends FragmentActivity {
         String thumb = Item.bestImage(si.getThumbnails(), 360);
         if (!thumb.isEmpty()) item.thumb = thumb;
 
-        List<String> top = new ArrayList<>();
-        top.add(item.channel);
-        if (si.getUploaderSubscriberCount() > 0) top.add(Item.count(si.getUploaderSubscriberCount()) + " subscribers");
-        channelView.setText(TextUtils.join("  •  ", top));
         titleView.setText(item.title);
         List<String> bits = new ArrayList<>();
         if (si.getViewCount() >= 0) bits.add(Item.count(si.getViewCount()) + " views");
         if (si.getTextualUploadDate() != null) bits.add(si.getTextualUploadDate());
         if (si.getLikeCount() >= 0) bits.add(Item.count(si.getLikeCount()) + " likes");
         metaView.setText(TextUtils.join("  •  ", bits));
+        List<String> line = new ArrayList<>();
+        line.add(item.channel);
+        if (si.getViewCount() >= 0) line.add(Item.count(si.getViewCount()) + " views");
+        if (si.getTextualUploadDate() != null) line.add(si.getTextualUploadDate());
+        channelView.setText(TextUtils.join(" • ", line));
         item.sub = item.channel + " • " + TextUtils.join(" • ", bits);
         String av = Item.bestImage(si.getUploaderAvatars(), 88);
-        if (!av.isEmpty()) Glide.with(this).load(av).apply(RequestOptions.circleCropTransform()).into(avatarView);
+        if (!av.isEmpty()) {
+            Glide.with(this).load(av).apply(RequestOptions.circleCropTransform()).into(ctrlAvatar);
+            Glide.with(this).load(av).apply(RequestOptions.circleCropTransform()).into(shortsAvatar);
+        }
+        shortsTitle.setText(item.title);
+        String handle = "";
+        try { handle = si.getUploaderUrl() != null && si.getUploaderUrl().contains("/@") ? si.getUploaderUrl().substring(si.getUploaderUrl().indexOf("/@") + 1) : ""; } catch (Exception ignored) { }
+        shortsChannel.setText(handle.isEmpty() ? item.channel : handle);
 
         List<StreamSegment> segs = si.getStreamSegments();
         long[] ch = new long[segs == null ? 0 : segs.size()];
@@ -577,6 +755,7 @@ public class PlayerActivity extends FragmentActivity {
     };
 
     private void showOverlay(@Nullable View focus) {
+        if (shortsMode) { videoBox.requestFocus(); return; }
         setOverlay(true);
         if (focus != null) focus.requestFocus();
         else if (getCurrentFocus() == null || !isInOverlay(getCurrentFocus())) btnPlay.requestFocus();
@@ -585,7 +764,7 @@ public class PlayerActivity extends FragmentActivity {
 
     private void pokeOverlay() {
         h.removeCallbacks(hideOverlay);
-        h.postDelayed(hideOverlay, upNextRow.getVisibility() == View.VISIBLE ? 9000 : 5000);
+        h.postDelayed(hideOverlay, upNextOpen() ? 9000 : 5000);
     }
 
     private void setOverlay(boolean on) {
@@ -603,31 +782,6 @@ public class PlayerActivity extends FragmentActivity {
     private boolean isInOverlay(View v) {
         for (View p = v; p != null; p = p.getParent() instanceof View ? (View) p.getParent() : null) if (p == overlay) return true;
         return false;
-    }
-
-    private ImageView button(int icon, String label, View.OnClickListener click) {
-        final ImageView b = new ImageView(this);
-        b.setId(View.generateViewId());
-        b.setImageResource(icon);
-        b.setTag(label);
-        b.setPadding(dp(11), dp(11), dp(11), dp(11));
-        b.setFocusable(true);
-        b.setColorFilter(Color.WHITE);
-        b.setBackground(circle(0x33FFFFFF));
-        b.setOnFocusChangeListener((v, has) -> {
-            b.setBackground(circle(has ? Color.WHITE : 0x33FFFFFF));
-            b.setColorFilter(has ? 0xFF0F0F0F : Color.WHITE);
-            if (has) focusLabel.setText(String.valueOf(b.getTag()));
-        });
-        b.setOnClickListener(click);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
-        lp.setMargins(dp(6), 0, dp(6), 0);
-        controls.addView(b, lp);
-        return b;
-    }
-
-    private void gap(LinearLayout l, int w) {
-        l.addView(new View(this), new LinearLayout.LayoutParams(dp(w), 1));
     }
 
     private void togglePlay() {
@@ -713,12 +867,13 @@ public class PlayerActivity extends FragmentActivity {
         bar.position = player.getCurrentPosition();
         bar.buffered = player.getBufferedPosition();
         long shown = bar.shown();
-        timeView.setText(item.live ? "LIVE" : fmt(shown) + " / " + fmt(dur));
+        timeView.setText(item.live ? "LIVE" : fmt(shown));
+        durView.setText(item.live ? "" : fmt(dur));
         String chap = "";
         if (info != null && info.getStreamSegments() != null) {
             for (StreamSegment s : info.getStreamSegments()) if (s.getStartTimeSeconds() * 1000L <= shown) chap = s.getTitle();
         }
-        chapterView.setText(chap.isEmpty() ? "" : "•  " + chap);
+        chapterView.setText(chap.isEmpty() ? "" : " • " + chap);
         bar.invalidate();
     }
 
@@ -753,13 +908,15 @@ public class PlayerActivity extends FragmentActivity {
             });
             upNextCards.addView(card, lp);
         }
-        upNextHint.setVisibility(list.isEmpty() ? View.GONE : View.VISIBLE);
+        upNextRow.setVisibility(list.isEmpty() ? View.INVISIBLE : View.VISIBLE);
     }
 
     private void showUpNextRow() {
         if (upNextCards.getChildCount() == 0) return;
-        upNextRow.setVisibility(View.VISIBLE);
-        upNextHint.setVisibility(View.GONE);
+        ViewGroup.LayoutParams lp = upNextRow.getLayoutParams();
+        lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+        upNextRow.setLayoutParams(lp);
+        upNextRow.setPadding(0, 0, 0, dp(28));
         topInfo.setVisibility(View.INVISIBLE);
         upNextScroll.scrollTo(0, 0);
         upNextCards.getChildAt(0).requestFocus();
@@ -768,9 +925,15 @@ public class PlayerActivity extends FragmentActivity {
 
     private void hideUpNextRow() {
         if (upNextRow == null) return;
-        upNextRow.setVisibility(View.GONE);
+        ViewGroup.LayoutParams lp = upNextRow.getLayoutParams();
+        lp.height = dp(PEEK);
+        upNextRow.setLayoutParams(lp);
+        upNextRow.setPadding(0, 0, 0, 0);
         topInfo.setVisibility(View.VISIBLE);
-        if (upNextCards.getChildCount() > 0) upNextHint.setVisibility(View.VISIBLE);
+    }
+
+    private boolean upNextOpen() {
+        return upNextRow.getLayoutParams().height != dp(PEEK);
     }
 
     // ================================================================== side panels
@@ -958,6 +1121,7 @@ public class PlayerActivity extends FragmentActivity {
         btnLike.setTag(l ? "Liked" : "Like");
         btnDislike.setImageResource(dl ? R.drawable.ic_dislike : R.drawable.ic_dislike_o);
         btnDislike.setTag(dl ? "Disliked" : "Dislike");
+        if (shortsLike != null) shortsLike.setImageResource(l ? R.drawable.ic_like : R.drawable.ic_like_o);
     }
 
     private void toggleSub() {
@@ -978,11 +1142,14 @@ public class PlayerActivity extends FragmentActivity {
     private void styleSub() {
         if (btnSub == null || item == null) return;
         boolean subbed = Store.isSubscribed(item.channelUrl);
-        boolean f = btnSub.isFocused();
-        btnSub.setText(subbed ? "Subscribed" : "Subscribe");
-        btnSub.setBackground(roundedStroke(f ? Color.WHITE : subbed ? 0x33FFFFFF : 0xFFF1F1F1));
-        btnSub.setTextColor(f || !subbed ? 0xFF0F0F0F : Color.WHITE);
-        btnSub.setVisibility(item.channelUrl.isEmpty() ? View.GONE : View.VISIBLE);
+        for (TextView b : new TextView[]{btnSub, shortsSub}) {
+            if (b == null) continue;
+            boolean f = b.isFocused();
+            b.setText(subbed ? "Subscribed" : b == shortsSub ? "+  Subscribe" : "Subscribe");
+            b.setBackground(rounded2(f ? Color.WHITE : subbed ? 0x40FFFFFF : 0xFFF1F1F1, 24));
+            b.setTextColor(f || !subbed ? 0xFF0F0F0F : Color.WHITE);
+            b.setVisibility(item.channelUrl.isEmpty() ? View.GONE : View.VISIBLE);
+        }
     }
 
     private void saveWatchLater() {
@@ -1229,6 +1396,23 @@ public class PlayerActivity extends FragmentActivity {
             return super.dispatchKeyEvent(e);
         }
 
+        if (shortsMode && !overlayShown()) {
+            if (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN) {
+                if (down && e.getRepeatCount() == 0) nextShort(k == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1);
+                return true;
+            }
+            View f = getCurrentFocus();
+            if ((k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER) && (f == null || f == videoBox || f == root)) {
+                if (down) togglePlay();
+                return true;
+            }
+            if ((k == KeyEvent.KEYCODE_DPAD_LEFT) && f == videoBox) {
+                if (down) { player.seekBack(); }
+                return true;
+            }
+            return super.dispatchKeyEvent(e);
+        }
+
         if (!overlayShown()) {
             if (k == KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(e);
             if (!down) return true;
@@ -1256,7 +1440,7 @@ public class PlayerActivity extends FragmentActivity {
         pokeOverlay();
         if (k == KeyEvent.KEYCODE_BACK) {
             if (!down) {
-                if (upNextRow.getVisibility() == View.VISIBLE) { hideUpNextRow(); btnPlay.requestFocus(); }
+                if (upNextOpen()) { hideUpNextRow(); btnPlay.requestFocus(); }
                 else if (bar.scrub >= 0) { bar.scrub = -1; previewBox.setVisibility(View.GONE); bar.invalidate(); }
                 else setOverlay(false);
             }
@@ -1306,6 +1490,21 @@ public class PlayerActivity extends FragmentActivity {
         GradientDrawable g = new GradientDrawable();
         g.setColor(color);
         g.setCornerRadius(dp(10));
+        return g;
+    }
+
+    private GradientDrawable rounded2(int color, int radiusDp) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(color);
+        g.setCornerRadius(dp(radiusDp));
+        return g;
+    }
+
+    private GradientDrawable circleStroke(int color, int stroke, int strokeColor) {
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
+        g.setColor(color);
+        g.setStroke(stroke, strokeColor);
         return g;
     }
 
