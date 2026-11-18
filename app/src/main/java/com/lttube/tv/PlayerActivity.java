@@ -283,21 +283,33 @@ public class PlayerActivity extends FragmentActivity {
         upNextHint = text(15, Color.WHITE, true);
         upNextHint.setText("Up next");
         upNextHint.setPadding(0, dp(10), 0, dp(8));
-        upNextRow.addView(upNextHint);
+        // One scrolling sheet: Up next, then More from this channel and Related videos under it.
+        // It peeks at the bottom; Down opens it over the lower part of the screen and moves through the rows.
+        LinearLayout sheet = new LinearLayout(this);
+        sheet.setOrientation(LinearLayout.VERTICAL);
+        sheet.setClipChildren(false);
+        sheet.addView(upNextHint);
         upNextScroll = new HorizontalScrollView(this);
         upNextScroll.setHorizontalScrollBarEnabled(false);
+        upNextScroll.setClipToPadding(false);
+        upNextScroll.setClipChildren(false);
         upNextCards = new LinearLayout(this);
         upNextCards.setOrientation(LinearLayout.HORIZONTAL);
+        upNextCards.setClipChildren(false);
         upNextScroll.addView(upNextCards);
-        upNextRow.addView(upNextScroll);
+        sheet.addView(upNextScroll);
+        moreBox = new LinearLayout(this);
+        moreBox.setOrientation(LinearLayout.VERTICAL);
+        moreBox.setClipChildren(false);
+        sheet.addView(moreBox);
         moreScroll = new ScrollView(this);
         moreScroll.setVerticalScrollBarEnabled(false);
         moreScroll.setClipToPadding(false);
-        moreBox = new LinearLayout(this);
-        moreBox.setOrientation(LinearLayout.VERTICAL);
-        moreScroll.addView(moreBox);
-        moreScroll.setVisibility(View.GONE);
-        upNextRow.addView(moreScroll, new LinearLayout.LayoutParams(-1, (int) (getResources().getDisplayMetrics().heightPixels * 0.42f)));
+        moreScroll.setFocusable(false);
+        moreScroll.setPadding(0, 0, 0, dp(40));
+        moreScroll.addView(sheet);
+        upNextRow.addView(moreScroll, new LinearLayout.LayoutParams(-1, -1));
+        upNextRow.setClipChildren(false);
         bottom.addView(upNextRow, new LinearLayout.LayoutParams(-1, dp(PEEK)));
 
         // scrub preview
@@ -950,27 +962,13 @@ public class PlayerActivity extends FragmentActivity {
             card.fixedWidthDp = cardDp;
             card.bind(it);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(card.getLayoutParams().width, -2);
-            lp.rightMargin = dp(16);
+            lp.rightMargin = dp(6);
             card.setOnClickListener(v -> {
                 if (!Nav.queue.contains(it)) Nav.queue.clear();
                 else while (!Nav.queue.isEmpty() && Nav.queue.get(0) != it) Nav.queue.remove(0);
                 playNext(it);
             });
-            card.setOnKeyListener((v, code, ev) -> {
-                if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_UP) {
-                    hideUpNextRow();
-                    btnPlay.requestFocus();
-                    return true;
-                }
-                if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_DOWN) {
-                    // Down: into More from this channel / Related videos.
-                    if (moreBox.getChildCount() == 0) return true;
-                    View first = firstCard(moreBox);
-                    if (first != null) { moreScroll.smoothScrollTo(0, 0); first.requestFocus(); }
-                    return true;
-                }
-                return false;
-            });
+            card.setOnKeyListener((v, code, ev) -> sheetKey(v, code, ev));
             upNextCards.addView(card, lp);
         }
         upNextRow.setVisibility(list.isEmpty() ? View.INVISIBLE : View.VISIBLE);
@@ -979,14 +977,15 @@ public class PlayerActivity extends FragmentActivity {
     private void showUpNextRow() {
         if (upNextCards.getChildCount() == 0) return;
         ViewGroup.LayoutParams lp = upNextRow.getLayoutParams();
-        lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+        // The sheet takes the lower two thirds of the screen; the rows scroll inside it.
+        lp.height = (int) (getResources().getDisplayMetrics().heightPixels * 0.66f);
         upNextRow.setLayoutParams(lp);
-        upNextRow.setPadding(0, 0, 0, dp(24));
+        upNextRow.setPadding(0, 0, 0, 0);
         topInfo.setVisibility(View.INVISIBLE);
         timeRow.setVisibility(View.GONE);
         bar.setVisibility(View.GONE);
+        controls.setVisibility(View.GONE);
         upNextScroll.scrollTo(0, 0);
-        moreScroll.setVisibility(moreBox.getChildCount() > 0 ? View.VISIBLE : View.GONE);
         moreScroll.scrollTo(0, 0);
         upNextCards.getChildAt(0).requestFocus();
         pokeOverlay();
@@ -1015,6 +1014,53 @@ public class PlayerActivity extends FragmentActivity {
         if (related.size() > 3) addMoreRow("Related videos", related.subList(Math.min(related.size(), 0), Math.min(related.size(), 30)), -1);
     }
 
+    /** The sheet's rows of cards, top to bottom: Up next, then the rows under it. */
+    private List<ViewGroup> sheetRows() {
+        List<ViewGroup> out = new ArrayList<>();
+        if (upNextCards.getChildCount() > 0) out.add(upNextCards);
+        for (int i = 0; i < moreBox.getChildCount(); i++) {
+            View row = moreBox.getChildAt(i);
+            if (row instanceof LinearLayout && ((LinearLayout) row).getChildCount() > 1) {
+                View hs = ((LinearLayout) row).getChildAt(1);
+                if (hs instanceof HorizontalScrollView) {
+                    ViewGroup cards = (ViewGroup) ((HorizontalScrollView) hs).getChildAt(0);
+                    if (cards.getChildCount() > 0) out.add(cards);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Up / Down on a card in the sheet: to the card nearest it in the row above / below, scrolling the sheet. */
+    private boolean sheetKey(View card, int code, KeyEvent ev) {
+        if (code != KeyEvent.KEYCODE_DPAD_UP && code != KeyEvent.KEYCODE_DPAD_DOWN) return false;
+        if (ev.getAction() != KeyEvent.ACTION_DOWN) return true;
+        pokeOverlay();
+        List<ViewGroup> rows = sheetRows();
+        int r = rows.indexOf((ViewGroup) card.getParent());
+        int t = r + (code == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1);
+        if (t < 0) { hideUpNextRow(); btnPlay.requestFocus(); return true; }
+        if (t >= rows.size()) return true;
+        ViewGroup target = rows.get(t);
+        int[] at = new int[2];
+        card.getLocationOnScreen(at);
+        int x = at[0] + card.getWidth() / 2;
+        View best = target.getChildAt(0);
+        int bestD = Integer.MAX_VALUE;
+        for (int i = 0; i < target.getChildCount(); i++) {
+            View c = target.getChildAt(i);
+            c.getLocationOnScreen(at);
+            int dd = Math.abs(at[0] + c.getWidth() / 2 - x);
+            if (dd < bestD) { bestD = dd; best = c; }
+        }
+        best.requestFocus();
+        // Keep the row you're on near the top of the sheet, with its title showing.
+        View row = target == upNextCards ? null : (View) target.getParent().getParent();
+        final int y = row == null ? 0 : moreBox.getTop() + row.getTop();
+        moreScroll.post(() -> moreScroll.smoothScrollTo(0, y));
+        return true;
+    }
+
     private View firstCard(LinearLayout box) {
         for (int i = 0; i < box.getChildCount(); i++) {
             View row = box.getChildAt(i);
@@ -1041,7 +1087,9 @@ public class PlayerActivity extends FragmentActivity {
         hs.setClipToPadding(false);
         LinearLayout cards = new LinearLayout(this);
         cards.setOrientation(LinearLayout.HORIZONTAL);
-        cards.setPadding(dp(4), dp(4), dp(4), dp(8));
+        cards.setClipChildren(false);
+        hs.setClipChildren(false);
+        row.setClipChildren(false);
         hs.addView(cards);
         row.addView(hs);
         int screenW = getResources().getDisplayMetrics().widthPixels;
@@ -1052,13 +1100,12 @@ public class PlayerActivity extends FragmentActivity {
             card.fixedWidthDp = cardDp;
             card.bind(it);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(card.getLayoutParams().width, -2);
-            lp.rightMargin = dp(16);
+            lp.rightMargin = dp(6);
             card.setOnClickListener(v -> { Nav.queue.clear(); playNext(it); });
-            card.setOnFocusChangeListener((v, f) -> { if (f) { pokeOverlay(); moreScroll.smoothScrollTo(0, row.getTop()); } });
+            card.setOnKeyListener((v, code, ev) -> sheetKey(v, code, ev));
             cards.addView(card, lp);
         }
         if (at >= 0 && at <= moreBox.getChildCount()) moreBox.addView(row, at); else moreBox.addView(row);
-        if (upNextOpen()) moreScroll.setVisibility(View.VISIBLE);
     }
 
     private void hideUpNextRow() {
@@ -1067,7 +1114,9 @@ public class PlayerActivity extends FragmentActivity {
         lp.height = dp(PEEK);
         upNextRow.setLayoutParams(lp);
         upNextRow.setPadding(0, 0, 0, 0);
-        if (moreScroll != null) moreScroll.setVisibility(View.GONE);
+        if (moreScroll != null) moreScroll.scrollTo(0, 0);
+        if (upNextScroll != null) upNextScroll.scrollTo(0, 0);
+        controls.setVisibility(View.VISIBLE);
         topInfo.setVisibility(View.VISIBLE);
         if (timeRow != null) timeRow.setVisibility(View.VISIBLE);
         bar.setVisibility(View.VISIBLE);

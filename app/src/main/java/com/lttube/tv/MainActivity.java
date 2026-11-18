@@ -127,9 +127,9 @@ public class MainActivity extends FragmentActivity {
             final String key = NAV[i][0];
             if ("-".equals(key)) {
                 View line = new View(this);
-                line.setBackgroundColor(0x40FFFFFF);
+                line.setBackgroundColor(0x33FFFFFF);
                 LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(-1, dp(1));
-                ll.setMargins(dp(12), dp(8), dp(12), dp(10));
+                ll.setMargins(dp(16), dp(10), dp(16), dp(12));
                 navList.addView(line, ll);
                 continue;
             }
@@ -169,14 +169,15 @@ public class MainActivity extends FragmentActivity {
         item.setOrientation(LinearLayout.HORIZONTAL);
         item.setGravity(Gravity.CENTER_VERTICAL);
         item.setFocusable(true);
-        item.setPadding(dp(14), 0, dp(14), 0);
+        item.setPadding(dp(16), 0, dp(18), 0);
         ImageView ic = new ImageView(this);
         if (icon != 0) { ic.setImageResource(icon); ic.setColorFilter(Color.WHITE); }
-        item.addView(ic, new LinearLayout.LayoutParams(icon != 0 ? dp(24) : dp(32), icon != 0 ? dp(24) : dp(32)));
-        TextView lab = Ui.text(this, 18, Color.WHITE, true);
+        item.addView(ic, new LinearLayout.LayoutParams(icon != 0 ? dp(26) : dp(34), icon != 0 ? dp(26) : dp(34)));
+        TextView lab = Ui.text(this, 19, Color.WHITE, false);
         lab.setText(label);
         lab.setSingleLine(true);
-        lab.setPadding(dp(18), 0, 0, 0);
+        lab.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        lab.setPadding(dp(20), 0, 0, 0);
         lab.setVisibility(View.GONE);
         item.addView(lab);
         navLabels.add(lab);
@@ -192,8 +193,8 @@ public class MainActivity extends FragmentActivity {
     }
 
     private LinearLayout.LayoutParams rowLp() {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(46));
-        lp.bottomMargin = dp(4);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(52));
+        lp.bottomMargin = dp(6);
         return lp;
     }
 
@@ -201,9 +202,11 @@ public class MainActivity extends FragmentActivity {
         if (navOpen == open) return;
         navOpen = open;
         ViewGroup.LayoutParams lp = nav.getLayoutParams();
-        lp.width = dp(open ? 300 : 88);
+        lp.width = dp(open ? 340 : 88);
         nav.setLayoutParams(lp);
-        nav.setBackground(open ? Ui.panel(this, 0) : null);
+        // Like YouTube on TV: the open menu darkens the left of the screen (no box), rounded pills inside.
+        nav.setBackground(open ? new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{0xFA0F0F12, 0xF00F0F12, 0xD90F0F12}) : null);
         nav.setElevation(open ? dp(12) : 0);
         for (TextView t : navLabels) t.setVisibility(open ? View.VISIBLE : View.GONE);
         styleNav();
@@ -219,15 +222,24 @@ public class MainActivity extends FragmentActivity {
             View item = navItems.get(i);
             boolean focused = item.isFocused();
             boolean current = navKeys.get(i).equals(section);
-            item.setBackground(focused ? Ui.pill(this, Ui.FOCUS, 10) : current ? Ui.pill(this, Ui.SELECTED, 10) : null);
+            item.setBackground(focused ? roundPill(0xFFF1F1F1) : current ? roundPill(0x33FFFFFF) : null);
             ImageView ic = (ImageView) ((LinearLayout) item).getChildAt(0);
             TextView lab = (TextView) ((LinearLayout) item).getChildAt(1);
             ic.setColorFilter(focused ? 0xFF0F0F0F : current || navOpen ? Color.WHITE : 0xFFB0B4BE);
             lab.setTextColor(focused ? 0xFF0F0F0F : Color.WHITE);
+            lab.setTypeface(lab.getTypeface(), focused || current ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
         }
         boolean pf = profileItem.isFocused();
-        profileItem.setBackground(pf ? Ui.pill(this, Ui.FOCUS, 10) : null);
+        profileItem.setBackground(pf ? roundPill(0xFFF1F1F1) : null);
         profileName.setTextColor(pf ? 0xFF0F0F0F : Color.WHITE);
+    }
+
+    /** A fully rounded pill, like YouTube's menu on TV. */
+    private android.graphics.drawable.GradientDrawable roundPill(int color) {
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setCornerRadius(dp(26));
+        g.setColor(color);
+        return g;
     }
 
     private void focusContent() {

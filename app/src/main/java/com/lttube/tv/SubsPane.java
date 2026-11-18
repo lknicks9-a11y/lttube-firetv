@@ -121,20 +121,37 @@ public class SubsPane {
     private void load() {
         final boolean in = Account.signedIn();
         Bg.run(() -> {
+            // Each part on its own: one that fails (YouTube changed something, signed out…) no longer
+            // empties the whole page.
             List<Item> channels = new ArrayList<>();
             List<Item> latest = new ArrayList<>();
+            String problem = null;
             if (in) {
-                for (Shelf s : Sources.accountRow(Yti.CHANNELS, "Channels")) channels.addAll(s.items);
-                for (Shelf s : Yti.sections(Yti.SUBS, "Latest")) for (Item i : s.items) if (Item.VIDEO.equals(i.type)) latest.add(i);
-            } else {
-                channels.addAll(Store.subs());
-                for (Shelf s : Sources.localSubsFeed()) latest.addAll(s.items);
+                try { for (Shelf s : Sources.accountRow(Yti.CHANNELS, "Channels")) channels.addAll(s.items); }
+                catch (Exception e) { problem = Bg.message(e); }
+                try {
+                    for (Shelf s : Yti.sections(Yti.SUBS, "Latest")) for (Item i : s.items) if (Item.VIDEO.equals(i.type)) latest.add(i);
+                } catch (Exception e) { if (problem == null) problem = Bg.message(e); }
             }
             if (channels.isEmpty()) channels.addAll(Store.subs());
-            // drop anything without a usable channel link or name
-            List<Item> clean = new ArrayList<>();
-            java.util.Set<String> seen = new java.util.HashSet<>();
-            for (Item c : channels) if (c.url != null && !c.url.isEmpty() && c.title != null && !c.title.isEmpty() && seen.add(Store.channelId(c.url))) clean.add(c);
+            if (latest.isEmpty()) {
+                // Not signed in, or YouTube's feed came back empty: your channels' newest uploads.
+                try { for (Shelf s : Sources.localSubsFeed()) latest.addAll(s.items); }
+                catch (Exception e) { if (problem == null) problem = Bg.message(e); }
+            }
+            // Channels from the feed itself, if YouTube didn't list them.
+            if (channels.isEmpty()) {
+                java.util.Set<String> names = new java.util.HashSet<>();
+                for (Item v : latest) {
+                    if (v.channelUrl == null || v.channelUrl.isEmpty() || v.channel == null || v.channel.isEmpty() || !names.add(v.channel)) continue;
+                    Item c = new Item();
+                    c.type = Item.CHANNEL;
+                    c.title = v.channel;
+                    c.url = v.channelUrl;
+                    channels.add(c);
+                }
+            }
+            if (channels.isEmpty() && latest.isEmpty() && problem != null) throw new Exception(problem);
             return new Object[]{clean, latest};
         }, (res, err) -> {
             if (res == null) { status.setText("Couldn't load subscriptions: " + Bg.message(err)); return; }
@@ -187,11 +204,11 @@ public class SubsPane {
         r.setOrientation(LinearLayout.HORIZONTAL);
         r.setGravity(Gravity.CENTER_VERTICAL);
         r.setFocusable(true);
-        r.setPadding(dp(14), dp(8), dp(14), dp(8));
+        r.setPadding(dp(16), dp(9), dp(16), dp(9));
         ImageView img = new ImageView(a);
         if (icon != 0) { img.setImageResource(icon); img.setColorFilter(Color.WHITE); img.setPadding(dp(4), dp(4), dp(4), dp(4)); }
         else Glide.with(a).load(thumb).apply(RequestOptions.circleCropTransform()).into(img);
-        r.addView(img, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        r.addView(img, new LinearLayout.LayoutParams(dp(34), dp(34)));
         final TextView t = Ui.text(a, 17, Color.WHITE, true);
         t.setText(name);
         t.setSingleLine(true);
@@ -199,7 +216,7 @@ public class SubsPane {
         t.setPadding(dp(14), 0, 0, 0);
         r.addView(t, new LinearLayout.LayoutParams(0, -2, 1f));
         r.setOnFocusChangeListener((v, has) -> {
-            r.setBackground(has ? Ui.pill(a, Ui.FOCUS, 10) : key.equals(showing) ? Ui.pill(a, Ui.SELECTED, 10) : null);
+            r.setBackground(has ? Ui.pill(a, Ui.FOCUS, 24) : key.equals(showing) ? Ui.pill(a, Ui.SELECTED, 24) : null);
             t.setTextColor(has ? 0xFF0F0F0F : Color.WHITE);
             if (icon != 0) img.setColorFilter(has ? 0xFF0F0F0F : Color.WHITE);
             if (has) {

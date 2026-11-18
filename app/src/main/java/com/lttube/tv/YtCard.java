@@ -33,6 +33,8 @@ public class YtCard extends LinearLayout {
     private boolean round;
     /** When set (grids), video cards use this width and keep 16:9. */
     public int fixedWidthDp;
+    /** Room (dp) on each side of the picture for the focus zoom and border. */
+    static final int PAD = 10;
     private final float d;
 
     public YtCard(Context c) {
@@ -42,7 +44,10 @@ public class YtCard extends LinearLayout {
         setFocusable(true);
         setFocusableInTouchMode(true);
         setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);
-        setPadding(0, 0, 0, dp(6));
+        // Room around the picture so it can grow with its white border when you're on it without being cut off.
+        setPadding(dp(PAD), dp(PAD), dp(PAD), dp(6));
+        setClipChildren(false);
+        setClipToPadding(false);
 
         frame = new FrameLayout(c);
         frame.setBackgroundColor(0x33FFFFFF);
@@ -117,18 +122,20 @@ public class YtCard extends LinearLayout {
         int w = channel ? CHANNEL_W : shortV ? SHORT_W : VIDEO_W;
         int fw = channel ? AVATAR : w, fh = channel ? AVATAR : shortV ? SHORT_H : VIDEO_H;
         if (fixedWidthDp > 0 && !channel) {
-            w = fixedWidthDp;
-            fw = shortV ? Math.min(fixedWidthDp, SHORT_W) : fixedWidthDp;
-            fh = shortV ? fw * 16 / 9 : fixedWidthDp * 9 / 16;
+            // Grids: the card keeps its width; the picture sits inside the room around it.
+            int inner = fixedWidthDp - 2 * PAD;
+            w = fixedWidthDp - 2 * PAD;
+            fw = shortV ? Math.min(inner, SHORT_W) : inner;
+            fh = shortV ? fw * 16 / 9 : inner * 9 / 16;
         }
         round = channel;
         focusRing.setCornerRadius(channel ? fw * d : 14 * d);
         if (channel) focusRing.setShape(GradientDrawable.OVAL); else focusRing.setShape(GradientDrawable.RECTANGLE);
         ViewGroup.LayoutParams own = getLayoutParams();
         if (own == null) {
-            setLayoutParams(new ViewGroup.LayoutParams(dp(w), ViewGroup.LayoutParams.WRAP_CONTENT));
+            setLayoutParams(new ViewGroup.LayoutParams(dp(w + 2 * PAD), ViewGroup.LayoutParams.WRAP_CONTENT));
         } else {
-            own.width = dp(w);
+            own.width = dp(w + 2 * PAD);
             own.height = ViewGroup.LayoutParams.WRAP_CONTENT;
             setLayoutParams(own);
         }
