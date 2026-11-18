@@ -42,7 +42,7 @@ public class MainActivity extends FragmentActivity {
     private FrameLayout rowsHolder, paneHolder;
     private SubsPane subsPane;
     private SettingsPane settingsPane;
-    private LinearLayout nav, navList;
+    private LinearLayout nav, navList, content;
     private final List<View> navItems = new ArrayList<>();
     private final List<String> navKeys = new ArrayList<>();
     private final List<TextView> navLabels = new ArrayList<>();
@@ -73,7 +73,7 @@ public class MainActivity extends FragmentActivity {
         root.addView(veil, new FrameLayout.LayoutParams(-1, -1));
 
         // ---- content
-        LinearLayout content = new LinearLayout(this);
+        content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(-1, -1);
         cl.leftMargin = dp(88);
@@ -208,6 +208,8 @@ public class MainActivity extends FragmentActivity {
         nav.setBackground(open ? new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
                 new int[]{0xFA0F0F12, 0xF00F0F12, 0xD90F0F12}) : null);
         nav.setElevation(open ? dp(12) : 0);
+        // Like YouTube on TV: opening the menu slides the videos over to the right instead of covering them.
+        content.animate().translationX(open ? dp(340 - 88) : 0).setDuration(180).start();
         for (TextView t : navLabels) t.setVisibility(open ? View.VISIBLE : View.GONE);
         styleNav();
     }

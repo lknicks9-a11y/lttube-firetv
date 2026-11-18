@@ -1,3 +1,6 @@
+## 1.20
+- Opening the side menu slides the videos over to the right (like YouTube), so nothing is covered or cut off.
+
 ## 1.19
 - Player: scrolling down now works — Up next, More from the channel and Related videos scroll as one list, and Up / Down move between the rows.
 - Videos you move onto are no longer cut off at the edges.
