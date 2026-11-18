@@ -1,3 +1,9 @@
+## 1.22
+- Video titles always take two lines, so rows and grids line up evenly.
+- Subscriptions: three videos across.
+- Player: three videos across that fit the screen; Related videos keep going down in rows of three.
+- Shorts: the next Short plays by itself when one ends (no more looping).
+
 ## 1.21
 - Subscriptions: moving onto the videos folds the channel list to just pictures, giving the videos the room (like YouTube); moving back opens it again.
 - Side menu is narrower — no empty space.

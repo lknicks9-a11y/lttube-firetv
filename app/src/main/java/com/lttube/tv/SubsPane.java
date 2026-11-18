@@ -49,7 +49,7 @@ public class SubsPane {
         // Cards are sized for the collapsed channel list (avatars only), like YouTube: moving onto the videos
         // folds the list to give them the room; moving back onto it opens it again and slides the videos right.
         float avail = sw - 88 - 24 - LIST_SMALL - 29 - 24;
-        cols = avail >= 3 * 230 + 36 ? 3 : 2;
+        cols = 3; // three videos across, like YouTube
         cardW = (int) ((avail - (cols - 1) * 18) / cols);
         cards = new ArrayObjectAdapter(new CardPresenter(cardW));
         view = new LinearLayout(a);

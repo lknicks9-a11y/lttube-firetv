@@ -92,6 +92,8 @@ public class YtCard extends LinearLayout {
         addView(frame);
 
         title = text(c, 15, Color.WHITE, true);
+        // Always two lines tall, so cards in a row line up evenly whether the title is short or long.
+        title.setMinLines(2);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         title.setPadding(dp(2), dp(8), dp(2), 0);
@@ -145,6 +147,7 @@ public class YtCard extends LinearLayout {
         frame.invalidateOutline();
         setGravity(channel ? Gravity.CENTER_HORIZONTAL : Gravity.START);
         title.setGravity(channel ? Gravity.CENTER : Gravity.START);
+        title.setMinLines(channel ? 1 : 2);
         line1.setGravity(channel ? Gravity.CENTER : Gravity.START);
 
         title.setText(it.title);

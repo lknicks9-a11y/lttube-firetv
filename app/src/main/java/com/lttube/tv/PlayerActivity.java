@@ -623,7 +623,7 @@ public class PlayerActivity extends FragmentActivity {
         bar.scrub = -1;
         player.stop();
         player.clearMediaItems();
-        player.setRepeatMode(it.isShort ? Player.REPEAT_MODE_ONE : Player.REPEAT_MODE_OFF);
+        player.setRepeatMode(Player.REPEAT_MODE_OFF);
         titleView.setText(it.title);
         channelView.setText(it.sub);
         metaView.setText(it.sub);
@@ -962,7 +962,7 @@ public class PlayerActivity extends FragmentActivity {
         }
         int screenW = getResources().getDisplayMetrics().widthPixels;
         float density = getResources().getDisplayMetrics().density;
-        int cardDp = (int) (((screenW - 2 * sideMargin) / density - 3 * 6) / 3.25f);
+        int cardDp = (int) (((screenW - 2 * sideMargin) / density - 2 * 6) / 3f);
         for (final Item it : list) {
             YtCard card = new YtCard(this);
             card.fixedWidthDp = cardDp;
@@ -1019,7 +1019,14 @@ public class PlayerActivity extends FragmentActivity {
                 if (!mine.isEmpty()) addMoreRow("More from " + chName, mine, 0);
             });
         }
-        if (related.size() > 3) addMoreRow("Related videos", related.subList(Math.min(related.size(), 0), Math.min(related.size(), 30)), -1);
+        // Related videos (and the rest of Up next) as rows of three going down, like YouTube.
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        seen.add(item.videoId());
+        for (Item u : upNextList) seen.add(u.videoId());
+        List<Item> more = new ArrayList<>();
+        for (Item r : related) if (seen.add(r.videoId())) more.add(r);
+        for (int i = 0; i < more.size() && i < 60; i += 3)
+            addMoreRow(i == 0 ? "Related videos" : "", more.subList(i, Math.min(more.size(), i + 3)), -1);
     }
 
     /** The sheet's rows of cards, top to bottom: Up next, then the rows under it. */
@@ -1064,7 +1071,7 @@ public class PlayerActivity extends FragmentActivity {
         best.requestFocus();
         // Keep the row you're on near the top of the sheet, with its title showing.
         View row = target == upNextCards ? null : (View) target.getParent().getParent();
-        final int y = row == null ? 0 : moreBox.getTop() + row.getTop();
+        final int y = row == null ? 0 : Math.max(0, moreBox.getTop() + row.getTop() - dp(24));
         moreScroll.post(() -> moreScroll.smoothScrollTo(0, y));
         return true;
     }
@@ -1088,7 +1095,8 @@ public class PlayerActivity extends FragmentActivity {
         row.setOrientation(LinearLayout.VERTICAL);
         TextView t = text(18, Color.WHITE, true);
         t.setText(title);
-        t.setPadding(0, dp(16), 0, dp(6));
+        t.setPadding(0, title.isEmpty() ? 0 : dp(16), 0, title.isEmpty() ? 0 : dp(6));
+        if (title.isEmpty()) t.setVisibility(View.GONE);
         row.addView(t);
         HorizontalScrollView hs = new HorizontalScrollView(this);
         hs.setHorizontalScrollBarEnabled(false);
@@ -1102,7 +1110,7 @@ public class PlayerActivity extends FragmentActivity {
         row.addView(hs);
         int screenW = getResources().getDisplayMetrics().widthPixels;
         float density = getResources().getDisplayMetrics().density;
-        int cardDp = (int) (((screenW - 2 * sideMargin) / density - 3 * 6) / 3.25f);
+        int cardDp = (int) (((screenW - 2 * sideMargin) / density - 2 * 6) / 3f);
         for (final Item it : list) {
             YtCard card = new YtCard(this);
             card.fixedWidthDp = cardDp;
@@ -1526,6 +1534,8 @@ public class PlayerActivity extends FragmentActivity {
 
     private void ended() {
         saveProgress();
+        // Shorts: like YouTube, the next Short starts on its own as soon as this one ends.
+        if (shortsMode || item.isShort) { nextShort(1); return; }
         if (!Store.autoplay() && Nav.queue.isEmpty()) { showOverlay(btnPlay); return; }
         nextItem = findNext();
         if (nextItem == null) { showOverlay(btnPlay); return; }
