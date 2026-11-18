@@ -1,3 +1,7 @@
+## 1.23
+- Subscriptions: loads every channel you follow (all pages, not just the first) and more of your feed.
+- Player: scrolling down works like YouTube — one grid of videos three to a row, the video still playing behind, each press moves one row with the row above still showing, and Back to top · Description · Search · Home at the end.
+
 ## 1.22
 - Video titles always take two lines, so rows and grids line up evenly.
 - Subscriptions: three videos across.

@@ -7,6 +7,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -619,6 +620,9 @@ public class PlayerActivity extends FragmentActivity {
         upNextCards.removeAllViews();
         upNextList.clear();
         if (moreBox != null) moreBox.removeAllViews();
+        sheetItems.clear();
+        sheetSeen.clear();
+        sheetEnd = null;
         bar.chapters = new long[0];
         bar.scrub = -1;
         player.stop();
@@ -950,34 +954,94 @@ public class PlayerActivity extends FragmentActivity {
     }
 
     private void buildUpNext() {
-        upNextCards.removeAllViews();
+        // Your queue first, then YouTube's Up next (or the video's related list if that didn't come).
         List<Item> list = new ArrayList<>(Nav.queue);
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        seen.add(item.videoId());
-        for (Item q : list) seen.add(q.videoId());
         List<Item> source = new ArrayList<>(upNextList);
         if (source.isEmpty() && info != null) for (InfoItem ii : info.getRelatedItems()) source.add(Item.from(ii));
-        for (Item it : source) {
-            if (Item.VIDEO.equals(it.type) && seen.add(it.videoId())) list.add(it);
-        }
+        list.addAll(source);
+        sheetItems.clear();
+        sheetSeen.clear();
+        sheetSeen.add(item.videoId());
+        addToSheet(list, true);
+    }
+
+    // ---- the list under the player, like YouTube on TV: one grid of videos, three to a row, going down
+    private final List<Item> sheetItems = new ArrayList<>();
+    private final java.util.Set<String> sheetSeen = new java.util.HashSet<>();
+    private LinearLayout sheetEnd;
+
+    /** Adds videos to the grid under the player (no repeats). Up next ones go first. */
+    private void addToSheet(List<Item> list, boolean first) {
+        List<Item> fresh = new ArrayList<>();
+        for (Item it : list) if (Item.VIDEO.equals(it.type) && it.videoId() != null && sheetSeen.add(it.videoId())) fresh.add(it);
+        if (fresh.isEmpty() && !first) return;
+        if (first) sheetItems.addAll(0, fresh); else sheetItems.addAll(fresh);
+        if (sheetItems.size() > 90) sheetItems.subList(90, sheetItems.size()).clear();
+        if (!upNextOpen() || first) rebuildSheet();
+        else appendSheet(sheetItems.size() - fresh.size());
+    }
+
+    private int sheetCardDp() {
         int screenW = getResources().getDisplayMetrics().widthPixels;
         float density = getResources().getDisplayMetrics().density;
-        int cardDp = (int) (((screenW - 2 * sideMargin) / density - 2 * 6) / 3f);
-        for (final Item it : list) {
-            YtCard card = new YtCard(this);
-            card.fixedWidthDp = cardDp;
-            card.bind(it);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(card.getLayoutParams().width, -2);
+        return (int) (((screenW - 2 * sideMargin) / density - 2 * 6) / 3f);
+    }
+
+    private YtCard sheetCard(final Item it) {
+        YtCard card = new YtCard(this);
+        card.fixedWidthDp = sheetCardDp();
+        card.bind(it);
+        card.setOnClickListener(v -> {
+            if (!Nav.queue.contains(it)) Nav.queue.clear();
+            else while (!Nav.queue.isEmpty() && Nav.queue.get(0) != it) Nav.queue.remove(0);
+            playNext(it);
+        });
+        card.setOnKeyListener((v, code, ev) -> sheetKey(v, code, ev));
+        return card;
+    }
+
+    private void rebuildSheet() {
+        upNextCards.removeAllViews();
+        moreBox.removeAllViews();
+        for (int i = 0; i < Math.min(3, sheetItems.size()); i++) {
+            YtCard c = sheetCard(sheetItems.get(i));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(c.getLayoutParams().width, -2);
             lp.rightMargin = dp(6);
-            card.setOnClickListener(v -> {
-                if (!Nav.queue.contains(it)) Nav.queue.clear();
-                else while (!Nav.queue.isEmpty() && Nav.queue.get(0) != it) Nav.queue.remove(0);
-                playNext(it);
-            });
-            card.setOnKeyListener((v, code, ev) -> sheetKey(v, code, ev));
-            upNextCards.addView(card, lp);
+            upNextCards.addView(c, lp);
         }
-        upNextRow.setVisibility(list.isEmpty() ? View.INVISIBLE : View.VISIBLE);
+        appendSheet(3);
+        upNextRow.setVisibility(sheetItems.isEmpty() ? View.INVISIBLE : View.VISIBLE);
+    }
+
+    /** Adds rows of three from this index on, then the buttons at the end. */
+    private void appendSheet(int from) {
+        if (sheetEnd != null) moreBox.removeView(sheetEnd);
+        for (int i = Math.max(3, from); i < sheetItems.size(); i += 3)
+            addMoreRow("", sheetItems.subList(i, Math.min(sheetItems.size(), i + 3)), -1);
+        sheetEnd = endButtons();
+        moreBox.addView(sheetEnd);
+    }
+
+    /** At the bottom, like YouTube: Back to top · Description · Search · Home. */
+    private LinearLayout endButtons() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(0, dp(18), 0, dp(30));
+        pillBtn(row, "↑  Back to top", v -> { moreScroll.smoothScrollTo(0, 0); if (upNextCards.getChildCount() > 0) upNextCards.getChildAt(0).requestFocus(); });
+        pillBtn(row, "Description", v -> { hideUpNextRow(); openDescription(); });
+        pillBtn(row, "Search", v -> startActivity(new Intent(this, SearchActivity.class)));
+        pillBtn(row, "Home", v -> { Intent i = new Intent(this, MainActivity.class); i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP); startActivity(i); finish(); });
+        for (int i = 0; i < row.getChildCount(); i++) {
+            row.getChildAt(i).setOnKeyListener((v, code, ev) -> {
+                if (code != KeyEvent.KEYCODE_DPAD_UP && code != KeyEvent.KEYCODE_DPAD_DOWN) return false;
+                if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_UP) {
+                    List<ViewGroup> rows = sheetRows();
+                    if (!rows.isEmpty()) { ViewGroup last = rows.get(rows.size() - 1); last.getChildAt(0).requestFocus(); scrollSheetTo(last); }
+                }
+                return true;
+            });
+        }
+        return row;
     }
 
     private void showUpNextRow() {
@@ -985,9 +1049,10 @@ public class PlayerActivity extends FragmentActivity {
         ViewGroup.LayoutParams lp = upNextRow.getLayoutParams();
         // The sheet takes the lower two thirds of the screen; the rows scroll inside it.
         // Like YouTube: the rows take the whole screen over the dimmed video, the next row peeking below.
-        lp.height = getResources().getDisplayMetrics().heightPixels - dp(150);
+        lp.height = getResources().getDisplayMetrics().heightPixels - dp(90);
         upNextRow.setLayoutParams(lp);
-        bottom.setBackgroundColor(0xD9000000);
+        // The video keeps playing behind, only lightly darkened (like YouTube), darker toward the bottom.
+        bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x00000000, 0x80000000, 0xCC000000}));
         upNextRow.setPadding(0, 0, 0, 0);
         topInfo.setVisibility(View.GONE);
         timeRow.setVisibility(View.GONE);
@@ -1011,22 +1076,14 @@ public class PlayerActivity extends FragmentActivity {
             Item r = Item.from(ii);
             if (Item.VIDEO.equals(r.type) && !r.videoId().equals(item.videoId())) related.add(r);
         }
+        // Related videos from the video's page join the grid, then this channel's most viewed.
+        addToSheet(related, false);
         if (!chId.isEmpty()) {
             Bg.run(() -> Yti.channelPopular(chId), (list, err) -> {
                 if (seq != loadSeq || isFinishing() || list == null) return;
-                List<Item> mine = new ArrayList<>();
-                for (Item x : list) if (Item.VIDEO.equals(x.type) && !x.videoId().equals(item.videoId())) mine.add(x);
-                if (!mine.isEmpty()) addMoreRow("More from " + chName, mine, 0);
+                addToSheet(list, false);
             });
         }
-        // Related videos (and the rest of Up next) as rows of three going down, like YouTube.
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        seen.add(item.videoId());
-        for (Item u : upNextList) seen.add(u.videoId());
-        List<Item> more = new ArrayList<>();
-        for (Item r : related) if (seen.add(r.videoId())) more.add(r);
-        for (int i = 0; i < more.size() && i < 60; i += 3)
-            addMoreRow(i == 0 ? "Related videos" : "", more.subList(i, Math.min(more.size(), i + 3)), -1);
     }
 
     /** The sheet's rows of cards, top to bottom: Up next, then the rows under it. */
@@ -1055,7 +1112,14 @@ public class PlayerActivity extends FragmentActivity {
         int r = rows.indexOf((ViewGroup) card.getParent());
         int t = r + (code == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1);
         if (t < 0) { hideUpNextRow(); btnPlay.requestFocus(); return true; }
-        if (t >= rows.size()) return true;
+        if (t >= rows.size()) {
+            // Past the last row: the buttons at the end.
+            if (sheetEnd != null && sheetEnd.getChildCount() > 0) {
+                sheetEnd.getChildAt(0).requestFocus();
+                moreScroll.post(() -> moreScroll.smoothScrollTo(0, moreBox.getTop() + sheetEnd.getBottom()));
+            }
+            return true;
+        }
         ViewGroup target = rows.get(t);
         int[] at = new int[2];
         card.getLocationOnScreen(at);
@@ -1069,11 +1133,19 @@ public class PlayerActivity extends FragmentActivity {
             if (dd < bestD) { bestD = dd; best = c; }
         }
         best.requestFocus();
-        // Keep the row you're on near the top of the sheet, with its title showing.
-        View row = target == upNextCards ? null : (View) target.getParent().getParent();
-        final int y = row == null ? 0 : Math.max(0, moreBox.getTop() + row.getTop() - dp(24));
-        moreScroll.post(() -> moreScroll.smoothScrollTo(0, y));
+        scrollSheetTo(target);
         return true;
+    }
+
+    /**
+     * Like YouTube: each move scrolls one row; the row you're on sits a little above the middle with the row
+     * before it still showing above and the next one peeking in below.
+     */
+    private void scrollSheetTo(ViewGroup cardsRow) {
+        View row = cardsRow == upNextCards ? null : (View) cardsRow.getParent().getParent();
+        int top = row == null ? 0 : moreBox.getTop() + row.getTop();
+        final int y = Math.max(0, top - Math.round(moreScroll.getHeight() * 0.36f));
+        moreScroll.post(() -> moreScroll.smoothScrollTo(0, y));
     }
 
     private View firstCard(LinearLayout box) {

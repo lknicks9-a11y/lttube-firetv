@@ -163,11 +163,31 @@ public class SubsPane {
             List<Item> latest = new ArrayList<>();
             String problem = null;
             if (in) {
-                try { for (Shelf s : Sources.accountRow(Yti.CHANNELS, "Channels")) channels.addAll(s.items); }
-                catch (Exception e) { problem = Bg.message(e); }
+                // Every channel you follow: YouTube sends them a page at a time, so keep asking for the next page.
                 try {
-                    for (Shelf s : Yti.sections(Yti.SUBS, "Latest")) for (Item i : s.items) if (Item.VIDEO.equals(i.type)) latest.add(i);
+                    for (Shelf s : Sources.accountRow(Yti.CHANNELS, "Channels")) {
+                        channels.addAll(s.items);
+                        Shelf page = s;
+                        for (int n = 0; n < 40 && page.canLoadMore(); n++) {
+                            page = page.loadMore();
+                            for (Item i : page.items) if (Item.CHANNEL.equals(i.type)) channels.add(i);
+                        }
+                    }
+                    if (!channels.isEmpty()) Store.addSubs(channels);
+                } catch (Exception e) { problem = Bg.message(e); }
+                // Your subscriptions feed, a few pages deep.
+                try {
+                    for (Shelf s : Yti.sections(Yti.SUBS, "Latest")) {
+                        for (Item i : s.items) if (Item.VIDEO.equals(i.type)) latest.add(i);
+                        Shelf page = s;
+                        for (int n = 0; n < 3 && page.canLoadMore() && latest.size() < 150; n++) {
+                            page = page.loadMore();
+                            for (Item i : page.items) if (Item.VIDEO.equals(i.type)) latest.add(i);
+                        }
+                    }
                 } catch (Exception e) { if (problem == null) problem = Bg.message(e); }
+                // Channels YouTube didn't list but you also follow here (imported, or followed in LTTube).
+                if (!channels.isEmpty()) channels.addAll(Store.subs());
             }
             if (channels.isEmpty()) channels.addAll(Store.subs());
             if (latest.isEmpty()) {
