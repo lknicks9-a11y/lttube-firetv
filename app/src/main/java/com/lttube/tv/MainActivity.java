@@ -39,7 +39,7 @@ public class MainActivity extends FragmentActivity {
             R.drawable.ic_gaming, R.drawable.ic_info, R.drawable.ic_check, R.drawable.ic_comment, 0, R.drawable.ic_settings};
 
     /** Open menu width: just room for the names (YouTube's is narrow, no dead space). */
-    private static final int NAV_OPEN = 236;
+    private static final int NAV_OPEN = 210;
     private RowsController rows;
     private FrameLayout rowsHolder, paneHolder;
     private SubsPane subsPane;
@@ -174,12 +174,12 @@ public class MainActivity extends FragmentActivity {
         item.setPadding(dp(16), 0, dp(12), 0);
         ImageView ic = new ImageView(this);
         if (icon != 0) { ic.setImageResource(icon); ic.setColorFilter(Color.WHITE); }
-        item.addView(ic, new LinearLayout.LayoutParams(icon != 0 ? dp(26) : dp(34), icon != 0 ? dp(26) : dp(34)));
-        TextView lab = Ui.text(this, 17, Color.WHITE, false);
+        item.addView(ic, new LinearLayout.LayoutParams(icon != 0 ? dp(20) : dp(28), icon != 0 ? dp(20) : dp(28)));
+        TextView lab = Ui.text(this, 14, Color.WHITE, false);
         lab.setText(label);
         lab.setSingleLine(true);
         lab.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        lab.setPadding(dp(16), 0, 0, 0);
+        lab.setPadding(dp(14), 0, 0, 0);
         lab.setVisibility(View.GONE);
         item.addView(lab);
         navLabels.add(lab);
@@ -195,8 +195,8 @@ public class MainActivity extends FragmentActivity {
     }
 
     private LinearLayout.LayoutParams rowLp() {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(52));
-        lp.bottomMargin = dp(6);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(40));
+        lp.bottomMargin = dp(4);
         return lp;
     }
 
@@ -241,7 +241,7 @@ public class MainActivity extends FragmentActivity {
     /** A fully rounded pill, like YouTube's menu on TV. */
     private android.graphics.drawable.GradientDrawable roundPill(int color) {
         android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
-        g.setCornerRadius(dp(26));
+        g.setCornerRadius(dp(20));
         g.setColor(color);
         return g;
     }

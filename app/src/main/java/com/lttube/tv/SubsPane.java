@@ -169,7 +169,6 @@ public class SubsPane {
                     try { for (Shelf s : Sources.accountRow(Yti.CHANNELS, "Channels")) channels.addAll(s.items); }
                     catch (Exception e) { if (problem == null) problem = Bg.message(e); }
                 }
-                if (!channels.isEmpty()) Store.addSubs(channels);
                 // Your subscriptions feed, a few pages deep.
                 try {
                     for (Shelf s : Yti.sections(Yti.SUBS, "Latest")) {
@@ -181,17 +180,16 @@ public class SubsPane {
                         }
                     }
                 } catch (Exception e) { if (problem == null) problem = Bg.message(e); }
-                // Channels YouTube didn't list but you also follow here (imported, or followed in LTTube).
-                if (!channels.isEmpty()) channels.addAll(Store.subs());
             }
-            if (channels.isEmpty()) channels.addAll(Store.subs());
+            // Signed in: only the channels YouTube says you're subscribed to (never ones you only opened or watched).
+            if (!in && channels.isEmpty()) channels.addAll(Store.subs());
             if (latest.isEmpty()) {
                 // Not signed in, or YouTube's feed came back empty: your channels' newest uploads.
                 try { for (Shelf s : Sources.localSubsFeed()) latest.addAll(s.items); }
                 catch (Exception e) { if (problem == null) problem = Bg.message(e); }
             }
-            // Channels from the feed itself, if YouTube didn't list them.
-            if (channels.isEmpty()) {
+            // Channels from the feed itself, only if YouTube didn't list any.
+            if (channels.isEmpty() && !in) {
                 java.util.Set<String> names = new java.util.HashSet<>();
                 for (Item v : latest) {
                     if (v.channelUrl == null || v.channelUrl.isEmpty() || v.channel == null || v.channel.isEmpty() || !names.add(v.channel)) continue;

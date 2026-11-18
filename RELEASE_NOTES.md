@@ -1,3 +1,8 @@
+## 1.0.0
+- Subscriptions: only the channels you're subscribed to on YouTube (not channels of videos you watched or opened).
+- Smaller side menu text and icons.
+- Version numbers start over at 1.0.0; updates now go by build number.
+
 ## 1.24
 - Subscriptions: every channel you're subscribed to — read from YouTube's TV Subscriptions list, the web's All subscriptions (every page) and the side menu, put together.
 

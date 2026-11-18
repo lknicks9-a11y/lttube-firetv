@@ -49,9 +49,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           V="$(cat VERSION | tr -d '[:space:]')"
-          if gh release view "v$V" >/dev/null 2>&1; then
-            echo "v$V already released; built only."
-            exit 0
-          fi
+          # Every build on main is released, tagged by its build number (the app updates by build number).
+          T="b${GITHUB_RUN_NUMBER}"
           NOTES="$(cat RELEASE_NOTES.md 2>/dev/null || git log -1 --pretty=%B | grep -v -e '^Co-Authored-By' -e '^Claude-Session')"
-          gh release create "v$V" LTTube-TV.apk --title "LTTube $V" --latest --notes "$NOTES"
+          gh release create "$T" LTTube-TV.apk --title "LTTube $V (build ${GITHUB_RUN_NUMBER})" --latest --notes "$NOTES"

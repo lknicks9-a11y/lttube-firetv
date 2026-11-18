@@ -58,7 +58,10 @@ public final class Updater {
 
     /** True if the release is a newer version than this app (1.17 > 1.16 > 1.0.15). */
     public static boolean isNewer(Context c, Release rel) {
-        return rel != null && compare(rel.version, currentVersion(c)) > 0;
+        if (rel == null) return false;
+        // Releases are told apart by build number (every build is called 1.0.0 for now).
+        if (rel.build > 0) return rel.build > currentBuild(c);
+        return compare(rel.version, currentVersion(c)) > 0;
     }
 
     public static boolean updateReady(Context c) { return isNewer(c, latest); }
@@ -84,9 +87,15 @@ public final class Updater {
             if (!res.isSuccessful() || res.body() == null) throw new Exception("GitHub answered " + res.code());
             JSONObject o = new JSONObject(res.body().string());
             Release rel = new Release();
-            rel.version = o.optString("tag_name").replaceFirst("^v", "");
-            String[] parts = rel.version.split("\\.");
-            try { rel.build = Integer.parseInt(parts[parts.length - 1]); } catch (Exception ignored) { }
+            String tag = o.optString("tag_name");
+            // New releases are tagged "b<build>" and titled "LTTube 1.0.0 (build N)".
+            if (tag.matches("b\\d+")) {
+                rel.build = Integer.parseInt(tag.substring(1));
+                rel.version = o.optString("name", "").replaceFirst("^LTTube\\s*", "").replaceFirst("\\s*\\(build \\d+\\)$", "");
+                if (rel.version.isEmpty()) rel.version = "1.0.0";
+            } else {
+                rel.version = tag.replaceFirst("^v", "");
+            }
             rel.notes = o.optString("body", "").trim();
             JSONArray assets = o.optJSONArray("assets");
             for (int i = 0; assets != null && i < assets.length(); i++) {

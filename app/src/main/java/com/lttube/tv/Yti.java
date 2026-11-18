@@ -688,9 +688,7 @@ public final class Yti {
      */
     public static List<Item> subscribedChannels() {
         java.util.LinkedHashMap<String, Item> out = new java.util.LinkedHashMap<>();
-        // TV: the left-hand channel list of Subscriptions
-        try { collectChannels(call("browse", new JSONObject().put("browseId", "FEsubscriptions"), true), out); } catch (Exception ignored) { }
-        // Web: All subscriptions, every page
+        // Web: All subscriptions, every page — YouTube's own list of exactly who you're subscribed to.
         try {
             JSONObject r = call("browse", new JSONObject().put("browseId", "FEchannels"), false);
             String last = "";
@@ -703,8 +701,10 @@ public final class Yti {
                 r = call("browse", new JSONObject().put("continuation", cont), false);
             }
         } catch (Exception ignored) { }
-        // Web side menu (its Subscriptions section lists them all)
-        try { collectChannels(call("guide", new JSONObject(), false), out); } catch (Exception ignored) { }
+        if (!out.isEmpty()) return new ArrayList<>(out.values());
+        // If that page didn't answer: the TV app's Subscriptions channel list, then the web side menu's.
+        try { collectChannels(call("browse", new JSONObject().put("browseId", "FEsubscriptions"), true), out); } catch (Exception ignored) { }
+        if (out.isEmpty()) try { collectChannels(call("guide", new JSONObject(), false), out); } catch (Exception ignored) { }
         return new ArrayList<>(out.values());
     }
 
