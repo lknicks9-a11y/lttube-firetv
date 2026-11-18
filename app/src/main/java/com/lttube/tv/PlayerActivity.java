@@ -95,6 +95,9 @@ public class PlayerActivity extends FragmentActivity {
     private FrameLayout root;
     private LinearLayout overlay, topInfo, controls, upNextRow, upNextCards;
     private HorizontalScrollView upNextScroll;
+    /** Below Up next (scroll down): More from this channel, Related videos. */
+    private ScrollView moreScroll;
+    private LinearLayout moreBox;
     private TextView titleView, channelView, metaView, timeView, chapterView, durView, upNextHint;
     private static final int PEEK = 64;
     private ImageView blurBg, ctrlAvatar, shortsAvatar, shortsLike;
@@ -287,6 +290,14 @@ public class PlayerActivity extends FragmentActivity {
         upNextCards.setOrientation(LinearLayout.HORIZONTAL);
         upNextScroll.addView(upNextCards);
         upNextRow.addView(upNextScroll);
+        moreScroll = new ScrollView(this);
+        moreScroll.setVerticalScrollBarEnabled(false);
+        moreScroll.setClipToPadding(false);
+        moreBox = new LinearLayout(this);
+        moreBox.setOrientation(LinearLayout.VERTICAL);
+        moreScroll.addView(moreBox);
+        moreScroll.setVisibility(View.GONE);
+        upNextRow.addView(moreScroll, new LinearLayout.LayoutParams(-1, (int) (getResources().getDisplayMetrics().heightPixels * 0.42f)));
         bottom.addView(upNextRow, new LinearLayout.LayoutParams(-1, dp(PEEK)));
 
         // scrub preview
@@ -589,6 +600,7 @@ public class PlayerActivity extends FragmentActivity {
         hideUpNextRow();
         upNextCards.removeAllViews();
         upNextList.clear();
+        if (moreBox != null) moreBox.removeAllViews();
         bar.chapters = new long[0];
         bar.scrub = -1;
         player.stop();
@@ -616,6 +628,7 @@ public class PlayerActivity extends FragmentActivity {
             start(si);
             loadSponsorBlock(it.videoId(), seq);
             loadUpNext(it.videoId(), seq);
+            loadMoreRows(seq);
             if (Account.signedIn()) loadAccountState(it.videoId(), seq);
         });
     }
@@ -949,7 +962,13 @@ public class PlayerActivity extends FragmentActivity {
                     btnPlay.requestFocus();
                     return true;
                 }
-                if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_DOWN) return true;
+                if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    // Down: into More from this channel / Related videos.
+                    if (moreBox.getChildCount() == 0) return true;
+                    View first = firstCard(moreBox);
+                    if (first != null) { moreScroll.smoothScrollTo(0, 0); first.requestFocus(); }
+                    return true;
+                }
                 return false;
             });
             upNextCards.addView(card, lp);
@@ -967,8 +986,79 @@ public class PlayerActivity extends FragmentActivity {
         timeRow.setVisibility(View.GONE);
         bar.setVisibility(View.GONE);
         upNextScroll.scrollTo(0, 0);
+        moreScroll.setVisibility(moreBox.getChildCount() > 0 ? View.VISIBLE : View.GONE);
+        moreScroll.scrollTo(0, 0);
         upNextCards.getChildAt(0).requestFocus();
         pokeOverlay();
+    }
+
+    // ---- more rows under Up next: More from this channel, Related videos
+    private void loadMoreRows(final int seq) {
+        final String chUrl = item.channelUrl == null ? "" : item.channelUrl;
+        final String chName = item.channel == null ? "" : item.channel;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("/channel/(UC[\\w-]+)").matcher(chUrl);
+        final String chId = m.find() ? m.group(1) : "";
+        // Related videos straight from the video's page.
+        List<Item> related = new ArrayList<>();
+        if (info != null) for (InfoItem ii : info.getRelatedItems()) {
+            Item r = Item.from(ii);
+            if (Item.VIDEO.equals(r.type) && !r.videoId().equals(item.videoId())) related.add(r);
+        }
+        if (!chId.isEmpty()) {
+            Bg.run(() -> Yti.channelPopular(chId), (list, err) -> {
+                if (seq != loadSeq || isFinishing() || list == null) return;
+                List<Item> mine = new ArrayList<>();
+                for (Item x : list) if (Item.VIDEO.equals(x.type) && !x.videoId().equals(item.videoId())) mine.add(x);
+                if (!mine.isEmpty()) addMoreRow("More from " + chName, mine, 0);
+            });
+        }
+        if (related.size() > 3) addMoreRow("Related videos", related.subList(Math.min(related.size(), 0), Math.min(related.size(), 30)), -1);
+    }
+
+    private View firstCard(LinearLayout box) {
+        for (int i = 0; i < box.getChildCount(); i++) {
+            View row = box.getChildAt(i);
+            if (row instanceof LinearLayout && ((LinearLayout) row).getChildCount() > 1) {
+                View hs = ((LinearLayout) row).getChildAt(1);
+                if (hs instanceof HorizontalScrollView) {
+                    ViewGroup cards = (ViewGroup) ((HorizontalScrollView) hs).getChildAt(0);
+                    if (cards.getChildCount() > 0) return cards.getChildAt(0);
+                }
+            }
+        }
+        return null;
+    }
+
+    private void addMoreRow(String title, List<Item> list, int at) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        TextView t = text(15, Color.WHITE, true);
+        t.setText(title);
+        t.setPadding(0, dp(14), 0, dp(8));
+        row.addView(t);
+        HorizontalScrollView hs = new HorizontalScrollView(this);
+        hs.setHorizontalScrollBarEnabled(false);
+        hs.setClipToPadding(false);
+        LinearLayout cards = new LinearLayout(this);
+        cards.setOrientation(LinearLayout.HORIZONTAL);
+        cards.setPadding(dp(4), dp(4), dp(4), dp(8));
+        hs.addView(cards);
+        row.addView(hs);
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        float density = getResources().getDisplayMetrics().density;
+        int cardDp = (int) (((screenW - 2 * sideMargin) / density - 3 * 16) / 3.5f);
+        for (final Item it : list) {
+            YtCard card = new YtCard(this);
+            card.fixedWidthDp = cardDp;
+            card.bind(it);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(card.getLayoutParams().width, -2);
+            lp.rightMargin = dp(16);
+            card.setOnClickListener(v -> { Nav.queue.clear(); playNext(it); });
+            card.setOnFocusChangeListener((v, f) -> { if (f) { pokeOverlay(); moreScroll.smoothScrollTo(0, row.getTop()); } });
+            cards.addView(card, lp);
+        }
+        if (at >= 0 && at <= moreBox.getChildCount()) moreBox.addView(row, at); else moreBox.addView(row);
+        if (upNextOpen()) moreScroll.setVisibility(View.VISIBLE);
     }
 
     private void hideUpNextRow() {
@@ -977,6 +1067,7 @@ public class PlayerActivity extends FragmentActivity {
         lp.height = dp(PEEK);
         upNextRow.setLayoutParams(lp);
         upNextRow.setPadding(0, 0, 0, 0);
+        if (moreScroll != null) moreScroll.setVisibility(View.GONE);
         topInfo.setVisibility(View.VISIBLE);
         if (timeRow != null) timeRow.setVisibility(View.VISIBLE);
         bar.setVisibility(View.VISIBLE);

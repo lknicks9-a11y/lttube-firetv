@@ -1,3 +1,6 @@
+## 1.18
+- Player: scroll down past Up next for **More from** the channel and **Related videos**.
+
 - New liquid-glass look: frosted buttons and menus, and a soft glow of the selected video behind Home
 - Channels: new "Most viewed" row and tab
 - Player: progress bar no longer cut off on the left
