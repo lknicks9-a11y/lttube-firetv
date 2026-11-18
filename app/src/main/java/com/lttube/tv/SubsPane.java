@@ -152,6 +152,10 @@ public class SubsPane {
                 }
             }
             if (channels.isEmpty() && latest.isEmpty() && problem != null) throw new Exception(problem);
+            // drop anything without a usable channel link or name
+            List<Item> clean = new ArrayList<>();
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            for (Item c : channels) if (c.url != null && !c.url.isEmpty() && c.title != null && !c.title.isEmpty() && seen.add(Store.channelId(c.url))) clean.add(c);
             return new Object[]{clean, latest};
         }, (res, err) -> {
             if (res == null) { status.setText("Couldn't load subscriptions: " + Bg.message(err)); return; }
