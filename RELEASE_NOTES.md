@@ -1,3 +1,7 @@
+## 1.0.0 (build fixes)
+- Subscriptions: your channels come from YouTube's account list of your subscriptions (every page), plus every channel in your subscriptions feed; the count shows at the bottom of the list.
+- Back on Home puts LTTube in the background instead of closing it, so coming back is instant.
+
 ## 1.0.0
 - Subscriptions: only the channels you're subscribed to on YouTube (not channels of videos you watched or opened).
 - Smaller side menu text and icons.

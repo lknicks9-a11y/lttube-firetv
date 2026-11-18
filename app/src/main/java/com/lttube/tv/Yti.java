@@ -688,8 +688,16 @@ public final class Yti {
      */
     public static List<Item> subscribedChannels() {
         java.util.LinkedHashMap<String, Item> out = new java.util.LinkedHashMap<>();
-        // Web: All subscriptions, every page — YouTube's own list of exactly who you're subscribed to.
+        StringBuilder report = new StringBuilder();
+        // 1) YouTube's account API: your subscriptions, every page (needs the YouTube permission you signed in with).
         try {
+            int before = out.size();
+            dataApiSubscriptions(out);
+            report.append("api ").append(out.size() - before);
+        } catch (Exception e) { report.append("api ✗"); }
+        // 2) The web's All subscriptions page, every page.
+        try {
+            int before = out.size();
             JSONObject r = call("browse", new JSONObject().put("browseId", "FEchannels"), false);
             String last = "";
             for (int n = 0; n < 40 && r != null; n++) {
@@ -700,12 +708,58 @@ public final class Yti {
                 last = cont;
                 r = call("browse", new JSONObject().put("continuation", cont), false);
             }
-        } catch (Exception ignored) { }
-        if (!out.isEmpty()) return new ArrayList<>(out.values());
-        // If that page didn't answer: the TV app's Subscriptions channel list, then the web side menu's.
-        try { collectChannels(call("browse", new JSONObject().put("browseId", "FEsubscriptions"), true), out); } catch (Exception ignored) { }
-        if (out.isEmpty()) try { collectChannels(call("guide", new JSONObject(), false), out); } catch (Exception ignored) { }
+            report.append(" · web ").append(out.size() - before);
+        } catch (Exception e) { report.append(" · web ✗"); }
+        // 3) The TV app's Subscriptions channel list.
+        try {
+            int before = out.size();
+            collectChannels(call("browse", new JSONObject().put("browseId", "FEsubscriptions"), true), out);
+            report.append(" · tv ").append(out.size() - before);
+        } catch (Exception e) { report.append(" · tv ✗"); }
+        lastSubsReport = report.toString();
         return new ArrayList<>(out.values());
+    }
+
+    /** How the last channel lookup went (shown small on the Subscriptions page). */
+    public static volatile String lastSubsReport = "";
+
+    /** YouTube Data API: subscriptions?mine=true, all pages (50 a page). */
+    private static void dataApiSubscriptions(java.util.Map<String, Item> out) throws Exception {
+        String token = Account.tokenFor(Account.activeKey());
+        if (token == null) throw new Exception("Not signed in");
+        String page = "";
+        for (int n = 0; n < 40; n++) {
+            String url = "https://www.googleapis.com/youtube/v3/subscriptions?part=snippet&mine=true&maxResults=50&order=alphabetical"
+                    + (page.isEmpty() ? "" : "&pageToken=" + java.net.URLEncoder.encode(page, "UTF-8"));
+            Request r = new Request.Builder().url(url).header("Authorization", "Bearer " + token).build();
+            JSONObject j;
+            try (Response res = NpDownloader.get().client.newCall(r).execute()) {
+                String text = res.body() == null ? "" : res.body().string();
+                if (!res.isSuccessful()) throw new Exception("HTTP " + res.code());
+                j = new JSONObject(text);
+            }
+            JSONArray items = j.optJSONArray("items");
+            if (items != null) for (int i = 0; i < items.length(); i++) {
+                JSONObject sn = items.getJSONObject(i).optJSONObject("snippet");
+                if (sn == null) continue;
+                JSONObject rid = sn.optJSONObject("resourceId");
+                String id = rid == null ? "" : rid.optString("channelId", "");
+                if (!id.startsWith("UC")) continue;
+                Item it = new Item();
+                it.type = Item.CHANNEL;
+                it.url = "https://www.youtube.com/channel/" + id;
+                it.title = sn.optString("title", "");
+                it.channel = it.title;
+                it.channelUrl = it.url;
+                JSONObject th = sn.optJSONObject("thumbnails");
+                JSONObject best = th == null ? null : (th.has("high") ? th.optJSONObject("high") : th.has("medium") ? th.optJSONObject("medium") : th.optJSONObject("default"));
+                it.thumb = best == null ? "" : best.optString("url", "");
+                it.sub = "Channel";
+                if (!it.title.isEmpty() && !out.containsKey(it.url)) out.put(it.url, it);
+            }
+            page = j.optString("nextPageToken", "");
+            if (page.isEmpty()) break;
+        }
     }
 
     private static final Set<String> CHANNEL_HOLDERS = new HashSet<>(java.util.Arrays.asList(
@@ -724,17 +778,33 @@ public final class Yti {
         while (keys.hasNext()) {
             String k = keys.next();
             Object v = o.opt(k);
-            if (CHANNEL_HOLDERS.contains(k) && v instanceof JSONObject) {
-                Item it = channelFrom((JSONObject) v);
+            if (v instanceof JSONObject) {
+                JSONObject r = (JSONObject) v;
+                Item it = CHANNEL_HOLDERS.contains(k) ? channelFrom(r) : null;
+                // Any entry that itself links straight to a channel (TV channel lists, side menu entries).
+                if (it == null && ownChannelLink(r) != null) it = channelFrom(r);
                 if (it != null && !out.containsKey(it.url)) out.put(it.url, it);
             }
             collectChannels(v, out);
         }
     }
 
+    /** The channel an entry itself opens (its own endpoint / command), not one buried inside it. */
+    private static String ownChannelLink(JSONObject r) {
+        for (String k : new String[]{"endpoint", "navigationEndpoint", "onSelectCommand", "command", "onTap"}) {
+            JSONObject e = r.optJSONObject(k);
+            if (e == null) continue;
+            JSONObject be = e.optJSONObject("browseEndpoint");
+            if (be == null) { JSONObject inner = e.optJSONObject("innertubeCommand"); if (inner != null) be = inner.optJSONObject("browseEndpoint"); }
+            if (be != null && be.optString("browseId", "").startsWith("UC")) return be.optString("browseId");
+        }
+        return null;
+    }
+
     /** A channel from any of YouTube's channel entries (needs a UC… id that it links to, and a name). */
     private static Item channelFrom(JSONObject r) {
         String id = r.optString("channelId", "");
+        if (!id.startsWith("UC")) { String own = ownChannelLink(r); if (own != null) id = own; }
         if (!id.startsWith("UC")) {
             String b = findString(r, "browseId");
             id = b != null && b.startsWith("UC") ? b : "";

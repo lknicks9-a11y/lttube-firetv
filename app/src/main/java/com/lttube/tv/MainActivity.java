@@ -300,7 +300,7 @@ public class MainActivity extends FragmentActivity {
                 return true;
             }
             if (!"home".equals(section)) { show("home", false); navItems.get(navKeys.indexOf("home")).requestFocus(); return true; }
-            finish();
+            if (!moveTaskToBack(true)) finish(); // Back on Home: to the background, so coming back is instant
             return true;
         }
         return super.dispatchKeyEvent(e);

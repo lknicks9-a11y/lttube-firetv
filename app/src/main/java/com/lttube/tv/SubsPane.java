@@ -162,6 +162,7 @@ public class SubsPane {
             List<Item> channels = new ArrayList<>();
             List<Item> latest = new ArrayList<>();
             String problem = null;
+            boolean ytFeed = false;
             if (in) {
                 // Every channel you follow, from all the places YouTube lists them (TV, web, side menu).
                 try { channels.addAll(Yti.subscribedChannels()); } catch (Exception e) { problem = Bg.message(e); }
@@ -179,6 +180,7 @@ public class SubsPane {
                             for (Item i : page.items) if (Item.VIDEO.equals(i.type)) latest.add(i);
                         }
                     }
+                    ytFeed = !latest.isEmpty();
                 } catch (Exception e) { if (problem == null) problem = Bg.message(e); }
             }
             // Signed in: only the channels YouTube says you're subscribed to (never ones you only opened or watched).
@@ -188,8 +190,9 @@ public class SubsPane {
                 try { for (Shelf s : Sources.localSubsFeed()) latest.addAll(s.items); }
                 catch (Exception e) { if (problem == null) problem = Bg.message(e); }
             }
-            // Channels from the feed itself, only if YouTube didn't list any.
-            if (channels.isEmpty() && !in) {
+            // Channels from your subscriptions feed (every video in it is from a channel you're subscribed to),
+            // added to YouTube's list so none are missing even if that list came back short.
+            if (ytFeed || (!in && channels.isEmpty())) {
                 java.util.Set<String> names = new java.util.HashSet<>();
                 for (Item v : latest) {
                     if (v.channelUrl == null || v.channelUrl.isEmpty() || v.channel == null || v.channel.isEmpty() || !names.add(v.channel)) continue;
@@ -204,12 +207,15 @@ public class SubsPane {
             // drop anything without a usable channel link or name
             List<Item> clean = new ArrayList<>();
             java.util.Set<String> seen = new java.util.HashSet<>();
-            for (Item c : channels) if (c.url != null && !c.url.isEmpty() && c.title != null && !c.title.isEmpty() && seen.add(Store.channelId(c.url))) clean.add(c);
-            return new Object[]{clean, latest};
+            java.util.Set<String> seenNames = new java.util.HashSet<>();
+            for (Item c : channels) if (c.url != null && !c.url.isEmpty() && c.title != null && !c.title.isEmpty()
+                    && !seenNames.contains(c.title.trim().toLowerCase()) && seen.add(Store.channelId(c.url))) { seenNames.add(c.title.trim().toLowerCase()); clean.add(c); }
+            return new Object[]{clean, latest, in ? Yti.lastSubsReport : ""};
         }, (res, err) -> {
             if (res == null) { status.setText("Couldn't load subscriptions: " + Bg.message(err)); return; }
             @SuppressWarnings("unchecked") List<Item> channels = (List<Item>) res[0];
             @SuppressWarnings("unchecked") List<Item> latest = (List<Item>) res[1];
+            report = (String) res[2];
             try {
                 feed = latest;
                 buildList(channels);
@@ -222,6 +228,8 @@ public class SubsPane {
             }
         });
     }
+
+    private String report = "";
 
     private void buildList(List<Item> channels) {
         list.removeAllViews();
@@ -250,6 +258,13 @@ public class SubsPane {
             Collections.sort(sorted, (x, y) -> x.title.compareToIgnoreCase(y.title));
             for (Item c : sorted) list.addView(row(c.url, c.title, c.thumb, 0));
         }
+        // How many came from where (small, at the end of the list).
+        TextView info = Ui.text(a, 12, Ui.TEXT2, false);
+        info.setText(channels.size() + " channels" + (report.isEmpty() ? "" : "  ·  " + report));
+        info.setPadding(dp(14), dp(16), 0, dp(8));
+        list.addView(info);
+        names.add(info);
+        if (!listOpen) info.setVisibility(View.GONE);
         if (channels.isEmpty() && feed.isEmpty()) {
             status.setText(Account.signedIn() ? "No subscriptions found." : "Sign in (Settings) or import your subscriptions to see them here.");
         }
