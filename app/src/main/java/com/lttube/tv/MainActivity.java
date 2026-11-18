@@ -38,6 +38,8 @@ public class MainActivity extends FragmentActivity {
             R.drawable.ic_subs, R.drawable.ic_library, 0, R.drawable.ic_music, R.drawable.ic_live, R.drawable.ic_live,
             R.drawable.ic_gaming, R.drawable.ic_info, R.drawable.ic_check, R.drawable.ic_comment, 0, R.drawable.ic_settings};
 
+    /** Open menu width: just room for the names (YouTube's is narrow, no dead space). */
+    private static final int NAV_OPEN = 236;
     private RowsController rows;
     private FrameLayout rowsHolder, paneHolder;
     private SubsPane subsPane;
@@ -169,15 +171,15 @@ public class MainActivity extends FragmentActivity {
         item.setOrientation(LinearLayout.HORIZONTAL);
         item.setGravity(Gravity.CENTER_VERTICAL);
         item.setFocusable(true);
-        item.setPadding(dp(16), 0, dp(18), 0);
+        item.setPadding(dp(16), 0, dp(12), 0);
         ImageView ic = new ImageView(this);
         if (icon != 0) { ic.setImageResource(icon); ic.setColorFilter(Color.WHITE); }
         item.addView(ic, new LinearLayout.LayoutParams(icon != 0 ? dp(26) : dp(34), icon != 0 ? dp(26) : dp(34)));
-        TextView lab = Ui.text(this, 19, Color.WHITE, false);
+        TextView lab = Ui.text(this, 17, Color.WHITE, false);
         lab.setText(label);
         lab.setSingleLine(true);
         lab.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        lab.setPadding(dp(20), 0, 0, 0);
+        lab.setPadding(dp(16), 0, 0, 0);
         lab.setVisibility(View.GONE);
         item.addView(lab);
         navLabels.add(lab);
@@ -202,14 +204,14 @@ public class MainActivity extends FragmentActivity {
         if (navOpen == open) return;
         navOpen = open;
         ViewGroup.LayoutParams lp = nav.getLayoutParams();
-        lp.width = dp(open ? 340 : 88);
+        lp.width = dp(open ? NAV_OPEN : 88);
         nav.setLayoutParams(lp);
         // Like YouTube on TV: the open menu darkens the left of the screen (no box), rounded pills inside.
         nav.setBackground(open ? new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{0xFA0F0F12, 0xF00F0F12, 0xD90F0F12}) : null);
+                new int[]{0xFA0F0F12, 0xF20F0F12, 0xE60F0F12}) : null);
         nav.setElevation(open ? dp(12) : 0);
         // Like YouTube on TV: opening the menu slides the videos over to the right instead of covering them.
-        content.animate().translationX(open ? dp(340 - 88) : 0).setDuration(180).start();
+        content.animate().translationX(open ? dp(NAV_OPEN - 88) : 0).setDuration(180).start();
         for (TextView t : navLabels) t.setVisibility(open ? View.VISIBLE : View.GONE);
         styleNav();
     }

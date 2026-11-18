@@ -1,3 +1,9 @@
+## 1.21
+- Subscriptions: moving onto the videos folds the channel list to just pictures, giving the videos the room (like YouTube); moving back opens it again.
+- Side menu is narrower — no empty space.
+- Shorts look like YouTube's: the Short left of centre with its title, channel, Subscribe and buttons beside it.
+- Player: the rows under a video fill the screen over the dimmed video, with bigger videos and titles.
+
 ## 1.20
 - Opening the side menu slides the videos over to the right (like YouTube), so nothing is covered or cut off.
 

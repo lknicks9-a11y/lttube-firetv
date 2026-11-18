@@ -97,6 +97,7 @@ public class PlayerActivity extends FragmentActivity {
     private HorizontalScrollView upNextScroll;
     /** Below Up next (scroll down): More from this channel, Related videos. */
     private ScrollView moreScroll;
+    private LinearLayout bottom;
     private LinearLayout moreBox;
     private TextView titleView, channelView, metaView, timeView, chapterView, durView, upNextHint;
     private static final int PEEK = 64;
@@ -217,7 +218,7 @@ public class PlayerActivity extends FragmentActivity {
 
         overlay.addView(new View(this), new LinearLayout.LayoutParams(-1, 0, 1f));
 
-        LinearLayout bottom = new LinearLayout(this);
+        bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.VERTICAL);
         bottom.setPadding(sideMargin, dp(64), sideMargin, 0);
         bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0xF0000000, 0xA6000000, 0x00000000}));
@@ -280,7 +281,7 @@ public class PlayerActivity extends FragmentActivity {
         // up next: peeks at the bottom; press down to bring it up
         upNextRow = new LinearLayout(this);
         upNextRow.setOrientation(LinearLayout.VERTICAL);
-        upNextHint = text(15, Color.WHITE, true);
+        upNextHint = text(18, Color.WHITE, true);
         upNextHint.setText("Up next");
         upNextHint.setPadding(0, dp(10), 0, dp(8));
         // One scrolling sheet: Up next, then More from this channel and Related videos under it.
@@ -333,7 +334,7 @@ public class PlayerActivity extends FragmentActivity {
         // ---- Shorts side panel
         shortsSide = new LinearLayout(this);
         shortsSide.setOrientation(LinearLayout.VERTICAL);
-        shortsSide.setGravity(Gravity.BOTTOM);
+        shortsSide.setGravity(Gravity.CENTER_VERTICAL);
         shortsSide.setVisibility(View.GONE);
         shortsTitle = text(22, Color.WHITE, true);
         shortsTitle.setMaxLines(3);
@@ -510,11 +511,13 @@ public class PlayerActivity extends FragmentActivity {
         int H = root.getHeight() > 0 ? root.getHeight() : getResources().getDisplayMetrics().heightPixels;
         int W = root.getWidth() > 0 ? root.getWidth() : getResources().getDisplayMetrics().widthPixels;
         if (shorts) {
-            int vh = H - dp(28);
+            // Like YouTube on TV: the Short a little left of centre with its details beside it.
+            int vh = Math.round(H * 0.88f);
             int vw = vh * 9 / 16;
             vl.width = vw;
             vl.height = vh;
-            vl.gravity = Gravity.CENTER;
+            vl.gravity = Gravity.CENTER_VERTICAL | Gravity.START;
+            vl.leftMargin = Math.round(W * 0.38f) - vw / 2;
             videoBox.setFocusable(true);
             videoBox.setClipToOutline(true);
             videoBox.setOutlineProvider(new android.view.ViewOutlineProvider() {
@@ -527,13 +530,16 @@ public class PlayerActivity extends FragmentActivity {
             videoBox.setForeground(ring);
             video.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
             FrameLayout.LayoutParams sl = (FrameLayout.LayoutParams) shortsSide.getLayoutParams();
-            sl.leftMargin = (W + vw) / 2 + dp(40);
-            sl.bottomMargin = dp(60);
-            sl.width = Math.min(dp(380), W - sl.leftMargin - dp(30));
+            sl.leftMargin = vl.leftMargin + vw + dp(44);
+            sl.bottomMargin = 0;
+            sl.gravity = Gravity.CENTER_VERTICAL | Gravity.START;
+            sl.width = Math.min(dp(440), W - sl.leftMargin - dp(40));
             shortsSide.setLayoutParams(sl);
         } else {
             vl.width = -1;
             vl.height = -1;
+            vl.leftMargin = 0;
+            vl.gravity = Gravity.NO_GRAVITY;
             videoBox.setFocusable(false);
             videoBox.setClipToOutline(false);
             videoBox.setForeground(null);
@@ -956,7 +962,7 @@ public class PlayerActivity extends FragmentActivity {
         }
         int screenW = getResources().getDisplayMetrics().widthPixels;
         float density = getResources().getDisplayMetrics().density;
-        int cardDp = (int) (((screenW - 2 * sideMargin) / density - 3 * 16) / 3.5f);
+        int cardDp = (int) (((screenW - 2 * sideMargin) / density - 3 * 6) / 3.25f);
         for (final Item it : list) {
             YtCard card = new YtCard(this);
             card.fixedWidthDp = cardDp;
@@ -978,10 +984,12 @@ public class PlayerActivity extends FragmentActivity {
         if (upNextCards.getChildCount() == 0) return;
         ViewGroup.LayoutParams lp = upNextRow.getLayoutParams();
         // The sheet takes the lower two thirds of the screen; the rows scroll inside it.
-        lp.height = (int) (getResources().getDisplayMetrics().heightPixels * 0.66f);
+        // Like YouTube: the rows take the whole screen over the dimmed video, the next row peeking below.
+        lp.height = getResources().getDisplayMetrics().heightPixels - dp(150);
         upNextRow.setLayoutParams(lp);
+        bottom.setBackgroundColor(0xD9000000);
         upNextRow.setPadding(0, 0, 0, 0);
-        topInfo.setVisibility(View.INVISIBLE);
+        topInfo.setVisibility(View.GONE);
         timeRow.setVisibility(View.GONE);
         bar.setVisibility(View.GONE);
         controls.setVisibility(View.GONE);
@@ -1078,9 +1086,9 @@ public class PlayerActivity extends FragmentActivity {
     private void addMoreRow(String title, List<Item> list, int at) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
-        TextView t = text(15, Color.WHITE, true);
+        TextView t = text(18, Color.WHITE, true);
         t.setText(title);
-        t.setPadding(0, dp(14), 0, dp(8));
+        t.setPadding(0, dp(16), 0, dp(6));
         row.addView(t);
         HorizontalScrollView hs = new HorizontalScrollView(this);
         hs.setHorizontalScrollBarEnabled(false);
@@ -1094,7 +1102,7 @@ public class PlayerActivity extends FragmentActivity {
         row.addView(hs);
         int screenW = getResources().getDisplayMetrics().widthPixels;
         float density = getResources().getDisplayMetrics().density;
-        int cardDp = (int) (((screenW - 2 * sideMargin) / density - 3 * 16) / 3.5f);
+        int cardDp = (int) (((screenW - 2 * sideMargin) / density - 3 * 6) / 3.25f);
         for (final Item it : list) {
             YtCard card = new YtCard(this);
             card.fixedWidthDp = cardDp;
@@ -1114,6 +1122,7 @@ public class PlayerActivity extends FragmentActivity {
         lp.height = dp(PEEK);
         upNextRow.setLayoutParams(lp);
         upNextRow.setPadding(0, 0, 0, 0);
+        bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0xF0000000, 0xA6000000, 0x00000000}));
         if (moreScroll != null) moreScroll.scrollTo(0, 0);
         if (upNextScroll != null) upNextScroll.scrollTo(0, 0);
         controls.setVisibility(View.VISIBLE);

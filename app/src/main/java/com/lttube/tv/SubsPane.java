@@ -46,7 +46,9 @@ public class SubsPane {
         a = act;
         // fit whole cards in the space right of the channel list
         float sw = a.getResources().getDisplayMetrics().widthPixels / a.getResources().getDisplayMetrics().density;
-        float avail = sw - 88 - 24 - 280 - 29 - 24;
+        // Cards are sized for the collapsed channel list (avatars only), like YouTube: moving onto the videos
+        // folds the list to give them the room; moving back onto it opens it again and slides the videos right.
+        float avail = sw - 88 - 24 - LIST_SMALL - 29 - 24;
         cols = avail >= 3 * 230 + 36 ? 3 : 2;
         cardW = (int) ((avail - (cols - 1) * 18) / cols);
         cards = new ArrayObjectAdapter(new CardPresenter(cardW));
@@ -59,27 +61,34 @@ public class SubsPane {
         title.setPadding(dp(20), 0, 0, dp(14));
         view.addView(title);
 
-        LinearLayout body = new LinearLayout(a);
-        body.setOrientation(LinearLayout.HORIZONTAL);
+        android.widget.FrameLayout body = new android.widget.FrameLayout(a);
         view.addView(body, new LinearLayout.LayoutParams(-1, 0, 1f));
 
-        ScrollView sv = new ScrollView(a);
+        sv = new ScrollView(a);
         sv.setVerticalScrollBarEnabled(false);
         list = new LinearLayout(a);
         list.setOrientation(LinearLayout.VERTICAL);
         list.setPadding(0, 0, dp(10), dp(30));
         sv.addView(list);
-        body.addView(sv, new LinearLayout.LayoutParams(dp(280), -1));
 
-        View line = new View(a);
+        line = new View(a);
         line.setBackgroundColor(0x33FFFFFF);
-        LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(dp(1), -1);
-        ll.setMargins(dp(8), 0, dp(20), 0);
+        android.widget.FrameLayout.LayoutParams ll = new android.widget.FrameLayout.LayoutParams(dp(1), -1);
+        ll.leftMargin = dp(LIST_BIG + 8);
         body.addView(line, ll);
 
-        LinearLayout right = new LinearLayout(a);
+        right = new LinearLayout(a);
         right.setOrientation(LinearLayout.VERTICAL);
-        body.addView(right, new LinearLayout.LayoutParams(0, -1, 1f));
+        android.widget.FrameLayout.LayoutParams rl = new android.widget.FrameLayout.LayoutParams(-1, -1);
+        rl.leftMargin = dp(LIST_SMALL + 29);
+        body.addView(right, rl);
+        right.setTranslationX(dp(LIST_BIG - LIST_SMALL));
+        body.addView(sv, new android.widget.FrameLayout.LayoutParams(dp(LIST_BIG), -1));
+        view.getViewTreeObserver().addOnGlobalFocusChangeListener((was, now) -> {
+            if (now == null) return;
+            if (inside(now, grid)) setListOpen(false);
+            else if (inside(now, list)) setListOpen(true);
+        });
         gridTitle = Ui.text(a, 18, Color.WHITE, true);
         gridTitle.setText("Most relevant");
         gridTitle.setPadding(0, 0, 0, dp(10));
@@ -110,6 +119,32 @@ public class SubsPane {
         right.addView(grid, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         load();
+    }
+
+    private static final int LIST_BIG = 280, LIST_SMALL = 76;
+    private ScrollView sv;
+    private View line;
+    private LinearLayout right;
+    private boolean listOpen = true;
+    private final List<TextView> names = new ArrayList<>();
+
+    private static boolean inside(View v, View parent) {
+        for (View p = v; p != null; p = p.getParent() instanceof View ? (View) p.getParent() : null) if (p == parent) return true;
+        return false;
+    }
+
+    /** Open: avatars and names. Folded: avatars only, and the videos slide left into the room. */
+    private void setListOpen(boolean open) {
+        if (open == listOpen) return;
+        listOpen = open;
+        android.view.ViewGroup.LayoutParams lp = sv.getLayoutParams();
+        lp.width = dp(open ? LIST_BIG : LIST_SMALL);
+        sv.setLayoutParams(lp);
+        for (TextView t : names) t.setVisibility(open ? View.VISIBLE : View.GONE);
+        android.widget.FrameLayout.LayoutParams ll = (android.widget.FrameLayout.LayoutParams) line.getLayoutParams();
+        ll.leftMargin = dp((open ? LIST_BIG : LIST_SMALL) + 8);
+        line.setLayoutParams(ll);
+        right.animate().translationX(open ? dp(LIST_BIG - LIST_SMALL) : 0).setDuration(180).start();
     }
 
     void focus() {
@@ -176,6 +211,7 @@ public class SubsPane {
 
     private void buildList(List<Item> channels) {
         list.removeAllViews();
+        names.clear();
         firstRow = row("all", "All", null, R.drawable.ic_subs);
         list.addView(firstRow);
         // channels that uploaded most recently first, like YouTube
@@ -194,6 +230,8 @@ public class SubsPane {
             az.setText("A–Z");
             az.setPadding(dp(14), dp(14), 0, dp(6));
             list.addView(az);
+            names.add(az);
+            if (!listOpen) az.setVisibility(View.GONE);
             List<Item> sorted = new ArrayList<>(channels);
             Collections.sort(sorted, (x, y) -> x.title.compareToIgnoreCase(y.title));
             for (Item c : sorted) list.addView(row(c.url, c.title, c.thumb, 0));
@@ -219,6 +257,8 @@ public class SubsPane {
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);
         t.setPadding(dp(14), 0, 0, 0);
         r.addView(t, new LinearLayout.LayoutParams(0, -2, 1f));
+        names.add(t);
+        if (!listOpen) t.setVisibility(View.GONE);
         r.setOnFocusChangeListener((v, has) -> {
             r.setBackground(has ? Ui.pill(a, Ui.FOCUS, 24) : key.equals(showing) ? Ui.pill(a, Ui.SELECTED, 24) : null);
             t.setTextColor(has ? 0xFF0F0F0F : Color.WHITE);
@@ -233,6 +273,7 @@ public class SubsPane {
         });
         r.setOnKeyListener((v, code, ev) -> {
             if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_RIGHT && cards.size() > 0) {
+                setListOpen(false);
                 grid.requestFocus();
                 return true;
             }
