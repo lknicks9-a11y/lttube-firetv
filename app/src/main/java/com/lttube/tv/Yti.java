@@ -681,6 +681,89 @@ public final class Yti {
         return it;
     }
 
+    /**
+     * Every channel you're subscribed to. YouTube lists them in different places depending on the app: the TV app's
+     * Subscriptions page (the channel list down the left), the web's "All subscriptions" page (in pages), and the
+     * web side menu. All of them are read and put together, so none are missing.
+     */
+    public static List<Item> subscribedChannels() {
+        java.util.LinkedHashMap<String, Item> out = new java.util.LinkedHashMap<>();
+        // TV: the left-hand channel list of Subscriptions
+        try { collectChannels(call("browse", new JSONObject().put("browseId", "FEsubscriptions"), true), out); } catch (Exception ignored) { }
+        // Web: All subscriptions, every page
+        try {
+            JSONObject r = call("browse", new JSONObject().put("browseId", "FEchannels"), false);
+            String last = "";
+            for (int n = 0; n < 40 && r != null; n++) {
+                collectChannels(r, out);
+                String cont = findString(r, "token");
+                if (cont == null) cont = findString(r, "continuation");
+                if (cont == null || cont.equals(last)) break;
+                last = cont;
+                r = call("browse", new JSONObject().put("continuation", cont), false);
+            }
+        } catch (Exception ignored) { }
+        // Web side menu (its Subscriptions section lists them all)
+        try { collectChannels(call("guide", new JSONObject(), false), out); } catch (Exception ignored) { }
+        return new ArrayList<>(out.values());
+    }
+
+    private static final Set<String> CHANNEL_HOLDERS = new HashSet<>(java.util.Arrays.asList(
+            "channelRenderer", "gridChannelRenderer", "tabRenderer", "guideEntryRenderer",
+            "compactChannelRenderer", "channelListItemRenderer"));
+
+    private static void collectChannels(Object node, java.util.Map<String, Item> out) {
+        if (node instanceof JSONArray) {
+            JSONArray a = (JSONArray) node;
+            for (int i = 0; i < a.length(); i++) collectChannels(a.opt(i), out);
+            return;
+        }
+        if (!(node instanceof JSONObject)) return;
+        JSONObject o = (JSONObject) node;
+        java.util.Iterator<String> keys = o.keys();
+        while (keys.hasNext()) {
+            String k = keys.next();
+            Object v = o.opt(k);
+            if (CHANNEL_HOLDERS.contains(k) && v instanceof JSONObject) {
+                Item it = channelFrom((JSONObject) v);
+                if (it != null && !out.containsKey(it.url)) out.put(it.url, it);
+            }
+            collectChannels(v, out);
+        }
+    }
+
+    /** A channel from any of YouTube's channel entries (needs a UC… id that it links to, and a name). */
+    private static Item channelFrom(JSONObject r) {
+        String id = r.optString("channelId", "");
+        if (!id.startsWith("UC")) {
+            String b = findString(r, "browseId");
+            id = b != null && b.startsWith("UC") ? b : "";
+        }
+        if (id.isEmpty()) return null;
+        String name = text(r.optJSONObject("title"));
+        if (name.isEmpty()) name = text(r.optJSONObject("formattedTitle"));
+        if (name.isEmpty()) name = r.optString("title", "");
+        if (name.isEmpty()) {
+            JSONObject md = r.optJSONObject("metadata");
+            if (md != null) name = findString(md, "simpleText") == null ? "" : findString(md, "simpleText");
+        }
+        if (name.isEmpty()) return null;
+        Item it = new Item();
+        it.type = Item.CHANNEL;
+        it.url = "https://www.youtube.com/channel/" + id;
+        it.title = name;
+        it.channel = name;
+        it.channelUrl = it.url;
+        JSONObject th = r.optJSONObject("thumbnail");
+        if (th == null) { JSONObject h = r.optJSONObject("header"); if (h != null) th = h.optJSONObject("thumbnail"); }
+        String t = bestThumb(th);
+        if ((t == null || t.isEmpty())) { String u = findString(r, "url"); if (u != null && (u.contains("ggpht") || u.contains("ytimg"))) t = u; }
+        if (t != null && t.startsWith("//")) t = "https:" + t;
+        it.thumb = t == null ? "" : t;
+        it.sub = "Channel";
+        return it;
+    }
+
     private static Item channel(JSONObject r) {
         String id = r.optString("channelId", "");
         if (id.isEmpty()) return null;

@@ -163,18 +163,13 @@ public class SubsPane {
             List<Item> latest = new ArrayList<>();
             String problem = null;
             if (in) {
-                // Every channel you follow: YouTube sends them a page at a time, so keep asking for the next page.
-                try {
-                    for (Shelf s : Sources.accountRow(Yti.CHANNELS, "Channels")) {
-                        channels.addAll(s.items);
-                        Shelf page = s;
-                        for (int n = 0; n < 40 && page.canLoadMore(); n++) {
-                            page = page.loadMore();
-                            for (Item i : page.items) if (Item.CHANNEL.equals(i.type)) channels.add(i);
-                        }
-                    }
-                    if (!channels.isEmpty()) Store.addSubs(channels);
-                } catch (Exception e) { problem = Bg.message(e); }
+                // Every channel you follow, from all the places YouTube lists them (TV, web, side menu).
+                try { channels.addAll(Yti.subscribedChannels()); } catch (Exception e) { problem = Bg.message(e); }
+                if (channels.isEmpty()) {
+                    try { for (Shelf s : Sources.accountRow(Yti.CHANNELS, "Channels")) channels.addAll(s.items); }
+                    catch (Exception e) { if (problem == null) problem = Bg.message(e); }
+                }
+                if (!channels.isEmpty()) Store.addSubs(channels);
                 // Your subscriptions feed, a few pages deep.
                 try {
                     for (Shelf s : Yti.sections(Yti.SUBS, "Latest")) {

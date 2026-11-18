@@ -1,3 +1,6 @@
+## 1.24
+- Subscriptions: every channel you're subscribed to — read from YouTube's TV Subscriptions list, the web's All subscriptions (every page) and the side menu, put together.
+
 ## 1.23
 - Subscriptions: loads every channel you follow (all pages, not just the first) and more of your feed.
 - Player: scrolling down works like YouTube — one grid of videos three to a row, the video still playing behind, each press moves one row with the row above still showing, and Back to top · Description · Search · Home at the end.
