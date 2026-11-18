@@ -84,11 +84,6 @@ public class SubsPane {
         body.addView(right, rl);
         right.setTranslationX(dp(LIST_BIG - LIST_SMALL));
         body.addView(sv, new android.widget.FrameLayout.LayoutParams(dp(LIST_BIG), -1));
-        view.getViewTreeObserver().addOnGlobalFocusChangeListener((was, now) -> {
-            if (now == null) return;
-            if (inside(now, grid)) setListOpen(false);
-            else if (inside(now, list)) setListOpen(true);
-        });
         gridTitle = Ui.text(a, 18, Color.WHITE, true);
         gridTitle.setText("Most relevant");
         gridTitle.setPadding(0, 0, 0, dp(10));
@@ -117,6 +112,12 @@ public class SubsPane {
         });
         grid.setAdapter(bridge);
         right.addView(grid, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        view.getViewTreeObserver().addOnGlobalFocusChangeListener((was, now) -> {
+            if (now == null) return;
+            if (inside(now, grid)) setListOpen(false);
+            else if (inside(now, list)) setListOpen(true);
+        });
 
         load();
     }
