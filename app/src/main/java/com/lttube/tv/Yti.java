@@ -821,20 +821,6 @@ public final class Yti {
         return t == null ? findString(nav, "token") : t;
     }
 
-    private static JSONObject findObject(Object node, String key) {
-        if (node instanceof JSONObject) {
-            JSONObject o = (JSONObject) node;
-            JSONObject v = o.optJSONObject(key);
-            if (v != null) return v;
-            java.util.Iterator<String> it = o.keys();
-            while (it.hasNext()) { JSONObject f = findObject(o.opt(it.next()), key); if (f != null) return f; }
-        } else if (node instanceof JSONArray) {
-            JSONArray a = (JSONArray) node;
-            for (int i = 0; i < a.length(); i++) { JSONObject f = findObject(a.opt(i), key); if (f != null) return f; }
-        }
-        return null;
-    }
-
     /** The kinds of entries YouTube sent (for the report when no channels were found). */
     private static String rendererKeys(Object node) {
         java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<>();
