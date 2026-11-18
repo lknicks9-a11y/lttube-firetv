@@ -694,7 +694,7 @@ public final class Yti {
             int before = out.size();
             dataApiSubscriptions(out);
             report.append("api ").append(out.size() - before);
-        } catch (Exception e) { report.append("api ✗"); }
+        } catch (Exception e) { report.append("api ✗ ").append(shortErr(e)); }
         // 2) The web's All subscriptions page, every page.
         try {
             int before = out.size();
@@ -709,19 +709,156 @@ public final class Yti {
                 r = call("browse", new JSONObject().put("continuation", cont), false);
             }
             report.append(" · web ").append(out.size() - before);
-        } catch (Exception e) { report.append(" · web ✗"); }
-        // 3) The TV app's Subscriptions channel list.
+        } catch (Exception e) { report.append(" · web ✗ ").append(shortErr(e)); }
+        // 3) The TV app's Subscriptions page: its channel list down the left (A–Z), read broadly — any entry that
+        //    opens a channel and has a name — and every channel whose videos are in it.
         try {
             int before = out.size();
-            collectChannels(call("browse", new JSONObject().put("browseId", "FEsubscriptions"), true), out);
-            report.append(" · tv ").append(out.size() - before);
-        } catch (Exception e) { report.append(" · tv ✗"); }
+            JSONObject r = call("browse", new JSONObject().put("browseId", "FEsubscriptions"), true);
+            collectChannels(r, out);
+            collectAnyChannels(r, out, 0);
+            // The list can come in pages too.
+            String last = "";
+            for (int n = 0; n < 20; n++) {
+                String cont = navContinuation(r);
+                if (cont == null || cont.equals(last)) break;
+                last = cont;
+                r = call("browse", new JSONObject().put("continuation", cont), true);
+                collectChannels(r, out);
+                collectAnyChannels(r, out, 0);
+            }
+            int got = out.size() - before;
+            report.append(" · tv ").append(got);
+            if (got < 5) report.append(" [").append(rendererKeys(r)).append("]");
+        } catch (Exception e) { report.append(" · tv ✗ ").append(shortErr(e)); }
         lastSubsReport = report.toString();
         return new ArrayList<>(out.values());
     }
 
+    private static String shortErr(Exception e) {
+        String m = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        return m.length() > 40 ? m.substring(0, 40) + "…" : m;
+    }
+
     /** How the last channel lookup went (shown small on the Subscriptions page). */
     public static volatile String lastSubsReport = "";
+
+    private static final Set<String> NOT_NAMES = new HashSet<>(java.util.Arrays.asList(
+            "go to channel", "visit channel", "view channel", "subscribed", "subscribe", "all", "channel", "more", "see all"));
+
+    /** Every entry that opens a channel by itself and carries a name (TV lists, owner names on videos, menus). */
+    private static void collectAnyChannels(Object node, java.util.Map<String, Item> out, int depth) {
+        if (depth > 60) return;
+        if (node instanceof JSONArray) {
+            JSONArray a = (JSONArray) node;
+            for (int i = 0; i < a.length(); i++) collectAnyChannels(a.opt(i), out, depth + 1);
+            return;
+        }
+        if (!(node instanceof JSONObject)) return;
+        JSONObject o = (JSONObject) node;
+        String id = null;
+        for (String k : new String[]{"endpoint", "navigationEndpoint", "onSelectCommand", "command", "onTap", "onSelect", "onClickCommand"}) {
+            Object e = o.opt(k);
+            if (e != null) { id = ucIn(e, 0); if (id != null) break; }
+        }
+        if (id != null) {
+            String name = text(o.optJSONObject("title"));
+            if (name.isEmpty()) name = o.optString("title", "");
+            if (name.isEmpty()) name = o.optString("text", "");
+            if (name.isEmpty()) name = text(o.optJSONObject("text"));
+            if (name.isEmpty()) name = text(o.optJSONObject("formattedTitle"));
+            if (name.isEmpty()) { JSONObject h = o.optJSONObject("header"); if (h != null) { String t = findString(h, "simpleText"); if (t != null) name = t; } }
+            name = name.trim();
+            String url = "https://www.youtube.com/channel/" + id;
+            if (!name.isEmpty() && name.length() < 80 && !NOT_NAMES.contains(name.toLowerCase())) {
+                Item have = out.get(url);
+                String thumb = bestThumb(o.optJSONObject("thumbnail"));
+                if (thumb == null || thumb.isEmpty()) { JSONObject av = o.optJSONObject("avatar"); if (av != null) thumb = bestThumb(av.optJSONObject("thumbnail") != null ? av.optJSONObject("thumbnail") : av); }
+                if (thumb != null && thumb.startsWith("//")) thumb = "https:" + thumb;
+                if (have == null) {
+                    Item it = new Item();
+                    it.type = Item.CHANNEL;
+                    it.url = url;
+                    it.title = name;
+                    it.channel = name;
+                    it.channelUrl = url;
+                    it.thumb = thumb == null ? "" : thumb;
+                    it.sub = "Channel";
+                    out.put(url, it);
+                } else if ((have.thumb == null || have.thumb.isEmpty()) && thumb != null) have.thumb = thumb;
+            }
+        }
+        java.util.Iterator<String> keys = o.keys();
+        while (keys.hasNext()) collectAnyChannels(o.opt(keys.next()), out, depth + 1);
+    }
+
+    /** A UC… channel id that this endpoint / command opens (looked for a few levels in, not in page content). */
+    private static String ucIn(Object e, int depth) {
+        if (depth > 4) return null;
+        if (e instanceof JSONObject) {
+            JSONObject o = (JSONObject) e;
+            JSONObject be = o.optJSONObject("browseEndpoint");
+            if (be != null && be.optString("browseId", "").startsWith("UC")) return be.optString("browseId");
+            java.util.Iterator<String> it = o.keys();
+            while (it.hasNext()) {
+                String k = it.next();
+                if (k.equals("content") || k.equals("contents") || k.equals("items")) continue;
+                String f = ucIn(o.opt(k), depth + 1);
+                if (f != null) return f;
+            }
+        } else if (e instanceof JSONArray) {
+            JSONArray a = (JSONArray) e;
+            for (int i = 0; i < a.length() && i < 6; i++) { String f = ucIn(a.opt(i), depth + 1); if (f != null) return f; }
+        }
+        return null;
+    }
+
+    /** A continuation for the TV channel list (not the video feed's). */
+    private static String navContinuation(JSONObject r) {
+        JSONObject nav = findObject(r, "tvSecondaryNavRenderer");
+        if (nav == null) return null;
+        String t = findString(nav, "continuation");
+        return t == null ? findString(nav, "token") : t;
+    }
+
+    private static JSONObject findObject(Object node, String key) {
+        if (node instanceof JSONObject) {
+            JSONObject o = (JSONObject) node;
+            JSONObject v = o.optJSONObject(key);
+            if (v != null) return v;
+            java.util.Iterator<String> it = o.keys();
+            while (it.hasNext()) { JSONObject f = findObject(o.opt(it.next()), key); if (f != null) return f; }
+        } else if (node instanceof JSONArray) {
+            JSONArray a = (JSONArray) node;
+            for (int i = 0; i < a.length(); i++) { JSONObject f = findObject(a.opt(i), key); if (f != null) return f; }
+        }
+        return null;
+    }
+
+    /** The kinds of entries YouTube sent (for the report when no channels were found). */
+    private static String rendererKeys(Object node) {
+        java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<>();
+        gatherKeys(node, keys, 0);
+        StringBuilder b = new StringBuilder();
+        for (String k : keys) { if (b.length() > 0) b.append(","); b.append(k.replace("Renderer", "R").replace("ViewModel", "VM")); if (b.length() > 160) break; }
+        return b.toString();
+    }
+
+    private static void gatherKeys(Object node, java.util.Set<String> keys, int depth) {
+        if (depth > 40 || keys.size() > 40) return;
+        if (node instanceof JSONObject) {
+            JSONObject o = (JSONObject) node;
+            java.util.Iterator<String> it = o.keys();
+            while (it.hasNext()) {
+                String k = it.next();
+                if (k.endsWith("Renderer") || k.endsWith("ViewModel")) keys.add(k);
+                gatherKeys(o.opt(k), keys, depth + 1);
+            }
+        } else if (node instanceof JSONArray) {
+            JSONArray a = (JSONArray) node;
+            for (int i = 0; i < a.length(); i++) gatherKeys(a.opt(i), keys, depth + 1);
+        }
+    }
 
     /** YouTube Data API: subscriptions?mine=true, all pages (50 a page). */
     private static void dataApiSubscriptions(java.util.Map<String, Item> out) throws Exception {
