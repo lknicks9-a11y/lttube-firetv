@@ -127,11 +127,19 @@ public final class Updater {
             if (changed != null) changed.run();
             if (act.isFinishing()) return;
             android.content.SharedPreferences up = act.getSharedPreferences("updater", 0);
-            if (newer && (userAsked || !up.getBoolean("askedOnce", false))) {
-                promptedFor = rel.version;
-                // Asked by itself one time only; after that, updates are in Settings → Update Center.
-                up.edit().putBoolean("askedOnce", true).putInt("promptedBuild", rel.build).apply();
-                offer(act, rel);
+            if (newer && userAsked) {
+                // Update Center → Update: straight to downloading and installing, no extra question.
+                install(act, rel);
+            } else if (newer) {
+                // Not asked right away: only if this update has been waiting 20 minutes and you still haven't
+                // installed it, and then just once for that build.
+                if (up.getInt("seenBuild", 0) != rel.build) up.edit().putInt("seenBuild", rel.build).putLong("seenAt", System.currentTimeMillis()).apply();
+                boolean waited = System.currentTimeMillis() - up.getLong("seenAt", System.currentTimeMillis()) >= 20 * 60_000L;
+                if (waited && up.getInt("promptedBuild", 0) < rel.build) {
+                    promptedFor = rel.version;
+                    up.edit().putInt("promptedBuild", rel.build).apply();
+                    offer(act, rel);
+                }
             } else if (!newer && userAsked) {
                 Toast.makeText(act, "LTTube is up to date (" + currentVersion(act) + ")", Toast.LENGTH_SHORT).show();
             }
@@ -160,24 +168,31 @@ public final class Updater {
     }
 
     // ------------------------------------------------------------------ download + install
+    /** An update waiting for Fire TV's OK to install; carries on when you come back. */
+    static Release pending;
+
+    /** Call when LTTube comes back on screen: finishes an update that was waiting for the OK. */
+    public static void resumePending(Activity act) {
+        if (pending == null) return;
+        if (Build.VERSION.SDK_INT >= 26 && !act.getPackageManager().canRequestPackageInstalls()) return;
+        Release r = pending;
+        pending = null;
+        install(act, r);
+    }
+
     public static void install(final Activity act, final Release rel) {
         if (downloading) { Toast.makeText(act, "Already downloading the update…", Toast.LENGTH_SHORT).show(); return; }
         if (Build.VERSION.SDK_INT >= 26 && !act.getPackageManager().canRequestPackageInstalls()) {
-            new LtDialog.Builder(act)
-                    .setTitle("Allow LTTube to install updates")
-                    .setMessage("Fire TV needs your OK once. On the next screen turn on \"Allow from this source\" (or Settings → My Fire TV → Developer options → Install unknown apps → LTTube), then come back and choose Install again.")
-                    .setPositiveButton("Open settings", (d, w) -> {
-                        try {
-                            act.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                    Uri.parse("package:" + act.getPackageName())));
-                        } catch (Exception e) {
-                            Toast.makeText(act, "Open Settings → My Fire TV → Developer options → Install unknown apps → LTTube", Toast.LENGTH_LONG).show();
-                        }
-                    })
-                    .setNegativeButton("Cancel", null)
-                    .show();
+            pending = rel;
+            try {
+                act.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + act.getPackageName())));
+                Toast.makeText(act, "Turn on \"Allow from this source\", then press Back — the update continues by itself", Toast.LENGTH_LONG).show();
+            } catch (Exception e) {
+                Toast.makeText(act, "Open Settings → My Fire TV → Developer options → Install unknown apps → LTTube", Toast.LENGTH_LONG).show();
+            }
             return;
         }
+        pending = null;
         downloading = true;
         final ProgressBar bar = new ProgressBar(act, null, android.R.attr.progressBarStyleHorizontal);
         bar.setMax(100);

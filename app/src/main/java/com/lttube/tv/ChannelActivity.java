@@ -492,6 +492,14 @@ public class ChannelActivity extends FragmentActivity {
             View before = getCurrentFocus();
             boolean inContent = before != null && (isInside(before, grid) || isInside(before, rowsHolder));
             if (inContent && grid.getVisibility() == View.VISIBLE && isInside(before, grid) && grid.getSelectedPosition() < curCols) { focusTop(); return true; }
+            // Home rows: Up always works — a row up, or from the first row back to the tabs.
+            if (before != null && isInside(before, rowsHolder) && rowsHolder.getVisibility() == View.VISIBLE) {
+                int at = rows.selectedRow();
+                if (at <= 0) { focusTop(); return true; }
+                boolean r = super.dispatchKeyEvent(e);
+                if (getCurrentFocus() == before || rows.selectedRow() == at) rows.selectRow(at - 1);
+                return true;
+            }
             boolean r = super.dispatchKeyEvent(e);
             View after = getCurrentFocus();
             if (inContent && (after == before || after == null || !(isInside(after, grid) || isInside(after, rowsHolder) || tabViews.contains(after) || chipViews.contains(after)))) { focusTop(); return true; }

@@ -180,6 +180,20 @@ public class RowsController {
 
     public boolean isEmpty() { return rows.size() == 0; }
 
+    /** The row you're on (0 = top), or -1. */
+    public int selectedRow() {
+        try { return fragment.getVerticalGridView().getSelectedPosition(); } catch (Exception e) { return -1; }
+    }
+
+    /** Up one row, by hand (when the list doesn't move by itself). */
+    public void selectRow(int i) {
+        try {
+            androidx.leanback.widget.VerticalGridView g = fragment.getVerticalGridView();
+            g.setSelectedPositionSmooth(Math.max(0, i));
+            g.requestFocus();
+        } catch (Exception ignored) { }
+    }
+
     /** Back to the first row: rows that arrive later are put above the one showing, which pushed it down. */
     public void toTop() {
         try {

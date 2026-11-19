@@ -165,6 +165,7 @@ public class MainActivity extends FragmentActivity {
         super.onResume();
         loadProfile();
         applyNav();
+        Updater.resumePending(this);
         if ("library".equals(section)) show(section, false);
         if (settingsPane != null && "settings".equals(section)) settingsPane.refresh();
     }
@@ -501,7 +502,8 @@ public class MainActivity extends FragmentActivity {
             case "check": AccountCheck.run(this); break;
             case "import": new Importer(this, added -> show(section, false)).start(); break;
             case "update":
-                if (Updater.updateReady(this)) Updater.offer(this, Updater.latest);
+                // Update Center: pressing Update installs it (download, then Fire TV's install screen).
+                if (Updater.updateReady(this)) Updater.install(this, Updater.latest);
                 else Updater.check(this, true, () -> { if (settingsPane != null && "settings".equals(section)) settingsPane.refresh(); });
                 break;
             default: break;
