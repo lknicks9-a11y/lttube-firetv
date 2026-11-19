@@ -126,8 +126,10 @@ public final class Updater {
             lastStatus = newer ? "Update available: " + rel.version : "Up to date";
             if (changed != null) changed.run();
             if (act.isFinishing()) return;
-            if (newer && (userAsked || !rel.version.equals(promptedFor))) {
+            android.content.SharedPreferences up = act.getSharedPreferences("updater", 0);
+            if (newer && (userAsked || rel.build > up.getInt("promptedBuild", 0))) {
                 promptedFor = rel.version;
+                up.edit().putInt("promptedBuild", rel.build).apply();
                 offer(act, rel);
             } else if (!newer && userAsked) {
                 Toast.makeText(act, "LTTube is up to date (" + currentVersion(act) + ")", Toast.LENGTH_SHORT).show();

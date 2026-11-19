@@ -191,6 +191,7 @@ public class ChannelActivity extends FragmentActivity {
         setContentView(root);
 
         rows = new RowsController(this, rowsHolder.getId(), (it, row) -> Nav.open(this, it, row));
+        rows.keepTop = true; // Home opens at its first row (Videos), not wherever the last row landed
 
         // header slides away while you browse videos, like YouTube
         root.getViewTreeObserver().addOnGlobalFocusChangeListener(focusWatcher);
@@ -479,7 +480,7 @@ public class ChannelActivity extends FragmentActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
-        if (e.getAction() == KeyEvent.ACTION_DOWN) userMoved = true;
+        if (e.getAction() == KeyEvent.ACTION_DOWN) { userMoved = true; if (rows != null) rows.keepTop = false; }
         // Up with nowhere further up inside the videos → the chips / tabs.
         if (e.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP && e.getAction() == KeyEvent.ACTION_DOWN) {
             View before = getCurrentFocus();

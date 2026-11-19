@@ -40,7 +40,7 @@ public class WelcomeActivity extends FragmentActivity {
         setContentView(root);
         if (SIGN_IN.equals(getIntent().getStringExtra(MODE)) || Account.profiles().isEmpty()) showSignIn();
         else showPicker();
-        Updater.check(this, false, null);
+        // No update pop-up here: it covered the sign-in on first launch. Home checks for updates.
         CrashLog.showIfAny(this);
     }
 
@@ -362,7 +362,14 @@ public class WelcomeActivity extends FragmentActivity {
         phone.setOnClickListener(v -> showSignIn());
         phone.requestFocus();
 
-        Bg.run(Account::start, (dc, err) -> {
+        // Get a code straight away; if YouTube doesn't answer the first time, try again by itself (no second press).
+        Bg.run(() -> {
+            Exception last = null;
+            for (int i = 0; i < 4; i++) {
+                try { return Account.start(); } catch (Exception e) { last = e; Thread.sleep(1200L * (i + 1)); }
+            }
+            throw last;
+        }, (dc, err) -> {
             if (seq != signSeq) return;
             if (dc == null) { status.setText("Couldn't get a code: " + Bg.message(err) + "\nSelect \"Sign in with your phone\" to try again."); return; }
             code.setText(dc.userCode);

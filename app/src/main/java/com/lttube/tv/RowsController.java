@@ -104,6 +104,11 @@ public class RowsController {
                 slots.get(slot).add(lr);
                 rows.add(at++, lr);
             }
+            if (keepTop) {
+                try { fragment.setSelectedPosition(0, false); } catch (Exception ignored) { }
+                View gv = fragment.getView();
+                if (gv != null) gv.scrollTo(0, 0);
+            }
             if (wasEmpty && rows.size() > 0 && onFirstRow != null) {
                 Runnable r = onFirstRow;
                 onFirstRow = null;
@@ -178,6 +183,9 @@ public class RowsController {
     }
 
     public boolean isEmpty() { return rows.size() == 0; }
+
+    /** While true, rows loading in keep the list at its first row (until you start moving). */
+    public boolean keepTop;
 
     public void focus() {
         View v = fragment.getView();
