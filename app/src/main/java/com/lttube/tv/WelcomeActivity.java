@@ -1,6 +1,5 @@
 package com.lttube.tv;
 
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -154,7 +153,7 @@ public class WelcomeActivity extends FragmentActivity {
     }
 
     private void removeDialog(Account.Profile pr) {
-        new AlertDialog.Builder(this)
+        new LtDialog.Builder(this)
                 .setTitle("Remove " + (pr.name.isEmpty() ? "this account" : pr.name) + "?")
                 .setMessage("This signs that Google account (and its channels) out of LTTube on this TV.")
                 .setPositiveButton("Remove", (d, w) -> {

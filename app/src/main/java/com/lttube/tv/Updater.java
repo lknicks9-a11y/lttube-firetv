@@ -1,7 +1,6 @@
 package com.lttube.tv;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
@@ -137,11 +136,21 @@ public final class Updater {
     }
 
     public static void offer(final Activity act, final Release rel) {
-        String notes = rel.notes.isEmpty() ? "" : "\n\nWhat's new:\n" + rel.notes;
+        // Readable notes: headings and bullets instead of raw "## 1.0.0" / "- …" text; only the newest section.
+        StringBuilder nb = new StringBuilder();
+        int sections = 0;
+        for (String line : rel.notes.split("\n")) {
+            String t = line.trim();
+            if (t.startsWith("#")) { if (++sections > 1) break; continue; }
+            if (t.isEmpty()) continue;
+            nb.append(t.startsWith("- ") || t.startsWith("* ") ? "•  " + t.substring(2) : t).append("\n");
+        }
+        String notes = nb.toString().trim();
         if (notes.length() > 900) notes = notes.substring(0, 900) + "…";
-        new AlertDialog.Builder(act)
-                .setTitle("Update available: LTTube " + rel.version)
-                .setMessage("You have " + currentVersion(act) + "." + notes)
+        new LtDialog.Builder(act)
+                .setTitle("Update available")
+                .setMessage("LTTube " + rel.version + (rel.build > 0 ? " (build " + rel.build + ")" : "") + " — you have build " + currentBuild(act) + "."
+                        + (notes.isEmpty() ? "" : "\n\nWhat's new\n" + notes))
                 .setPositiveButton("Install now", (d, w) -> install(act, rel))
                 .setNegativeButton("Later", null)
                 .show();
@@ -151,7 +160,7 @@ public final class Updater {
     public static void install(final Activity act, final Release rel) {
         if (downloading) { Toast.makeText(act, "Already downloading the update…", Toast.LENGTH_SHORT).show(); return; }
         if (Build.VERSION.SDK_INT >= 26 && !act.getPackageManager().canRequestPackageInstalls()) {
-            new AlertDialog.Builder(act)
+            new LtDialog.Builder(act)
                     .setTitle("Allow LTTube to install updates")
                     .setMessage("Fire TV needs your OK once. On the next screen turn on \"Allow from this source\" (or Settings → My Fire TV → Developer options → Install unknown apps → LTTube), then come back and choose Install again.")
                     .setPositiveButton("Open settings", (d, w) -> {
@@ -171,7 +180,7 @@ public final class Updater {
         bar.setMax(100);
         int pad = Math.round(24 * act.getResources().getDisplayMetrics().density);
         bar.setPadding(pad, pad, pad, pad);
-        final AlertDialog dlg = new AlertDialog.Builder(act)
+        final LtDialog dlg = new LtDialog.Builder(act)
                 .setTitle("Downloading LTTube " + rel.version + "…")
                 .setView(bar)
                 .setCancelable(false)

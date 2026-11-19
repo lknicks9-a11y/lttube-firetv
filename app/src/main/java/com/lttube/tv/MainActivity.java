@@ -319,6 +319,18 @@ public class MainActivity extends FragmentActivity {
         return super.dispatchKeyEvent(e);
     }
 
+    /** YouTube's own page for a topic (Trending, Recommended, …) — nothing if it doesn't load; the other rows still do. */
+    private static List<Shelf> topic(String browseId, String name) {
+        try {
+            List<Shelf> l = Yti.sections(browseId, name);
+            List<Shelf> out = new java.util.ArrayList<>();
+            for (Shelf sh : l) if (sh.items.size() >= 3) out.add(sh);
+            return out.size() > 8 ? out.subList(0, 8) : out;
+        } catch (Exception e) {
+            return new java.util.ArrayList<>();
+        }
+    }
+
     // ------------------------------------------------------------------ sections
     void show(String key, boolean focusContent) {
         section = key;
@@ -326,7 +338,8 @@ public class MainActivity extends FragmentActivity {
         boolean pane = "subs".equals(key) || "settings".equals(key);
         paneHolder.setVisibility(pane ? View.VISIBLE : View.GONE);
         rowsHolder.setVisibility(pane ? View.GONE : View.VISIBLE);
-        searchPill.setVisibility("home".equals(key) ? View.VISIBLE : View.GONE);
+        // The search bar sits at the top of every page, like YouTube.
+        searchPill.setVisibility("settings".equals(key) ? View.GONE : View.VISIBLE);
         rows.clear();
         if (pane) {
             paneHolder.removeAllViews();
@@ -384,39 +397,60 @@ public class MainActivity extends FragmentActivity {
                 }
                 break;
             case "music":
+                rows.add(() -> topic("UC-9-kyTW8ZkZNDHQJ6FgpwQ", "Music"));
                 rows.add(() -> Sources.kiosk("trending_music", "Trending music"));
                 rows.add(() -> Sources.search("new music this week official video", "New releases"));
                 rows.add(() -> Sources.search("top hits 2026", "Top hits"));
                 rows.add(() -> Sources.search("live performance", "Live performances"));
+                rows.add(() -> Sources.search("hip hop new songs", "Hip hop"));
+                rows.add(() -> Sources.search("music video premiere", "Premieres"));
                 break;
             case "movies":
+                rows.add(() -> topic("FEstorefront", "Movies & TV"));
                 rows.add(() -> Sources.kiosk("trending_movies_and_shows", "Trending movies & shows"));
                 rows.add(() -> Sources.search("official trailer 2026", "New trailers"));
                 rows.add(() -> Sources.search("full movie free", "Free movies"));
+                rows.add(() -> Sources.search("movie clips best scenes", "Best scenes"));
+                rows.add(() -> Sources.search("tv show full episode", "TV episodes"));
                 break;
             case "live":
+                rows.add(() -> topic("UC4R8DWoMoI7CAwX8_LjQHig", "Live"));
                 rows.add(() -> Sources.kiosk("live", "Live now"));
                 rows.add(() -> Sources.search("live stream now", "Streaming now"));
+                rows.add(() -> Sources.search("live sports now", "Live sports"));
+                rows.add(() -> Sources.search("live gaming stream", "Live gaming"));
                 break;
             case "gaming":
+                rows.add(() -> topic("UCOpNcN46UbXVtpKMrmU4Abg", "Gaming"));
                 rows.add(() -> Sources.kiosk("trending_gaming", "Trending in gaming"));
                 rows.add(() -> Sources.search("gaming highlights", "Highlights"));
                 rows.add(() -> Sources.search("new game trailer", "Game trailers"));
+                rows.add(() -> Sources.search("gta 6 gameplay", "GTA 6"));
+                rows.add(() -> Sources.search("nba 2k26 gameplay", "NBA 2K"));
                 break;
             case "news":
+                rows.add(() -> topic("UCYfdidRxbB8Qhf0Nx7ioOYw", "News"));
                 rows.add(() -> Sources.search("news today", "Top news"));
                 rows.add(() -> Sources.search("breaking news live", "Live news"));
                 rows.add(() -> Sources.search("world news", "World"));
+                rows.add(() -> Sources.search("politics news today", "Politics"));
+                rows.add(() -> Sources.search("tech news this week", "Tech"));
                 break;
             case "sports":
+                rows.add(() -> topic("UCEgdi0XIXXZ-qJOFPf4JSKw", "Sports"));
                 rows.add(() -> Sources.search("nba highlights", "NBA"));
                 rows.add(() -> Sources.search("nfl highlights", "NFL"));
                 rows.add(() -> Sources.search("college football highlights", "College football"));
                 rows.add(() -> Sources.search("sports highlights today", "Top highlights"));
+                rows.add(() -> Sources.search("nhl highlights", "NHL"));
+                rows.add(() -> Sources.search("premier league highlights", "Soccer"));
                 break;
             case "podcasts":
+                rows.add(() -> topic("FEpodcasts_destination", "Podcasts"));
                 rows.add(() -> Sources.kiosk("trending_podcasts_episodes", "Trending podcasts"));
                 rows.add(() -> Sources.search("podcast full episode", "Full episodes"));
+                rows.add(() -> Sources.search("sports podcast", "Sports podcasts"));
+                rows.add(() -> Sources.search("comedy podcast", "Comedy podcasts"));
                 break;
             default:
                 break;

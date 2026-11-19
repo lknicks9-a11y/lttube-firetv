@@ -1,6 +1,5 @@
 package com.lttube.tv;
 
-import android.app.AlertDialog;
 import android.graphics.Color;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -167,7 +166,7 @@ public class SettingsPane {
                     buttons(new String[]{"Switch account", "Add account", "Sign out"}, -1, i -> {
                         if (i == 0) a.onAction("account");
                         else if (i == 1) a.onAction("signin");
-                        else new AlertDialog.Builder(a).setTitle("Sign out " + Account.name() + "?")
+                        else new LtDialog.Builder(a).setTitle("Sign out " + Account.name() + "?")
                                     .setMessage("Removes this Google account and its channels from LTTube on this TV.")
                                     .setPositiveButton("Sign out", (d, w) -> { Account.signOut(); a.onAction("account"); })
                                     .setNegativeButton("Cancel", null).show();

@@ -1,7 +1,6 @@
 package com.lttube.tv;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.text.InputType;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -37,7 +36,7 @@ public class Importer {
     private final Activity act;
     private final Done done;
     private final OkHttpClient http;
-    private AlertDialog waiting;
+    private LtDialog waiting;
     private volatile boolean cancelled;
 
     public Importer(Activity act, Done done) {
@@ -50,7 +49,7 @@ public class Importer {
     }
 
     public void start() {
-        new AlertDialog.Builder(act)
+        new LtDialog.Builder(act)
                 .setTitle("Import subscriptions")
                 .setMessage("This copies the channels you subscribe to from LTTube on your PC, one time.\n\n"
                         + "Start LTTube on your PC (signed in to YouTube) and make sure it's on the same Wi-Fi as this TV.")
@@ -62,7 +61,7 @@ public class Importer {
 
     private void wait(String msg) {
         if (waiting != null) waiting.dismiss();
-        waiting = new AlertDialog.Builder(act)
+        waiting = new LtDialog.Builder(act)
                 .setTitle("Import subscriptions")
                 .setMessage(msg)
                 .setNegativeButton("Cancel", (d, w) -> cancelled = true)
@@ -78,7 +77,7 @@ public class Importer {
     private void fail(String msg) {
         stopWaiting();
         if (cancelled || act.isFinishing()) return;
-        new AlertDialog.Builder(act)
+        new LtDialog.Builder(act)
                 .setTitle("Couldn't import")
                 .setMessage(msg)
                 .setPositiveButton("Try again", (d, w) -> start())
@@ -110,7 +109,7 @@ public class Importer {
             if (cancelled) return;
             if (url == null) {
                 stopWaiting();
-                new AlertDialog.Builder(act)
+                new LtDialog.Builder(act)
                         .setTitle("Didn't find LTTube")
                         .setMessage("Make sure LTTube is running on your PC, then try again — or type the address LTTube shows on your PC.")
                         .setPositiveButton("Search again", (d, w) -> scan())
@@ -128,7 +127,7 @@ public class Importer {
         in.setHint("192.168.1.20:8080");
         in.setSingleLine(true);
         in.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        new AlertDialog.Builder(act)
+        new LtDialog.Builder(act)
                 .setTitle("LTTube address on your PC")
                 .setView(in)
                 .setPositiveButton("Connect", (d, w) -> {
@@ -160,7 +159,7 @@ public class Importer {
         final EditText in = new EditText(act);
         in.setSingleLine(true);
         in.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        new AlertDialog.Builder(act)
+        new LtDialog.Builder(act)
                 .setTitle(wrong ? "Wrong password — try again" : "LTTube app password")
                 .setMessage("Enter the app password you set in LTTube's Settings on your PC.")
                 .setView(in)

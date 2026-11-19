@@ -1,7 +1,6 @@
 package com.lttube.tv;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
 
@@ -32,7 +31,7 @@ public final class CrashLog {
         String last = p.getString("last", "");
         if (last.isEmpty()) return;
         p.edit().remove("last").apply();
-        new AlertDialog.Builder(a)
+        new LtDialog.Builder(a)
                 .setTitle("LTTube closed unexpectedly last time")
                 .setMessage("Take a photo of this and send it so it can be fixed:\n\n" + last)
                 .setPositiveButton("OK", null)

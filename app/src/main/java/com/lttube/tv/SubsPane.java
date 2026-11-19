@@ -233,6 +233,7 @@ public class SubsPane {
     private String report = "";
 
     private void buildList(List<Item> channels) {
+        missing.clear();
         list.removeAllViews();
         names.clear();
         firstRow = row("all", "All", null, R.drawable.ic_subs);
@@ -271,6 +272,36 @@ public class SubsPane {
         }
     }
 
+    // ---- channel pictures YouTube's list didn't include: looked up one by one in the background, remembered
+    private final java.util.LinkedHashMap<String, ImageView> missing = new java.util.LinkedHashMap<>();
+    private boolean fetching;
+
+    private String avatarCache(String url) {
+        return a.getSharedPreferences("avatars", 0).getString(Store.channelId(url), "");
+    }
+
+    private void fetchAvatars() {
+        if (fetching) return;
+        fetching = true;
+        h.postDelayed(this::nextAvatar, 400);
+    }
+
+    private void nextAvatar() {
+        if (missing.isEmpty()) { fetching = false; return; }
+        final String url = missing.keySet().iterator().next();
+        final ImageView img = missing.remove(url);
+        Bg.run(() -> {
+            org.schabi.newpipe.extractor.channel.ChannelInfo ci = org.schabi.newpipe.extractor.channel.ChannelInfo.getInfo(Feeds.yt(), url);
+            return Item.bestImage(ci.getAvatars(), 88);
+        }, (pic, err) -> {
+            if (pic != null && !pic.isEmpty()) {
+                a.getSharedPreferences("avatars", 0).edit().putString(Store.channelId(url), pic).apply();
+                if (img != null && img.isAttachedToWindow()) Glide.with(a).load(pic).apply(RequestOptions.circleCropTransform()).into(img);
+            }
+            nextAvatar();
+        });
+    }
+
     private View row(final String key, final String name, String thumb, int icon) {
         final LinearLayout r = new LinearLayout(a);
         r.setOrientation(LinearLayout.HORIZONTAL);
@@ -279,7 +310,12 @@ public class SubsPane {
         r.setPadding(dp(16), dp(9), dp(16), dp(9));
         ImageView img = new ImageView(a);
         if (icon != 0) { img.setImageResource(icon); img.setColorFilter(Color.WHITE); img.setPadding(dp(4), dp(4), dp(4), dp(4)); }
-        else Glide.with(a).load(thumb).apply(RequestOptions.circleCropTransform()).into(img);
+        else {
+            String pic = thumb == null || thumb.isEmpty() ? avatarCache(key) : thumb;
+            img.setBackground(Ui.pill(a, 0x33FFFFFF, 17));
+            if (!pic.isEmpty()) Glide.with(a).load(pic).apply(RequestOptions.circleCropTransform()).into(img);
+            else { missing.put(key, img); fetchAvatars(); }
+        }
         r.addView(img, new LinearLayout.LayoutParams(dp(34), dp(34)));
         final TextView t = Ui.text(a, 17, Color.WHITE, true);
         t.setText(name);

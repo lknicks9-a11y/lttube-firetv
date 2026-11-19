@@ -1,6 +1,5 @@
 package com.lttube.tv;
 
-import android.app.AlertDialog;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -174,7 +173,7 @@ public class PlayerActivity extends FragmentActivity {
         blurBg.setVisibility(View.GONE);
         root.addView(blurBg, match());
         blurDim = new View(this);
-        blurDim.setBackgroundColor(0x99101418);
+        blurDim.setBackgroundColor(0x5C101418); // lighter, like YouTube's Shorts backdrop
         blurDim.setVisibility(View.GONE);
         root.addView(blurDim, match());
 
@@ -1227,10 +1226,52 @@ public class PlayerActivity extends FragmentActivity {
         panelScroll.scrollTo(0, 0);
         setOverlay(false);
         h.removeCallbacks(hideOverlay);
+        shrinkVideo(true);
+    }
+
+    /**
+     * Like YouTube on TV: while a side panel is open (Settings, Description, Comments) the video keeps playing as
+     * a rounded card on the left instead of being covered.
+     */
+    private void shrinkVideo(boolean on) {
+        final View v = videoBox;
+        int W = root.getWidth(), H = root.getHeight();
+        if (W == 0 || H == 0 || v.getWidth() == 0) return;
+        if (!on) {
+            v.animate().scaleX(1f).scaleY(1f).translationX(0).translationY(0).setDuration(200).start();
+            v.setClipToOutline(false);
+            root.setBackgroundColor(shortsMode ? 0xFF1A1E26 : Color.BLACK);
+            return;
+        }
+        root.setBackgroundColor(0xFF1E1F25);
+        int panelW = panel.getLayoutParams().width > 0 ? panel.getLayoutParams().width : dp(460);
+        int room = W - panelW - dp(70);
+        float sc;
+        float tx, ty;
+        if (shortsMode) {
+            // A Short just moves left to make room.
+            sc = Math.min(1f, (H - dp(60)) / (float) v.getHeight());
+            float right = v.getLeft() + v.getWidth() * sc;
+            tx = Math.min(0, room - right);
+            ty = (H - v.getHeight() * sc) / 2f - v.getTop();
+        } else {
+            sc = room / (float) v.getWidth();
+            tx = dp(56);
+            ty = (H - v.getHeight() * sc) / 2f;
+        }
+        v.setPivotX(0);
+        v.setPivotY(0);
+        final float radius = dp(18) / sc;
+        v.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override public void getOutline(View view, android.graphics.Outline o) { o.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius); }
+        });
+        v.setClipToOutline(true);
+        v.animate().scaleX(sc).scaleY(sc).translationX(tx).translationY(ty).setDuration(220).start();
     }
 
     private void closePanel() {
         if (panel == null) return;
+        if (panel.getVisibility() == View.VISIBLE) shrinkVideo(false);
         panel.setVisibility(View.GONE);
         panelList.removeAllViews();
         commentsUrl = null;
@@ -1450,21 +1491,58 @@ public class PlayerActivity extends FragmentActivity {
     private void settingsMenu() {
         final List<String> labels = new ArrayList<>();
         final List<Runnable> actions = new ArrayList<>();
-        labels.add("Quality: " + (Store.maxHeight() >= 2160 ? "4K" : Store.maxHeight() + "p") + " max");
+        int top = maxAvailableHeight();
+        int cap = Store.maxHeight();
+        String q = top > 0 && cap >= top ? "Auto (" + heightName(top) + ")" : heightName(Math.min(cap, top > 0 ? top : cap)) + " max";
+        labels.add("Quality|" + q);
         actions.add(this::qualityMenu);
-        labels.add("Playback speed: " + speedName(Store.speed()));
-        actions.add(this::speedMenu);
-        labels.add("Audio language");
+        labels.add("Captions|" + (Store.captions() ? "On" : "Off"));
+        actions.add(() -> { toggleCaptions(); settingsMenu(); });
+        labels.add("Audio track|" + currentAudioName());
         actions.add(this::audioMenu);
-        labels.add("Subtitles: " + (Store.captions() ? "On" : "Off"));
-        actions.add(this::toggleCaptions);
-        labels.add("Autoplay: " + (Store.autoplay() ? "On" : "Off"));
+        labels.add("Speed|" + speedName(Store.speed()));
+        actions.add(this::speedMenu);
+        labels.add("Autoplay|" + (Store.autoplay() ? "On" : "Off"));
         actions.add(() -> { Store.setAutoplay(!Store.autoplay()); settingsMenu(); });
-        labels.add("Skip sponsors: " + (Store.sponsorBlock() ? "On" : "Off"));
+        labels.add("Skip sponsors|" + (Store.sponsorBlock() ? "On" : "Off"));
         actions.add(() -> { Store.setSponsorBlock(!Store.sponsorBlock()); settingsMenu(); });
-        labels.add("Loop this video: " + (player.getRepeatMode() == Player.REPEAT_MODE_ONE ? "On" : "Off"));
+        labels.add("Repeat|" + (player.getRepeatMode() == Player.REPEAT_MODE_ONE ? "On" : "Off"));
         actions.add(() -> { player.setRepeatMode(player.getRepeatMode() == Player.REPEAT_MODE_ONE ? Player.REPEAT_MODE_OFF : Player.REPEAT_MODE_ONE); settingsMenu(); });
         menuPanel("Settings", labels, -1, w -> actions.get(w).run());
+    }
+
+    /** The tallest picture this video has (so Quality only offers what it really comes in). */
+    private int maxAvailableHeight() {
+        int best = 0;
+        try {
+            for (Tracks.Group g : player.getCurrentTracks().getGroups()) {
+                if (g.getType() != C.TRACK_TYPE_VIDEO) continue;
+                for (int i = 0; i < g.length; i++) {
+                    Format f = g.getTrackFormat(i);
+                    best = Math.max(best, Math.min(f.height, f.width) > 0 ? Math.min(f.height, f.width) : f.height);
+                }
+            }
+        } catch (Exception ignored) { }
+        return best;
+    }
+
+    private static String heightName(int h) {
+        return h >= 2160 ? "4K (2160p)" : h >= 1440 ? "1440p" : h >= 1080 ? "1080p" : h >= 720 ? "720p" : h >= 480 ? "480p" : h >= 360 ? "360p" : h > 0 ? h + "p" : "Auto";
+    }
+
+    private String currentAudioName() {
+        try {
+            for (Tracks.Group g : player.getCurrentTracks().getGroups()) {
+                if (g.getType() != C.TRACK_TYPE_AUDIO) continue;
+                for (int i = 0; i < g.length; i++) if (g.isTrackSelected(i)) {
+                    Format f = g.getTrackFormat(i);
+                    String n = f.label != null ? f.label : f.language == null ? "Default" : new Locale(f.language).getDisplayLanguage();
+                    if (originalLang != null && f.language != null && f.language.startsWith(originalLang)) n += " original";
+                    return n;
+                }
+            }
+        } catch (Exception ignored) { }
+        return "Default";
     }
 
     public interface Pick { void pick(int which); }
@@ -1478,19 +1556,37 @@ public class PlayerActivity extends FragmentActivity {
         View first = null;
         for (int i = 0; i < labels.size(); i++) {
             final int w = i;
-            final TextView t = text(18, Color.WHITE, i == checked);
-            t.setText((i == checked ? "✓   " : "      ") + labels.get(i));
-            t.setPadding(dp(18), dp(13), dp(18), dp(13));
-            t.setFocusable(true);
-            t.setOnFocusChangeListener((v, has) -> {
-                t.setBackground(has ? rounded(0xFFF1F1F1) : null);
-                t.setTextColor(has ? 0xFF0F0F0F : Color.WHITE);
+            // Each choice is a rounded card like YouTube's: name, its current value under it, and › or ✓.
+            String[] parts = labels.get(i).split("\\|", 2);
+            final LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setFocusable(true);
+            row.setPadding(dp(20), dp(12), dp(18), dp(12));
+            row.setBackground(rounded(0x1FFFFFFF));
+            LinearLayout texts = new LinearLayout(this);
+            texts.setOrientation(LinearLayout.VERTICAL);
+            final TextView t = text(18, Color.WHITE, true);
+            t.setText(parts[0]);
+            texts.addView(t);
+            final TextView sub = text(14, 0xFFB8BAC2, false);
+            if (parts.length > 1) { sub.setText(parts[1]); texts.addView(sub); }
+            row.addView(texts, new LinearLayout.LayoutParams(0, -2, 1f));
+            final TextView mark = text(20, Color.WHITE, true);
+            mark.setText(i == checked ? "✓" : parts.length > 1 || checked < 0 ? "›" : "");
+            row.addView(mark);
+            row.setOnFocusChangeListener((v, has) -> {
+                row.setBackground(rounded(has ? 0xFFF1F1F1 : 0x1FFFFFFF));
+                int c = has ? 0xFF0F0F0F : Color.WHITE;
+                t.setTextColor(c);
+                mark.setTextColor(c);
+                sub.setTextColor(has ? 0xFF4A4C55 : 0xFFB8BAC2);
             });
-            t.setOnClickListener(v -> { closePanel(); onPick.pick(w); });
+            row.setOnClickListener(v -> { closePanel(); onPick.pick(w); });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-            lp.bottomMargin = dp(4);
-            panelList.addView(t, lp);
-            if (first == null || i == checked) first = t;
+            lp.bottomMargin = dp(8);
+            panelList.addView(row, lp);
+            if (first == null || i == checked) first = row;
         }
         if (first != null) { final View f = first; f.post(f::requestFocus); }
     }
@@ -1498,10 +1594,18 @@ public class PlayerActivity extends FragmentActivity {
     private static List<String> listOf(String... a) { return new ArrayList<>(java.util.Arrays.asList(a)); }
 
     private void qualityMenu() {
-        final int[] hs = {2160, 1440, 1080, 720, 480, 360};
-        String[] names = {"4K (2160p)", "1440p", "1080p", "720p", "480p", "360p"};
-        int cur = 2;
-        for (int i = 0; i < hs.length; i++) if (hs[i] == Store.maxHeight()) cur = i;
+        int top = maxAvailableHeight();
+        final List<Integer> hl = new ArrayList<>();
+        final List<String> nl = new ArrayList<>();
+        // "Auto" = the best this video has; then each size it really comes in, no higher.
+        hl.add(9999);
+        nl.add("Auto" + (top > 0 ? " (" + heightName(top) + ")" : ""));
+        for (int hh : new int[]{2160, 1440, 1080, 720, 480, 360}) if (top == 0 || hh <= top) { hl.add(hh); nl.add(heightName(hh)); }
+        final int[] hs = new int[hl.size()];
+        for (int i = 0; i < hs.length; i++) hs[i] = hl.get(i);
+        String[] names = nl.toArray(new String[0]);
+        int cur = 0;
+        for (int i = 1; i < hs.length; i++) if (hs[i] == Store.maxHeight() && (top == 0 || Store.maxHeight() < top)) cur = i;
         menuPanel("Quality", listOf(names), cur, w -> {
             Store.setMaxHeight(hs[w]);
             portraitChecked = false;

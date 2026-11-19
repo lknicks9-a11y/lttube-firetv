@@ -1,7 +1,6 @@
 package com.lttube.tv;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 
 import java.util.List;
 
@@ -10,7 +9,7 @@ public final class AccountCheck {
 
     public static void run(final Activity act) {
         final StringBuilder out = new StringBuilder("Checking…\n");
-        final AlertDialog dlg = new AlertDialog.Builder(act)
+        final LtDialog dlg = new LtDialog.Builder(act)
                 .setTitle("Account sync check")
                 .setMessage(out)
                 .setPositiveButton("Close", null)
@@ -56,7 +55,7 @@ public final class AccountCheck {
         return n + " items" + (s.size() > 1 ? " in " + s.size() + " rows" : "");
     }
 
-    private static void line(Activity act, AlertDialog dlg, StringBuilder out, String l) {
+    private static void line(Activity act, LtDialog dlg, StringBuilder out, String l) {
         act.runOnUiThread(() -> {
             if (out.toString().startsWith("Checking…\n")) out.delete(0, "Checking…\n".length());
             out.append(l).append('\n');
