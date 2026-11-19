@@ -107,6 +107,10 @@ public class PlayerActivity extends FragmentActivity {
     private LinearLayout shortsSide;
     private TextView shortsTitle, shortsChannel, shortsSub, shortsHint;
     private boolean shortsMode;
+    /** The Short's own picture, shown the moment it opens (until the video's first frame). */
+    private ImageView poster;
+    /** Video details fetched ahead of time for the next Short, so it starts right away. */
+    private final java.util.Map<String, StreamInfo> prefetched = new java.util.HashMap<>();
     private LinearLayout timeRow;
     private final List<Item> upNextList = new ArrayList<>();
     private int sideMargin;
@@ -185,6 +189,10 @@ public class PlayerActivity extends FragmentActivity {
         video.setFocusable(false);
         video.setShutterBackgroundColor(Color.BLACK);
         videoBox.addView(video, match());
+        poster = new ImageView(this);
+        poster.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        poster.setVisibility(View.GONE);
+        videoBox.addView(poster, match());
         root.addView(videoBox, match());
 
         spinner = new ProgressBar(this);
@@ -570,6 +578,9 @@ public class PlayerActivity extends FragmentActivity {
         player.setPlaybackParameters(new PlaybackParameters(Store.speed()));
         player.addListener(new Player.Listener() {
             @Override
+            public void onRenderedFirstFrame() { poster.setVisibility(View.GONE); }
+
+            @Override
             public void onPlaybackStateChanged(int s) {
                 spinner.setVisibility(s == Player.STATE_BUFFERING ? View.VISIBLE : View.GONE);
                 if (s == Player.STATE_READY) status.setVisibility(View.GONE);
@@ -640,8 +651,14 @@ public class PlayerActivity extends FragmentActivity {
         styleSub();
         if (!shortsMode) showOverlay(btnPlay);
         final int seq = ++loadSeq;
+        if (it.isShort && it.videoId() != null) {
+            poster.setVisibility(View.VISIBLE);
+            Glide.with(this).load("https://i.ytimg.com/vi/" + it.videoId() + "/oardefault.jpg")
+                    .error(Glide.with(this).load(it.thumb)).centerCrop().into(poster);
+        } else poster.setVisibility(View.GONE);
 
-        Bg.run(() -> StreamInfo.getInfo(Feeds.yt(), it.url), (si, err) -> {
+        final StreamInfo ready = it.videoId() == null ? null : prefetched.remove(it.videoId());
+        Bg.run(() -> ready != null ? ready : StreamInfo.getInfo(Feeds.yt(), it.url), (si, err) -> {
             if (seq != loadSeq || isFinishing()) return;
             if (si == null) { showError(Bg.message(err)); return; }
             info = si;
@@ -651,7 +668,25 @@ public class PlayerActivity extends FragmentActivity {
             loadUpNext(it.videoId(), seq);
             loadMoreRows(seq);
             if (Account.signedIn()) loadAccountState(it.videoId(), seq);
+            if (it.isShort) prefetchNextShort(seq);
         });
+    }
+
+    /** Shorts: get the next one's details in the background so Down starts it at once. */
+    private void prefetchNextShort(final int seq) {
+        h.postDelayed(() -> {
+            if (seq != loadSeq || isFinishing()) return;
+            final Item n = findNext();
+            if (n == null || n.videoId() == null || prefetched.containsKey(n.videoId())) return;
+            final String id = n.videoId();
+            Bg.run(() -> StreamInfo.getInfo(Feeds.yt(), n.url), (si, err) -> {
+                if (si == null) return;
+                if (prefetched.size() > 4) prefetched.clear();
+                prefetched.put(id, si);
+                // and its picture
+                Glide.with(this).load("https://i.ytimg.com/vi/" + id + "/oardefault.jpg").preload();
+            });
+        }, 1500);
     }
 
     private void fillFromInfo(StreamInfo si) {
