@@ -185,6 +185,50 @@ public final class Ytm {
         call(on ? "subscription/subscribe" : "subscription/unsubscribe", new JSONObject().put("channelIds", new JSONArray().put(channelId)), null);
     }
 
+    /**
+     * YouTube Music's own timed lyrics (the ones its phone app shows), synced to this exact recording: each line with
+     * the moment it starts and ends. Null when YouTube Music only has plain lyrics for the song.
+     */
+    public static JSONArray timedLyrics(String lyricsId) {
+        if (lyricsId == null || lyricsId.isEmpty()) return null;
+        String[][] clients = {{"ANDROID_MUSIC", "7.27.52", "com.google.android.apps.youtube.music/7.27.52 (Linux; U; Android 11) gzip", "21"},
+                {"IOS_MUSIC", "7.27.0", "com.google.ios.youtubemusic/7.27.0 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)", "26"}};
+        for (String[] c : clients) {
+            try {
+                Locale l = Locale.getDefault();
+                JSONObject client = new JSONObject().put("clientName", c[0]).put("clientVersion", c[1])
+                        .put("hl", l.getLanguage().isEmpty() ? "en" : l.getLanguage()).put("gl", l.getCountry().isEmpty() ? "US" : l.getCountry());
+                if (c[0].startsWith("ANDROID")) client.put("androidSdkVersion", 30).put("osName", "Android").put("osVersion", "11");
+                JSONObject body = new JSONObject().put("browseId", lyricsId).put("context", new JSONObject().put("client", client));
+                Request r = new Request.Builder().url("https://music.youtube.com/youtubei/v1/browse?prettyPrint=false")
+                        .header("User-Agent", c[2]).header("X-Youtube-Client-Name", c[3]).header("X-Youtube-Client-Version", c[1])
+                        .post(RequestBody.create(body.toString(), JSON)).build();
+                try (Response res = NpDownloader.get().client.newCall(r).execute()) {
+                    if (!res.isSuccessful() || res.body() == null) continue;
+                    JSONObject o = new JSONObject(res.body().string());
+                    JSONArray a = findArr(o, "timedLyricsData", 0);
+                    if (a != null && a.length() > 0) return a;
+                }
+            } catch (Exception ignored) { }
+        }
+        return null;
+    }
+
+    private static JSONArray findArr(Object node, String key, int depth) {
+        if (node == null || depth > 30) return null;
+        if (node instanceof JSONObject) {
+            JSONObject o = (JSONObject) node;
+            JSONArray v = o.optJSONArray(key);
+            if (v != null) return v;
+            java.util.Iterator<String> it = o.keys();
+            while (it.hasNext()) { JSONArray f = findArr(o.opt(it.next()), key, depth + 1); if (f != null) return f; }
+        } else if (node instanceof JSONArray) {
+            JSONArray a = (JSONArray) node;
+            for (int i = 0; i < a.length(); i++) { JSONArray f = findArr(a.opt(i), key, depth + 1); if (f != null) return f; }
+        }
+        return null;
+    }
+
     /** Like / unlike a song on your account. */
     public static void like(String videoId, boolean on) throws Exception {
         call(on ? "like/like" : "like/removelike", new JSONObject().put("target", new JSONObject().put("videoId", videoId)), null);

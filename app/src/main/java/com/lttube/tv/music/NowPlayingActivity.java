@@ -72,15 +72,15 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
     private FrameLayout lyricsBox;
     private ImageView lyArt;
     private TextView lyTitle, lyArtist, lySource, lyElapsed, lyLeft;
-    private ScrollView lyScroll;
+    private FadeFrame lyWindow;
     private LinearLayout lyLines;
+    private boolean autoLyrics;
     private Bar lyBar;
     private TextView lyClose, lyQueue;
     private Lyrics lyrics;
     private String lyricsFor;
     private int lyAt = -2;
     private boolean lyricsOn;
-    private ValueAnimator lyAnim;
 
     // queue
     private FrameLayout queuePanel;
@@ -115,7 +115,9 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         buildMain();
         buildLyrics();
         buildQueue();
-        lyricsOn = getIntent().getBooleanExtra("lyrics", false);
+        // Songs open on their lyrics; if a song has none, it switches to the picture screen by itself.
+        lyricsOn = getIntent().getBooleanExtra("lyrics", true);
+        autoLyrics = lyricsOn;
         refresh(true);
         setLyrics(lyricsOn);
         if (!lyricsOn) playBtn.requestFocus();
@@ -125,7 +127,9 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
     @Override
     protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
-        if (i.getBooleanExtra("lyrics", false) != lyricsOn) setLyrics(!lyricsOn);
+        boolean want = i.getBooleanExtra("lyrics", true);
+        autoLyrics = want;
+        if (want != lyricsOn) setLyrics(want);
     }
 
     private int dp(float v) { return MusicUi.dp(this, v); }
@@ -320,24 +324,22 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         tt.addView(lyArtist);
         lyricsBox.addView(tt, at(ax, ay + a + 14, a + 40, -2));
 
-        // Lyrics: tall column, soft fades top and bottom so lines drift in and out.
-        lyScroll = new ScrollView(this);
-        lyScroll.setVerticalScrollBarEnabled(false);
-        lyScroll.setVerticalFadingEdgeEnabled(true);
-        lyScroll.setFadingEdgeLength(dp(110));
-        lyScroll.setFocusable(false);
+        // The bar sits low; the lyrics get the space above it and never reach it.
+        int by = Math.round(H * 0.82f);
+        int lx = Math.round(W * 0.46f), ly = Math.round(H * 0.04f);
+        lyWindow = new FadeFrame(this, dp(70), dp(56));
         lyLines = new LinearLayout(this);
         lyLines.setOrientation(LinearLayout.VERTICAL);
-        int lh = Math.round(H * 0.66f);
-        lyLines.setPadding(0, dp(lh * 0.30f), dp(10), dp(lh * 0.70f));
-        lyScroll.addView(lyLines);
-        int lx = Math.round(W * 0.46f);
-        lyricsBox.addView(lyScroll, at(lx, Math.round(H * 0.06f), W - lx - MusicUi.PAD, lh));
+        lyLines.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        lyWindow.addView(lyLines, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
+        lyricsBox.addView(lyWindow, at(lx, ly, W - lx - MusicUi.PAD, by - ly - 18));
+        lySource = MusicUi.text(this, 12, 0x99FFFFFF, false);
+        lySource.setPadding(0, dp(8), 0, 0);
+        tt.addView(lySource);
 
-        // progress along the bottom, buttons at the right end
+        // progress along the bottom; Lyrics / Queue under it on the right
         lyBar = new Bar(this);
         lyBar.setFocusable(true);
-        int by = Math.round(H * 0.80f);
         lyricsBox.addView(lyBar, at(ax, by, W - ax - MusicUi.PAD, 22));
         lyElapsed = MusicUi.text(this, 14, 0xE6FFFFFF, true);
         lyricsBox.addView(lyElapsed, at(ax, by + 24, -2, -2));
@@ -345,8 +347,6 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         FrameLayout.LayoutParams ll = new FrameLayout.LayoutParams(-2, -2, Gravity.END | Gravity.TOP);
         ll.setMargins(0, dp(by + 24), dp(MusicUi.PAD), 0);
         lyricsBox.addView(lyLeft, ll);
-        lySource = MusicUi.text(this, 12, 0x80FFFFFF, false);
-        lyricsBox.addView(lySource, at(lx, by - 22, -2, -2));
         LinearLayout lb = new LinearLayout(this);
         lyClose = MusicUi.pill(this, R.drawable.ic_m_lyrics, "Lyrics");
         lyClose.setOnClickListener(v -> setLyrics(false));
@@ -357,7 +357,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         lql.leftMargin = dp(12);
         lb.addView(lyQueue, lql);
         FrameLayout.LayoutParams lbl = new FrameLayout.LayoutParams(-2, -2, Gravity.END | Gravity.BOTTOM);
-        lbl.setMargins(0, 0, dp(MusicUi.PAD), dp(Math.max(14, H - by - 22 - 70)));
+        lbl.setMargins(0, 0, dp(MusicUi.PAD), dp(10));
         lyricsBox.addView(lb, lbl);
     }
 
@@ -611,11 +611,17 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         lyrics = l;
         lyLines.removeAllViews();
         lyAt = -2;
-        lyScroll.scrollTo(0, 0);
-        if (l == null || l.lines.isEmpty()) { addLine("Lyrics aren't available for this song.", false); return; }
+        lyLines.animate().cancel();
+        lyLines.setTranslationY(dp(H * 0.18f));
+        if (l == null || l.lines.isEmpty()) {
+            addLine("Lyrics aren't available for this song.", false);
+            // Opened straight to lyrics but there are none: show the song's picture screen instead.
+            if (autoLyrics && lyricsOn) setLyrics(false);
+            return;
+        }
         for (Lyrics.Line ln : l.lines) addLine(ln.text.isEmpty() ? "♪" : ln.text, l.timed);
         lySource.setText(l.source);
-        if (!l.timed) lyScroll.setFocusable(true);
+        if (!l.timed) lyLines.setTranslationY(0);
     }
 
     private void addLine(String s, boolean timed) {
@@ -624,7 +630,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         t.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD));
         t.setIncludeFontPadding(false);
         t.setTextColor(Color.WHITE);
-        t.setAlpha(timed ? 0.4f : 0.9f);
+        t.setAlpha(timed ? 0.45f : 0.9f);
         t.setText(s);
         t.setLineSpacing(0, 1.08f);
         t.setPadding(0, dp(10), 0, dp(10));
@@ -638,29 +644,30 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         if (at >= 0 && at < lyLines.getChildCount()) ((LyricLine) lyLines.getChildAt(at)).setProgress(lyrics.progress(at, pos), 0x66FFFFFF);
         if (at == lyAt) return;
         lyAt = at;
+        // Like Apple Music: the line being sung is bright and sits a third of the way down; lines ahead fade
+        // softer the further off they are; lines already sung fade away above.
         for (int i = 0; i < lyLines.getChildCount(); i++) {
             LyricLine t = (LyricLine) lyLines.getChildAt(i);
-            boolean now = i == at;
+            int d = i - at;
+            boolean now = d == 0;
             t.setProgress(now ? lyrics.progress(i, pos) : -1f, 0x66FFFFFF);
-            // Lines ease in and out: the one being sung is clear; the next ones soft; sung ones fade away.
-            float a = now ? 1f : i > at ? (i <= at + 2 ? 0.5f : 0.32f) : 0.18f;
-            t.animate().alpha(a).scaleX(now ? 1.02f : 1f).scaleY(now ? 1.02f : 1f).setDuration(520).setInterpolator(new DecelerateInterpolator()).start();
+            float a = now ? 1f : d > 0 ? Math.max(0.16f, 0.62f - 0.1f * (d - 1)) : d == -1 ? 0.32f : d == -2 ? 0.16f : 0.06f;
+            if (Math.abs(d) > 12) { t.setAlpha(a); continue; }
+            t.animate().alpha(a).setDuration(600).setInterpolator(new DecelerateInterpolator()).start();
         }
-        int target = 0;
-        if (at >= 0 && at < lyLines.getChildCount()) target = Math.max(0, lyLines.getChildAt(at).getTop() - Math.round(lyScroll.getHeight() * 0.30f));
+        float target;
+        if (at >= 0 && at < lyLines.getChildCount()) target = -lyLines.getChildAt(at).getTop() + lyWindow.getHeight() * 0.30f;
+        else target = dp(H * 0.18f);
         glideTo(target);
     }
 
-    /** Scrolls the lyrics gently (a long, easing glide instead of a jump). */
-    private void glideTo(int y) {
-        if (lyAnim != null) lyAnim.cancel();
-        int from = lyScroll.getScrollY();
-        if (Math.abs(from - y) < 2) return;
-        lyAnim = ValueAnimator.ofInt(from, y);
-        lyAnim.setDuration(Math.min(1100, 520 + Math.abs(y - from) / 2));
-        lyAnim.setInterpolator(new DecelerateInterpolator(1.6f));
-        lyAnim.addUpdateListener(an -> lyScroll.scrollTo(0, (int) an.getAnimatedValue()));
-        lyAnim.start();
+    /** Moves the lyrics up as one smooth slide (done on the graphics chip, so it never stutters). */
+    private void glideTo(float y) {
+        float from = lyLines.getTranslationY();
+        if (Math.abs(from - y) < 1) return;
+        lyLines.animate().cancel();
+        lyLines.animate().translationY(y).setDuration(Math.min(900, 560 + (long) (Math.abs(y - from) / 4)))
+                .setInterpolator(new android.view.animation.PathInterpolator(0.22f, 0.9f, 0.32f, 1f)).start();
     }
 
     // ================================================================== remote
@@ -714,6 +721,13 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
             if (k == KeyEvent.KEYCODE_DPAD_UP && (f == followBtn || f == goArtist)) { scroll.smoothScrollTo(0, 0); playBtn.requestFocus(); return true; }
         }
         if (lyricsOn && down) {
+            // Lyrics without timing: up / down on the buttons scroll them.
+            if (lyrics != null && !lyrics.timed && (f == lyClose || f == lyQueue) && (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN)) {
+                float max = Math.max(0, lyLines.getHeight() - lyWindow.getHeight() * 0.6f);
+                float y = lyLines.getTranslationY() + dp(k == KeyEvent.KEYCODE_DPAD_UP ? 90 : -90);
+                glideTo(Math.max(-max, Math.min(0, y)));
+                return true;
+            }
             if (k == KeyEvent.KEYCODE_DPAD_DOWN && f == lyBar) { lyClose.requestFocus(); return true; }
             if (k == KeyEvent.KEYCODE_DPAD_UP && (f == lyClose || f == lyQueue)) { lyBar.requestFocus(); return true; }
         }

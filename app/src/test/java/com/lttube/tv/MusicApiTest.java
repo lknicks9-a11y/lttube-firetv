@@ -111,6 +111,8 @@ public class MusicApiTest {
                 System.out.println("MUS LYRICS " + (l == null ? "none" : l.source + " timed=" + l.timed + " lines=" + l.lines.size()));
             }
             System.out.println("MUS YT LYRICS " + (Ytm.lyrics(q.lyricsId) == null ? "none" : "yes"));
+            org.json.JSONArray tl = Ytm.timedLyrics(q.lyricsId);
+            System.out.println("MUS YT TIMED " + (tl == null ? "none" : tl.length() + " lines; first=" + tl.optJSONObject(0)));
         } catch (Throwable e) { System.out.println("MUS QUEUE FAILED " + e); }
         try {
             StreamInfo si = StreamInfo.getInfo(NewPipe.getService(0), "https://www.youtube.com/watch?v=" + vid);

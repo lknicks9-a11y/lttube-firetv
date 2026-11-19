@@ -21,9 +21,14 @@ import okhttp3.Response;
 public final class Lyrics {
     public static class Line {
         public final long ms;
+        /** When the line ends (0 = until the next one). */
+        public long endMs;
         public final String text;
         Line(long ms, String text) { this.ms = ms; this.text = text; }
     }
+
+    /** How early lines light up: none for YouTube Music's own timing (it's exact), a touch for LRCLIB's. */
+    private long lead = 60;
 
     public final List<Line> lines = new ArrayList<>();
     public boolean timed;
@@ -33,35 +38,64 @@ public final class Lyrics {
     public int at(long ms) {
         if (!timed) return -1;
         int i = -1;
-        for (int k = 0; k < lines.size(); k++) { if (lines.get(k).ms <= ms + LEAD) i = k; else break; }
+        for (int k = 0; k < lines.size(); k++) { if (lines.get(k).ms <= ms + lead) i = k; else break; }
         return i;
     }
 
     /** How far through line i the singing is (0..1), for the line's light sweeping across. */
     public float progress(int i, long ms) {
         if (!timed || i < 0 || i >= lines.size()) return 0f;
-        long start = lines.get(i).ms - LEAD;
-        long end = i + 1 < lines.size() ? lines.get(i + 1).ms - LEAD : start + 4000;
-        // A long gap after a line (a solo) shouldn't stretch the sweep: lines take at most ~6 s to sing.
-        end = Math.min(end - 150, start + Math.max(1200, Math.min(6000, lines.get(i).text.length() * 160L)));
+        Line ln = lines.get(i);
+        long start = ln.ms - lead;
+        long end;
+        if (ln.endMs > ln.ms) end = ln.endMs - lead;
+        else {
+            end = i + 1 < lines.size() ? lines.get(i + 1).ms - lead : start + 4000;
+            // A long gap after a line (a solo) shouldn't stretch the sweep: lines take at most ~6 s to sing.
+            end = Math.min(end - 150, start + Math.max(1200, Math.min(6000, ln.text.length() * 160L)));
+        }
         if (end <= start) return 1f;
         return Math.max(0f, Math.min(1f, (ms - start) / (float) (end - start)));
     }
 
-    /** Lines light up this much early, the way you read a beat ahead. */
-    private static final long LEAD = 120;
+
 
     private static final Pattern TAG = Pattern.compile("\\[(\\d+):(\\d+)(?:[.:](\\d+))?\\]");
 
     /** seconds: the real length of what's playing (lyrics are timed to one recording; another is off). */
     public static Lyrics find(MItem song, String ytLyricsId, int seconds) {
+        if (ytLyricsId == null) try { ytLyricsId = Ytm.queue(song.videoId, null, false).lyricsId; } catch (Exception ignored) { }
+        // Best: YouTube Music's own timing for this very recording — every line starts the moment it's sung.
+        Lyrics yt = ytTimed(ytLyricsId);
+        if (yt != null) return yt;
         Lyrics l = lrclib(song, seconds > 0 ? seconds : song.seconds);
         if (l != null) return l;
-        if (ytLyricsId == null) try { ytLyricsId = Ytm.queue(song.videoId, null, false).lyricsId; } catch (Exception ignored) { }
         String plain = Ytm.lyrics(ytLyricsId);
         if (plain == null || plain.trim().isEmpty()) return null;
         l = new Lyrics();
         for (String s : plain.split("\\r?\\n")) l.lines.add(new Line(0, s.trim()));
+        l.source = "Lyrics from YouTube Music";
+        return l;
+    }
+
+    private static Lyrics ytTimed(String id) {
+        org.json.JSONArray a = Ytm.timedLyrics(id);
+        if (a == null) return null;
+        Lyrics l = new Lyrics();
+        l.lead = 0;
+        for (int i = 0; i < a.length(); i++) {
+            JSONObject o = a.optJSONObject(i);
+            if (o == null) continue;
+            JSONObject cue = o.optJSONObject("cueRange");
+            String text = o.optString("lyricLine", "").trim();
+            if (cue == null) continue;
+            Line ln = new Line(cue.optLong("startTimeMilliseconds"), text);
+            ln.endMs = cue.optLong("endTimeMilliseconds");
+            l.lines.add(ln);
+        }
+        if (l.lines.isEmpty()) return null;
+        l.lines.sort((x, y) -> Long.compare(x.ms, y.ms));
+        l.timed = true;
         l.source = "Lyrics from YouTube Music";
         return l;
     }

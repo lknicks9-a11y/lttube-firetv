@@ -33,8 +33,8 @@ public class PageActivity extends Activity {
     public static final String ITEM = "item";
 
     private MItem item;
-    private FrameLayout root, hero;
-    private ImageView heroImage;
+    private FrameLayout root;
+    private Hero hero;
     private ScrollView scroll;
     private LinearLayout content;
     private ProgressBar spinner;
@@ -52,21 +52,9 @@ public class PageActivity extends Activity {
         root.setBackground(MusicUi.background());
         setContentView(root);
 
-        hero = new FrameLayout(this);
-        heroImage = new ImageView(this);
-        heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        hero.addView(heroImage, MusicUi.match());
-        View shade = new View(this);
-        shade.setBackgroundColor(0x33000000);
-        hero.addView(shade, MusicUi.match());
-        View fl = new View(this);
-        fl.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{MusicUi.BG_TOP, 0xB334363A, 0x0034363A}));
-        hero.addView(fl, new FrameLayout.LayoutParams(dp(Math.round(W * 0.32f)), -1, Gravity.START));
-        View fb = new View(this);
-        fb.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0xFF2E3033, 0x002E3033}));
-        hero.addView(fb, new FrameLayout.LayoutParams(-1, dp(Math.round(H * 0.34f)), Gravity.BOTTOM));
-        root.addView(hero, new FrameLayout.LayoutParams(dp(Math.round(W * 0.64f)), dp(Math.round(H * 0.74f)), Gravity.TOP | Gravity.END));
-        if (!item.thumb.isEmpty()) Glide.with(this).load(MItem.art(item.thumb, 1080)).into(heroImage);
+        hero = new Hero(this);
+        root.addView(hero, new FrameLayout.LayoutParams(-1, dp(Math.round(H * 0.74f)), Gravity.TOP));
+        if (!item.thumb.isEmpty()) hero.set(MItem.art(item.thumb, 1080), false);
 
         scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
@@ -99,8 +87,8 @@ public class PageActivity extends Activity {
 
     private void show(Ytm.Page pg) {
         boolean artist = MItem.ARTIST.equals(item.type) || item.browseId.startsWith("UC");
-        String pic = !pg.banner.isEmpty() ? pg.banner : !pg.thumb.isEmpty() ? MItem.art(pg.thumb, 1080) : "";
-        if (!pic.isEmpty()) Glide.with(this).load(pic).into(heroImage);
+        if (!pg.banner.isEmpty()) hero.set(pg.banner, true);
+        else if (!pg.thumb.isEmpty()) hero.set(MItem.art(pg.thumb, 1080), false);
         final List<MItem> songs = pg.songs();
         final String pl = !pg.playlistId.isEmpty() ? pg.playlistId : item.playlistId;
 
@@ -190,6 +178,33 @@ public class PageActivity extends Activity {
             content.addView(l);
             List<Ytm.Shelf> rest = new ArrayList<>();
             for (Ytm.Shelf s : pg.shelves) if (!s.list) rest.add(s);
+            MusicUi.addShelves(this, content, rest, open, null);
+        } else if (artist) {
+            // Popular: the artist's top songs, numbered, one per row.
+            List<Ytm.Shelf> rest = new ArrayList<>();
+            boolean done = false;
+            for (Ytm.Shelf s : pg.shelves) {
+                if (!done && s.list && !s.items.isEmpty()) {
+                    done = true;
+                    content.addView(MusicUi.heading(this, "Popular"));
+                    LinearLayout l = new LinearLayout(this);
+                    l.setOrientation(LinearLayout.VERTICAL);
+                    l.setPadding(dp(MusicUi.PAD - 12), dp(6), dp(MusicUi.PAD - 12), 0);
+                    final List<MItem> top = s.items;
+                    for (int i = 0; i < Math.min(top.size(), 10); i++) {
+                        final int at = i;
+                        final MItem m = top.get(i);
+                        View r = MusicUi.songRow(this, m, i + 1, true);
+                        r.setOnClickListener(v -> { MusicPlayer.get(this).playList(top, at, null); startActivity(MusicPlayer.nowPlaying(this)); });
+                        r.setOnKeyListener((v, k, e) -> {
+                            if (k == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP) { MusicUi.options(this, m); return true; }
+                            return false;
+                        });
+                        l.addView(r, new LinearLayout.LayoutParams(-1, dp(62)));
+                    }
+                    content.addView(l);
+                } else rest.add(s);
+            }
             MusicUi.addShelves(this, content, rest, open, null);
         } else {
             MusicUi.addShelves(this, content, pg.shelves, open, null);

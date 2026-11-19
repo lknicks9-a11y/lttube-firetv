@@ -36,8 +36,8 @@ import java.util.List;
  * Your Library — chips and a grid of your playlists, artists and albums.
  */
 public class MusicActivity extends Activity implements MusicPlayer.Listener {
-    private FrameLayout root, hero;
-    private ImageView heroImage;
+    private FrameLayout root;
+    private Hero hero;
     private ScrollView scroll;
     private LinearLayout content;
     private ProgressBar spinner;
@@ -55,7 +55,6 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
     private TextView heroTitle, heroSub;
     private LinearLayout homeRows;
     private final List<TextView> homeChips = new ArrayList<>();
-    private String heroUrl;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -68,21 +67,9 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         root.setBackground(MusicUi.background());
         setContentView(root);
 
-        // ---- the big picture behind Home's header (right side, fading into the background)
-        hero = new FrameLayout(this);
-        heroImage = new ImageView(this);
-        heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        hero.addView(heroImage, MusicUi.match());
-        View shade = new View(this);
-        shade.setBackgroundColor(0x26000000);
-        hero.addView(shade, MusicUi.match());
-        View fadeLeft = new View(this);
-        fadeLeft.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{MusicUi.BG_TOP, 0xB334363A, 0x0034363A}));
-        hero.addView(fadeLeft, new FrameLayout.LayoutParams(dp(Math.round(W * 0.30f)), -1, Gravity.START));
-        View fadeBottom = new View(this);
-        fadeBottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0xFF2E3033, 0x002E3033}));
-        hero.addView(fadeBottom, new FrameLayout.LayoutParams(-1, dp(Math.round(H * 0.32f)), Gravity.BOTTOM));
-        root.addView(hero, new FrameLayout.LayoutParams(dp(Math.round(W * 0.66f)), dp(Math.round(H * 0.70f)), Gravity.TOP | Gravity.END));
+        // ---- the big picture behind Home's header (kept whole, melting into the background)
+        hero = new Hero(this);
+        root.addView(hero, new FrameLayout.LayoutParams(-1, dp(Math.round(H * 0.72f)), Gravity.TOP));
 
         scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
@@ -113,7 +100,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
     private void buildBar() {
         // A soft dark band behind the bar so rows scrolling up never run into it.
         View scrim = new View(this);
-        scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xF2303235, 0xCC303235, 0x00303235}));
+        scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{MusicUi.BG, MusicUi.BG & 0xCCFFFFFF, MusicUi.BG & 0x00FFFFFF}));
         root.addView(scrim, new FrameLayout.LayoutParams(-1, dp(100), Gravity.TOP));
 
         bar = new FrameLayout(this);
@@ -310,10 +297,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         if (MItem.PLAYLIST.equals(m.type) && !low.startsWith("playlist")) sub = "Playlist • " + sub;
         if (m.playable()) sub = "Song • " + m.artist + (m.album.isEmpty() ? "" : " • " + m.album);
         heroSub.setText(sub);
-        if (m.thumb != null && !m.thumb.isEmpty() && !m.thumb.equals(heroUrl)) {
-            heroUrl = m.thumb;
-            Glide.with(this).load(MItem.art(m.thumb, 1080)).transition(DrawableTransitionOptions.withCrossFade(350)).into(heroImage);
-        }
+        if (m.thumb != null && !m.thumb.isEmpty()) hero.set(MItem.art(m.thumb, 1080), m.thumb.contains("i.ytimg.com"));
     }
 
     private void homeRows(String which) {

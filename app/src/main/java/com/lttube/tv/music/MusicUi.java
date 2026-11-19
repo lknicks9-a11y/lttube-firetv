@@ -70,8 +70,11 @@ public final class MusicUi {
         return g;
     }
 
+    /** The page colour: one even charcoal, so pictures can fade into it without seams. */
+    public static final int BG = 0xFF2B2D30;
+
     public static GradientDrawable background() {
-        return new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{BG_TOP, 0xFF242528, BG_BOTTOM});
+        return new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{BG, BG});
     }
 
     public static GradientDrawable background(int ignored) { return background(); }
