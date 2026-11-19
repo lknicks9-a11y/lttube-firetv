@@ -108,10 +108,11 @@ public final class MusicPlayer {
 
     // ------------------------------------------------------------------ only plays while LT Music is on screen
     private int started;
-    private final Runnable leftApp = () -> { if (started == 0) { seq++; resolving = false; player.pause(); fire(); } };
+    private Runnable leftApp;
 
     /** When you leave LT Music (Home button, another app), the music stops; it picks up where it was when you come back. */
     private void watchForeground() {
+        leftApp = () -> { if (started == 0) { seq++; resolving = false; player.pause(); fire(); } };
         if (!(app instanceof android.app.Application)) return;
         ((android.app.Application) app).registerActivityLifecycleCallbacks(new android.app.Application.ActivityLifecycleCallbacks() {
             @Override public void onActivityStarted(android.app.Activity a) { started++; Bg.UI.removeCallbacks(leftApp); }
