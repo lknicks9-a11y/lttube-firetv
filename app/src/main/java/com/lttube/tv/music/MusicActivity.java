@@ -38,6 +38,7 @@ import java.util.List;
 public class MusicActivity extends Activity implements MusicPlayer.Listener {
     private FrameLayout root;
     private Hero hero;
+    private View scrim;
     private ScrollView scroll;
     private LinearLayout content;
     private ProgressBar spinner;
@@ -99,7 +100,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
     // ================================================================== top bar
     private void buildBar() {
         // A soft dark band behind the bar so rows scrolling up never run into it.
-        View scrim = new View(this);
+        scrim = new View(this);
         scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{MusicUi.BG, MusicUi.BG & 0xCCFFFFFF, MusicUi.BG & 0x00FFFFFF}));
         root.addView(scrim, new FrameLayout.LayoutParams(-1, dp(100), Gravity.TOP));
 
@@ -192,6 +193,22 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         }
     }
 
+    /** The page takes on a deep shade of the cover you're on (or of what's playing). */
+    private void tintFrom(String thumb) {
+        if (thumb == null || thumb.isEmpty()) return;
+        final String want = thumb;
+        tintWant = want;
+        MusicUi.colorOf(this, thumb, c -> {
+            if (!want.equals(tintWant)) return;
+            int t = MusicUi.tintOf(c);
+            MusicUi.fadeTo(root, t);
+            hero.setTint(t);
+            scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{t, t & 0xCCFFFFFF, t & 0x00FFFFFF}));
+        });
+    }
+
+    private String tintWant;
+
     private void paintNow() {
         MItem cur = mp.current();
         nowPill.setVisibility(cur == null ? View.INVISIBLE : View.VISIBLE);
@@ -207,8 +224,8 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         String who = "";
         try { who = in ? Account.name() : ""; } catch (Throwable ignored) { }
         MusicUi.choose(this, in ? "Signed in as " + who : "Settings",
-                new String[]{in ? "Switch account" : "Sign in with YouTube", mp.autoplay ? "Autoplay: on" : "Autoplay: off"},
-                new Runnable[]{this::signIn, () -> mp.setAutoplay(!mp.autoplay)});
+                new String[]{in ? "Switch account" : "Sign in with YouTube", "Import a playlist from Spotify or Apple Music", mp.autoplay ? "Autoplay: on" : "Autoplay: off"},
+                new Runnable[]{this::signIn, () -> startActivity(new Intent(this, ImportActivity.class)), () -> mp.setAutoplay(!mp.autoplay)});
     }
 
     private void signIn() {
@@ -227,6 +244,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         heroTitle = null;
         scroll.scrollTo(0, 0);
         hero.setAlpha(key.equals("home") ? 1f : 0f);
+        if (!key.equals("home") && mp.current() != null) tintFrom(mp.current().thumb);
         spinner.setVisibility(View.GONE);
         switch (key) {
             case "home": home(); break;
@@ -298,6 +316,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         if (m.playable()) sub = "Song • " + m.artist + (m.album.isEmpty() ? "" : " • " + m.album);
         heroSub.setText(sub);
         if (m.thumb != null && !m.thumb.isEmpty()) hero.set(MItem.art(m.thumb, 1080), m.thumb.contains("i.ytimg.com"));
+        tintFrom(m.thumb);
     }
 
     private void homeRows(String which) {
@@ -451,10 +470,20 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
             s.setText("Sign in with your YouTube account to see your liked songs, playlists, artists and albums.");
             s.setPadding(0, dp(12), 0, dp(22));
             box.addView(s, new LinearLayout.LayoutParams(dp(Math.round(W * 0.6f)), -2));
+            LinearLayout bb = new LinearLayout(this);
+            bb.setClipChildren(false);
             TextView in = MusicUi.pill(this, 0, "Sign in");
             in.setOnClickListener(v -> signIn());
-            box.addView(in, new LinearLayout.LayoutParams(-2, dp(46)));
+            bb.addView(in, new LinearLayout.LayoutParams(-2, dp(46)));
+            TextView imp = MusicUi.pill(this, R.drawable.ic_m_add, "Import a playlist");
+            imp.setOnClickListener(v -> startActivity(new Intent(this, ImportActivity.class)));
+            LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(-2, dp(46));
+            il.leftMargin = dp(14);
+            bb.addView(imp, il);
+            box.addView(bb);
             content.addView(box);
+            List<MItem> mine = Imports.local(this);
+            if (!mine.isEmpty()) { content.addView(MusicUi.heading(this, "On this TV")); grid(content, mine); }
             return;
         }
         LinearLayout chips = new LinearLayout(this);
@@ -469,6 +498,11 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
             lp.rightMargin = dp(12);
             chips.addView(t, lp);
         }
+        TextView imp = MusicUi.pill(this, R.drawable.ic_m_add, "Import playlist");
+        imp.setOnClickListener(v -> startActivity(new Intent(this, ImportActivity.class)));
+        chips.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1));
+        chips.addView(imp, new LinearLayout.LayoutParams(-2, dp(36)));
+        chips.setClipChildren(false);
         content.addView(chips);
         final View focusChip = chosen;
         final LinearLayout gridBox = new LinearLayout(this);
@@ -487,6 +521,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
                 liked.browseId = "VLLM";
                 l.add(liked);
             }
+            if (which.equals("all") || which.equals("playlists")) l.addAll(Imports.local(this));
             String[] feeds = which.equals("playlists") ? new String[]{Ytm.LIB_PLAYLISTS} : which.equals("artists") ? new String[]{Ytm.LIB_ARTISTS}
                     : which.equals("albums") ? new String[]{Ytm.LIB_ALBUMS} : new String[]{Ytm.LIB_PLAYLISTS, Ytm.LIB_ARTISTS, Ytm.LIB_ALBUMS};
             for (String f : feeds) try {

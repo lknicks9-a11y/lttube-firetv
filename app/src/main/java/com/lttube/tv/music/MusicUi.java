@@ -79,6 +79,30 @@ public final class MusicUi {
 
     public static GradientDrawable background(int ignored) { return background(); }
 
+    /** A deep shade of a cover's colour, for the page behind it (like the colour wash on big-screen music apps). */
+    public static int tintOf(int c) {
+        float[] hsv = new float[3];
+        Color.colorToHSV(c, hsv);
+        hsv[1] = Math.min(0.55f, hsv[1] * 0.85f);
+        hsv[2] = 0.30f;
+        return blend(Color.HSVToColor(hsv), BG, 0.25f);
+    }
+
+    /** Fades a page's background to a new colour. */
+    public static void fadeTo(View v, int to) {
+        android.graphics.drawable.Drawable d = v.getBackground();
+        if (!(d instanceof GradientDrawable)) { v.setBackground(round(to, 0)); return; }
+        GradientDrawable g = (GradientDrawable) d;
+        Object tag = v.getTag(R.id.tag_color);
+        int from = tag instanceof Integer ? (Integer) tag : BG;
+        if (from == to) return;
+        v.setTag(R.id.tag_color, to);
+        android.animation.ValueAnimator a = android.animation.ValueAnimator.ofArgb(from, to);
+        a.setDuration(500);
+        a.addUpdateListener(an -> g.setColor((int) an.getAnimatedValue()));
+        a.start();
+    }
+
     public static int blend(int a, int b, float t) {
         return Color.rgb(Math.round(Color.red(a) * (1 - t) + Color.red(b) * t), Math.round(Color.green(a) * (1 - t) + Color.green(b) * t),
                 Math.round(Color.blue(a) * (1 - t) + Color.blue(b) * t));
@@ -239,7 +263,6 @@ public final class MusicUi {
         if (focus) g.setStroke(dp(c, 2), Color.WHITE);
         t.setBackground(g);
         t.setTextColor(chosen ? 0xFF121212 : Color.WHITE);
-        t.animate().scaleX(focus ? 1.06f : 1f).scaleY(focus ? 1.06f : 1f).setDuration(120).start();
     }
 
     /** A pill button with an icon ("Lyrics", "Queue", "Save"). */
@@ -266,7 +289,6 @@ public final class MusicUi {
         GradientDrawable g = round(focus ? 0x59FFFFFF : 0x40FFFFFF, dp(c, 24));
         if (focus) g.setStroke(dp(c, 3), Color.WHITE);
         t.setBackground(g);
-        t.animate().scaleX(focus ? 1.05f : 1f).scaleY(focus ? 1.05f : 1f).setDuration(120).start();
     }
 
     /** A round icon button (next, shuffle, repeat…). When on it shows in the accent colour. */
@@ -291,7 +313,6 @@ public final class MusicUi {
         if (f) g.setStroke(dp(c, 3), Color.WHITE);
         b.setBackground(g);
         b.setColorFilter(b.isActivated() ? PINK : Color.WHITE);
-        b.animate().scaleX(f ? 1.12f : 1f).scaleY(f ? 1.12f : 1f).setDuration(120).start();
     }
 
     public static void setOn(ImageView b, boolean on) { b.setActivated(on); paintIcon(b); }

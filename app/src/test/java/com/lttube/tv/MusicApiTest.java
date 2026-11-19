@@ -57,6 +57,17 @@ public class MusicApiTest {
             if (song == null && m.playable()) song = m;
         }
         safe("ALBUM fixed", () -> Ytm.browse("MPREb_pnVvyDhXXd0"));
+        for (String link : new String[]{"https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M", "https://music.apple.com/us/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb"}) {
+            try {
+                com.lttube.tv.music.Imports.Source src = com.lttube.tv.music.Imports.read(link);
+                System.out.println("MUS IMPORT " + src.service + " name=[" + src.name + "] tracks=" + src.tracks.size() + " cover=" + !src.cover.isEmpty()
+                        + (src.tracks.isEmpty() ? "" : " first=" + src.tracks.get(0).title + " / " + src.tracks.get(0).artist + " / " + src.tracks.get(0).seconds));
+            } catch (Throwable e) { System.out.println("MUS IMPORT FAILED " + link + " " + e); }
+        }
+        try {
+            Ytm.Page ar = Ytm.browse("UCIaFw5VBEK8qaW6nRpx_qnw");
+            for (Ytm.Shelf s : ar.shelves) if (s.list) { int off = 0; for (MItem m : s.items) if (m.official()) off++; System.out.println("MUS OFFICIAL top=" + s.items.size() + " official=" + off + " first mv=" + (s.items.isEmpty() ? "" : s.items.get(0).mvType + " album=" + s.items.get(0).album)); }
+        } catch (Throwable e) { System.out.println("MUS OFFICIAL FAILED " + e); }
         safe("PLAYLIST fixed", () -> Ytm.browse("VLRDCLAK5uy_lWy02cQBnTVTlwuRauaGKeUDH3L6PXNxI"));
         try {
             java.lang.reflect.Method m = Ytm.class.getDeclaredMethod("call", String.class, org.json.JSONObject.class, String.class);

@@ -37,6 +37,11 @@
             android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode" />
         <activity
+            android:name="com.lttube.tv.music.ImportActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode" />
+        <activity
             android:name="com.lttube.tv.music.MusicSearchActivity"
             android:exported="false"
             android:screenOrientation="landscape"

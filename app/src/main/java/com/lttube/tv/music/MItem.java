@@ -22,6 +22,18 @@ public class MItem {
     public String browseId = "";
     public String params = "";
     public int seconds;
+    /** YouTube Music's kind of track: MUSIC_VIDEO_TYPE_ATV (official audio — the release on every music service),
+     *  _OMV (official video), _UGC (someone's upload), _PODCAST_EPISODE. */
+    public String mvType = "";
+
+    /** An official release — the song as it is on Spotify / Apple Music, not an upload or a clip. */
+    public boolean official() {
+        if (!playable()) return true;
+        if (mvType.endsWith("ATV")) return true;
+        if (mvType.endsWith("UGC") || mvType.contains("PODCAST")) return false;
+        return !album.isEmpty();
+    }
+
     /** A music video: plays as video, in the video player. */
     public boolean video;
     /** Mood / genre tiles carry their colour. */
@@ -44,7 +56,7 @@ public class MItem {
         try {
             o.put("type", type).put("title", title).put("subtitle", subtitle).put("artist", artist).put("album", album)
                     .put("thumb", thumb).put("videoId", videoId).put("playlistId", playlistId).put("browseId", browseId)
-                    .put("params", params).put("seconds", seconds).put("color", color).put("artistId", artistId).put("video", video);
+                    .put("params", params).put("seconds", seconds).put("color", color).put("artistId", artistId).put("video", video).put("mvType", mvType);
         } catch (Exception ignored) { }
         return o;
     }
@@ -66,6 +78,7 @@ public class MItem {
         m.color = o.optInt("color");
         m.artistId = o.optString("artistId");
         m.video = o.optBoolean("video");
+        m.mvType = o.optString("mvType");
         return m;
     }
 

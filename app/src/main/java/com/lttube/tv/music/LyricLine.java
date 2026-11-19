@@ -10,7 +10,17 @@ public class LyricLine extends TextView {
     private float progress = -1f;
     private int dim = 0x66FFFFFF;
 
+    private float blur = -1;
+
     public LyricLine(Context c) { super(c); }
+
+    /** Softens lines that aren't being sung (the blurred look of Apple Music's lyrics). 0 = sharp. */
+    public void setBlur(float px) {
+        if (px == blur) return;
+        blur = px;
+        getPaint().setMaskFilter(px > 0.5f ? new android.graphics.BlurMaskFilter(px, android.graphics.BlurMaskFilter.Blur.NORMAL) : null);
+        invalidate();
+    }
 
     /** -1: not the current line (plain colour); 0..1: how far through it the singing is. */
     public void setProgress(float p, int dimColor) {

@@ -301,7 +301,6 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         if (playBtn.hasFocus()) g.setStroke(dp(3), 0xFF888888);
         playBtn.setBackground(g);
         playBtn.setColorFilter(0xFF121212);
-        playBtn.animate().scaleX(playBtn.hasFocus() ? 1.12f : 1f).scaleY(playBtn.hasFocus() ? 1.12f : 1f).setDuration(120).start();
     }
 
     // ================================================================== lyrics
@@ -330,7 +329,6 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         lyWindow = new FadeFrame(this, dp(70), dp(56));
         lyLines = new LinearLayout(this);
         lyLines.setOrientation(LinearLayout.VERTICAL);
-        lyLines.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         lyWindow.addView(lyLines, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
         lyricsBox.addView(lyWindow, at(lx, ly, W - lx - MusicUi.PAD, by - ly - 18));
         lySource = MusicUi.text(this, 12, 0x99FFFFFF, false);
@@ -611,8 +609,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         lyrics = l;
         lyLines.removeAllViews();
         lyAt = -2;
-        lyLines.animate().cancel();
-        lyLines.setTranslationY(dp(H * 0.18f));
+        lyLines.setTranslationY(0);
         if (l == null || l.lines.isEmpty()) {
             addLine("Lyrics aren't available for this song.", false);
             // Opened straight to lyrics but there are none: show the song's picture screen instead.
@@ -621,7 +618,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         }
         for (Lyrics.Line ln : l.lines) addLine(ln.text.isEmpty() ? "♪" : ln.text, l.timed);
         lySource.setText(l.source);
-        if (!l.timed) lyLines.setTranslationY(0);
+        lyLines.post(() -> { if (lyrics == l) place(l.timed ? -1 : 0, false); });
     }
 
     private void addLine(String s, boolean timed) {
@@ -635,39 +632,62 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         t.setLineSpacing(0, 1.08f);
         t.setPadding(0, dp(10), 0, dp(10));
         t.setPivotX(0);
+        t.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         lyLines.addView(t, new LinearLayout.LayoutParams(-1, -2));
     }
 
     private void syncLyrics(long pos) {
         if (lyrics == null || !lyrics.timed) return;
         int at = lyrics.at(pos);
-        if (at >= 0 && at < lyLines.getChildCount()) ((LyricLine) lyLines.getChildAt(at)).setProgress(lyrics.progress(at, pos), 0x66FFFFFF);
         if (at == lyAt) return;
         lyAt = at;
-        // Like Apple Music: the line being sung is bright and sits a third of the way down; lines ahead fade
-        // softer the further off they are; lines already sung fade away above.
-        for (int i = 0; i < lyLines.getChildCount(); i++) {
-            LyricLine t = (LyricLine) lyLines.getChildAt(i);
-            int d = i - at;
-            boolean now = d == 0;
-            t.setProgress(now ? lyrics.progress(i, pos) : -1f, 0x66FFFFFF);
-            float a = now ? 1f : d > 0 ? Math.max(0.16f, 0.62f - 0.1f * (d - 1)) : d == -1 ? 0.32f : d == -2 ? 0.16f : 0.06f;
-            if (Math.abs(d) > 12) { t.setAlpha(a); continue; }
-            t.animate().alpha(a).setDuration(600).setInterpolator(new DecelerateInterpolator()).start();
-        }
-        float target;
-        if (at >= 0 && at < lyLines.getChildCount()) target = -lyLines.getChildAt(at).getTop() + lyWindow.getHeight() * 0.30f;
-        else target = dp(H * 0.18f);
-        glideTo(target);
+        place(at, true);
     }
 
-    /** Moves the lyrics up as one smooth slide (done on the graphics chip, so it never stutters). */
+    /**
+     * Apple Music's lyric motion: the line being sung, bright and sharp, rests near the top; the lines after it are
+     * dimmer and softly blurred; the one just sung fades out above. On each new line every line slides up on its
+     * own, a few milliseconds after the one above it, so the lyrics ripple up like a wave.
+     */
+    private void place(int at, boolean animate) {
+        int n = lyLines.getChildCount();
+        if (n == 0) return;
+        int anchor = Math.round(lyWindow.getHeight() * 0.14f);
+        int ref = at >= 0 && at < n ? lyLines.getChildAt(at).getTop() : lyLines.getChildAt(0).getTop() - Math.round(lyWindow.getHeight() * 0.20f);
+        float shift = anchor - ref;
+        boolean timed = lyrics != null && lyrics.timed;
+        for (int i = 0; i < n; i++) {
+            LyricLine t = (LyricLine) lyLines.getChildAt(i);
+            int d = at < 0 ? i + 1 : i - at;
+            t.setProgress(-1f, 0x66FFFFFF);
+            float alpha;
+            float blur;
+            if (!timed) { alpha = 0.92f; blur = 0; }
+            else if (d == 0) { alpha = 1f; blur = 0; }
+            else if (d > 0) { alpha = Math.max(0.22f, 0.55f - 0.08f * (d - 1)); blur = Math.min(dp(5), dp(2) + dp(1) * (d - 1)); }
+            else { alpha = d == -1 ? 0.28f : 0.0f; blur = dp(3); }
+            t.setBlur(blur);
+            // Lines well off screen just jump; the ones you can see glide.
+            if (!animate || d < -3 || d > 8) {
+                t.animate().cancel();
+                t.setTranslationY(shift);
+                t.setAlpha(alpha);
+                continue;
+            }
+            long delay = Math.max(0, d) * 45L;
+            t.animate().cancel();
+            t.animate().translationY(shift).alpha(alpha).setStartDelay(delay).setDuration(620)
+                    .setInterpolator(new android.view.animation.PathInterpolator(0.2f, 0.85f, 0.25f, 1f)).start();
+        }
+    }
+
+    /** Untimed lyrics: up / down moves them. */
     private void glideTo(float y) {
-        float from = lyLines.getTranslationY();
-        if (Math.abs(from - y) < 1) return;
-        lyLines.animate().cancel();
-        lyLines.animate().translationY(y).setDuration(Math.min(900, 560 + (long) (Math.abs(y - from) / 4)))
-                .setInterpolator(new android.view.animation.PathInterpolator(0.22f, 0.9f, 0.32f, 1f)).start();
+        for (int i = 0; i < lyLines.getChildCount(); i++) {
+            View t = lyLines.getChildAt(i);
+            t.animate().cancel();
+            t.animate().translationY(y).setStartDelay(0).setDuration(450).setInterpolator(new DecelerateInterpolator()).start();
+        }
     }
 
     // ================================================================== remote
@@ -724,7 +744,8 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
             // Lyrics without timing: up / down on the buttons scroll them.
             if (lyrics != null && !lyrics.timed && (f == lyClose || f == lyQueue) && (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN)) {
                 float max = Math.max(0, lyLines.getHeight() - lyWindow.getHeight() * 0.6f);
-                float y = lyLines.getTranslationY() + dp(k == KeyEvent.KEYCODE_DPAD_UP ? 90 : -90);
+                float cur = lyLines.getChildCount() > 0 ? lyLines.getChildAt(0).getTranslationY() : 0;
+                float y = cur + dp(k == KeyEvent.KEYCODE_DPAD_UP ? 90 : -90);
                 glideTo(Math.max(-max, Math.min(0, y)));
                 return true;
             }

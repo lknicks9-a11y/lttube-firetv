@@ -191,8 +191,11 @@ public final class MusicPlayer {
         Bg.run(() -> Ytm.queue(videoId, playlistId, playlistId == null || playlistId.isEmpty()), (q, e) -> {
             if (my != seq) return;
             resolving = false;
-            if (q == null || q.items.isEmpty()) { error = "Couldn't load that"; fire(); return; }
-            setQueue(q.items, 0);
+            List<MItem> ok = new ArrayList<>();
+            for (MItem m : q.items) if (m.official()) ok.add(m);
+            if (ok.isEmpty()) ok.addAll(q.items);
+            if (ok.isEmpty()) { error = "Couldn't load that"; fire(); return; }
+            setQueue(ok, 0);
             contToken = q.continuation;
             contVideo = videoId;
             contPlaylist = playlistId;
@@ -223,7 +226,7 @@ public final class MusicPlayer {
             MItem cur = current();
             // Keep what's playing first; the rest of YouTube Music's queue follows.
             List<MItem> rest = new ArrayList<>();
-            for (MItem m : q.items) if (cur == null || !m.videoId.equals(cur.videoId)) rest.add(m);
+            for (MItem m : q.items) if ((cur == null || !m.videoId.equals(cur.videoId)) && m.official()) rest.add(m);
             if (cur != null) {
                 for (MItem m : q.items) if (m.videoId.equals(cur.videoId)) { if (cur.album.isEmpty()) cur.album = m.album; if (cur.seconds == 0) cur.seconds = m.seconds; }
             }
@@ -251,7 +254,7 @@ public final class MusicPlayer {
                 if (q == null) return;
                 java.util.Set<String> have = new java.util.HashSet<>();
                 for (MItem m : queue) have.add(m.videoId);
-                for (MItem m : q.items) if (have.add(m.videoId)) queue.add(m);
+                for (MItem m : q.items) if (m.official() && have.add(m.videoId)) queue.add(m);
                 contToken = q.continuation;
                 contVideo = last.videoId;
                 contPlaylist = "RDAMVM" + last.videoId;
@@ -267,7 +270,7 @@ public final class MusicPlayer {
             java.util.Set<String> have = new java.util.HashSet<>();
             for (MItem m : queue) have.add(m.videoId);
             int added = 0;
-            for (MItem m : q.items) if (have.add(m.videoId)) { queue.add(m); added++; }
+            for (MItem m : q.items) if (m.official() && have.add(m.videoId)) { queue.add(m); added++; }
             contToken = added == 0 ? null : q.continuation;
             save();
             fire();

@@ -295,6 +295,7 @@ public final class Ytm {
         m.thumb = bestThumb(v.optJSONObject("thumbnail"));
         JSONObject we = findObj(v.optJSONObject("navigationEndpoint"), "watchEndpoint");
         if (we != null) m.playlistId = we.optString("playlistId");
+        m.mvType = mvType(v.optJSONObject("navigationEndpoint"));
         return m;
     }
 
@@ -494,6 +495,7 @@ public final class Ytm {
             JSONObject be = findObj(sr.optJSONObject(i).optJSONObject("navigationEndpoint"), "browseEndpoint");
             if (be != null && be.optString("browseId").startsWith("UC")) { m.artistId = be.optString("browseId"); if (m.artist.isEmpty()) m.artist = sr.optJSONObject(i).optString("text"); break; }
         }
+        if (MItem.SONG.equals(m.type)) m.mvType = mvType(nav);
         String[] sub = m.subtitle.split(" • ");
         if (MItem.SONG.equals(m.type) && sub.length > 0 && m.artist.isEmpty()) m.artist = sub[sub.length > 1 && sub[0].equalsIgnoreCase("Song") ? 1 : 0];
         return m.title.isEmpty() ? null : m;
@@ -536,6 +538,8 @@ public final class Ytm {
         }
         if (!m.videoId.isEmpty()) {
             m.type = MItem.SONG;
+            m.mvType = mvType(watch != null ? watch : r.optJSONObject("overlay"));
+            if (m.mvType.isEmpty()) m.mvType = mvType(r.optJSONObject("overlay"));
         } else {
             fill(m, nav);
         }
@@ -588,6 +592,20 @@ public final class Ytm {
             m.playlistId = we.optString("playlistId");
             m.type = m.videoId.isEmpty() ? MItem.PLAYLIST : MItem.SONG;
         }
+    }
+
+    private static String mvType(Object holder) {
+        JSONObject c = findObj(holder, "watchEndpointMusicConfig");
+        return c == null ? "" : c.optString("musicVideoType");
+    }
+
+    /** Makes a playlist on your YouTube account from these songs; returns its id. */
+    public static String createPlaylist(String title, String description, List<String> videoIds) throws Exception {
+        JSONArray ids = new JSONArray();
+        for (String v : videoIds) ids.put(v);
+        JSONObject r = call("playlist/create", new JSONObject().put("title", title).put("description", description)
+                .put("privacyStatus", "PRIVATE").put("videoIds", ids), null);
+        return r.optString("playlistId");
     }
 
     private static String pageType(JSONObject be) {

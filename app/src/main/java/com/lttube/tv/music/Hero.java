@@ -19,7 +19,7 @@ public class Hero extends FrameLayout {
     private final ImageView img;
     private final View fadeLeft, fadeBottom, fadeTop;
     private String url;
-    private final int bg;
+    private int bg;
 
     public Hero(Context c) {
         super(c);
@@ -28,14 +28,26 @@ public class Hero extends FrameLayout {
         img.setScaleType(ImageView.ScaleType.CENTER_CROP);
         addView(img, new LayoutParams(-1, -1, Gravity.END | Gravity.TOP));
         fadeLeft = new View(c);
-        fadeLeft.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{bg, bg & 0xCCFFFFFF, bg & 0x66FFFFFF, bg & 0x00FFFFFF}));
         addView(fadeLeft);
         fadeBottom = new View(c);
-        fadeBottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{bg, bg & 0xB3FFFFFF, bg & 0x00FFFFFF}));
         addView(fadeBottom);
         fadeTop = new View(c);
-        fadeTop.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg & 0x99FFFFFF, bg & 0x00FFFFFF}));
         addView(fadeTop);
+        paintFades();
+    }
+
+    /** The page's colour changed (it follows the cover): the fades follow so there are never seams. */
+    public void setTint(int color) {
+        if (color == bg) return;
+        bg = color;
+        paintFades();
+    }
+
+    private void paintFades() {
+        fadeLeft.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{bg, bg & 0xCCFFFFFF, bg & 0x66FFFFFF, bg & 0x00FFFFFF}));
+        fadeBottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{bg, bg & 0xB3FFFFFF, bg & 0x00FFFFFF}));
+        fadeTop.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg & 0x99FFFFFF, bg & 0x00FFFFFF}));
+        setBackgroundColor(url == null ? 0 : bg);
     }
 
     /** wide: an artist banner (fills the width); otherwise a square cover kept whole on the right. */
@@ -51,7 +63,7 @@ public class Hero extends FrameLayout {
         lp.leftMargin = w - iw;
         fadeLeft.setLayoutParams(lp);
         // Everything left of the picture is plain background.
-        setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{bg, bg}));
+        setBackgroundColor(bg);
         fadeBottom.setLayoutParams(new LayoutParams(-1, Math.round(h * 0.42f), Gravity.BOTTOM));
         fadeTop.setLayoutParams(new LayoutParams(-1, Math.round(h * 0.22f), Gravity.TOP));
         Glide.with(this).load(u).transition(DrawableTransitionOptions.withCrossFade(350)).into(img);

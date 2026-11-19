@@ -55,6 +55,8 @@ public class PageActivity extends Activity {
         hero = new Hero(this);
         root.addView(hero, new FrameLayout.LayoutParams(-1, dp(Math.round(H * 0.74f)), Gravity.TOP));
         if (!item.thumb.isEmpty()) hero.set(MItem.art(item.thumb, 1080), false);
+        // The page takes on a deep shade of the album / artist picture.
+        MusicUi.colorOf(this, item.thumb, c -> { int t = MusicUi.tintOf(c); MusicUi.fadeTo(root, t); hero.setTint(t); });
 
         scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
@@ -70,7 +72,7 @@ public class PageActivity extends Activity {
 
         spinner = new ProgressBar(this);
         root.addView(spinner, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER));
-        Bg.run(() -> Ytm.browse(item.browseId, item.params), (pg, e) -> {
+        Bg.run(() -> item.browseId.startsWith("LOCAL:") ? Imports.page(this, item.browseId) : Ytm.browse(item.browseId, item.params), (pg, e) -> {
             spinner.setVisibility(View.GONE);
             if (pg == null) {
                 TextView t = MusicUi.text(this, 18, MusicUi.TEXT2, false);
@@ -89,7 +91,9 @@ public class PageActivity extends Activity {
         boolean artist = MItem.ARTIST.equals(item.type) || item.browseId.startsWith("UC");
         if (!pg.banner.isEmpty()) hero.set(pg.banner, true);
         else if (!pg.thumb.isEmpty()) hero.set(MItem.art(pg.thumb, 1080), false);
-        final List<MItem> songs = pg.songs();
+        // Only official releases (the songs on Spotify / Apple Music) — no uploads or clips.
+        final List<MItem> songs = new ArrayList<>();
+        for (MItem m : pg.songs()) if (m.official()) songs.add(m);
         final String pl = !pg.playlistId.isEmpty() ? pg.playlistId : item.playlistId;
 
         // ---- header
@@ -184,8 +188,13 @@ public class PageActivity extends Activity {
             List<Ytm.Shelf> rest = new ArrayList<>();
             boolean done = false;
             for (Ytm.Shelf s : pg.shelves) {
+                String st = s.title.toLowerCase(java.util.Locale.US);
                 if (!done && s.list && !s.items.isEmpty()) {
                     done = true;
+                    List<MItem> off = new ArrayList<>();
+                    for (MItem m : s.items) if (m.official()) off.add(m);
+                    s.items.clear();
+                    s.items.addAll(off);
                     content.addView(MusicUi.heading(this, "Popular"));
                     LinearLayout l = new LinearLayout(this);
                     l.setOrientation(LinearLayout.VERTICAL);
@@ -203,7 +212,7 @@ public class PageActivity extends Activity {
                         l.addView(r, new LinearLayout.LayoutParams(-1, dp(62)));
                     }
                     content.addView(l);
-                } else rest.add(s);
+                } else if (st.matches(".*\\b(albums?|singles?|eps?)\\b.*")) rest.add(s);
             }
             MusicUi.addShelves(this, content, rest, open, null);
         } else {
