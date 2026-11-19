@@ -33,14 +33,29 @@ public final class Lyrics {
     public int at(long ms) {
         if (!timed) return -1;
         int i = -1;
-        for (int k = 0; k < lines.size(); k++) { if (lines.get(k).ms <= ms + 250) i = k; else break; }
+        for (int k = 0; k < lines.size(); k++) { if (lines.get(k).ms <= ms + LEAD) i = k; else break; }
         return i;
     }
 
+    /** How far through line i the singing is (0..1), for the line's light sweeping across. */
+    public float progress(int i, long ms) {
+        if (!timed || i < 0 || i >= lines.size()) return 0f;
+        long start = lines.get(i).ms - LEAD;
+        long end = i + 1 < lines.size() ? lines.get(i + 1).ms - LEAD : start + 4000;
+        // A long gap after a line (a solo) shouldn't stretch the sweep: lines take at most ~6 s to sing.
+        end = Math.min(end - 150, start + Math.max(1200, Math.min(6000, lines.get(i).text.length() * 160L)));
+        if (end <= start) return 1f;
+        return Math.max(0f, Math.min(1f, (ms - start) / (float) (end - start)));
+    }
+
+    /** Lines light up this much early, the way you read a beat ahead. */
+    private static final long LEAD = 120;
+
     private static final Pattern TAG = Pattern.compile("\\[(\\d+):(\\d+)(?:[.:](\\d+))?\\]");
 
-    public static Lyrics find(MItem song, String ytLyricsId) {
-        Lyrics l = lrclib(song);
+    /** seconds: the real length of what's playing (lyrics are timed to one recording; another is off). */
+    public static Lyrics find(MItem song, String ytLyricsId, int seconds) {
+        Lyrics l = lrclib(song, seconds > 0 ? seconds : song.seconds);
         if (l != null) return l;
         if (ytLyricsId == null) try { ytLyricsId = Ytm.queue(song.videoId, null, false).lyricsId; } catch (Exception ignored) { }
         String plain = Ytm.lyrics(ytLyricsId);
@@ -51,29 +66,35 @@ public final class Lyrics {
         return l;
     }
 
-    private static Lyrics lrclib(MItem song) {
+    private static Lyrics lrclib(MItem song, int secs) {
         String artist = clean(song.artist), title = clean(song.title);
         if (title.isEmpty()) return null;
         try {
             HttpUrl.Builder u = HttpUrl.parse("https://lrclib.net/api/get").newBuilder()
                     .addQueryParameter("track_name", title).addQueryParameter("artist_name", artist);
             if (!song.album.isEmpty()) u.addQueryParameter("album_name", song.album);
-            if (song.seconds > 0) u.addQueryParameter("duration", String.valueOf(song.seconds));
+            if (secs > 0) u.addQueryParameter("duration", String.valueOf(secs));
             JSONObject o = getObj(u.build());
             Lyrics l = o == null ? null : of(o);
-            if (l != null) return l;
-            // Close matches: same song, slightly different title or length.
+            if (l != null && (l.timed || secs <= 0)) return l;
+            // Otherwise the closest recording by length: timed lyrics only count when they're within 3 seconds
+            // of this one, or they'd run ahead or behind the singing.
             JSONArray a = getArr(HttpUrl.parse("https://lrclib.net/api/search").newBuilder()
                     .addQueryParameter("track_name", title).addQueryParameter("artist_name", artist).build());
-            Lyrics plainOnly = null;
+            Lyrics best = null, plainOnly = l;
+            double bestDiff = 1e9;
             if (a != null) for (int i = 0; i < a.length(); i++) {
                 JSONObject c = a.optJSONObject(i);
                 if (c == null) continue;
-                if (song.seconds > 0 && Math.abs(c.optDouble("duration", song.seconds) - song.seconds) > 8) continue;
+                double diff = secs > 0 ? Math.abs(c.optDouble("duration", secs) - secs) : 0;
                 Lyrics x = of(c);
-                if (x != null && x.timed) return x;
-                if (x != null && plainOnly == null) plainOnly = x;
+                if (x == null) continue;
+                if (x.timed && diff <= 3 && diff < bestDiff) { best = x; bestDiff = diff; }
+                else if (plainOnly == null && diff <= 20) { plainOnly = x; }
             }
+            if (best != null) return best;
+            // Lyrics timed to a different recording are still worth reading: shown untimed.
+            if (plainOnly != null && plainOnly.timed) { plainOnly.timed = false; }
             return plainOnly;
         } catch (Exception e) {
             return null;

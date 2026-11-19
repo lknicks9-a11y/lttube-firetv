@@ -90,10 +90,7 @@ public final class MusicPlayer {
                 if (state == Player.STATE_ENDED) ended();
                 fire();
             }
-            @Override public void onIsPlayingChanged(boolean playing) {
-                fire();
-                MusicService.update(app, playing || resolving);
-            }
+            @Override public void onIsPlayingChanged(boolean playing) { fire(); }
             @Override public void onPlayerError(PlaybackException e) {
                 MItem cur = current();
                 if (cur == null) return;
@@ -106,7 +103,33 @@ public final class MusicPlayer {
             }
         });
         restore();
+        watchForeground();
     }
+
+    // ------------------------------------------------------------------ only plays while LT Music is on screen
+    private int started;
+    private final Runnable leftApp = () -> { if (started == 0) { seq++; resolving = false; player.pause(); fire(); } };
+
+    /** When you leave LT Music (Home button, another app), the music stops; it picks up where it was when you come back. */
+    private void watchForeground() {
+        if (!(app instanceof android.app.Application)) return;
+        ((android.app.Application) app).registerActivityLifecycleCallbacks(new android.app.Application.ActivityLifecycleCallbacks() {
+            @Override public void onActivityStarted(android.app.Activity a) { started++; Bg.UI.removeCallbacks(leftApp); }
+            @Override public void onActivityStopped(android.app.Activity a) {
+                started = Math.max(0, started - 1);
+                // A moment's grace: going from one LT Music screen to another isn't leaving.
+                if (started == 0) Bg.UI.postDelayed(leftApp, 700);
+            }
+            @Override public void onActivityCreated(android.app.Activity a, android.os.Bundle b) { }
+            @Override public void onActivityResumed(android.app.Activity a) { }
+            @Override public void onActivityPaused(android.app.Activity a) { }
+            @Override public void onActivitySaveInstanceState(android.app.Activity a, android.os.Bundle b) { }
+            @Override public void onActivityDestroyed(android.app.Activity a) { }
+        });
+    }
+
+    /** Music videos play in the video player: the music pauses for them. */
+    public void pause() { player.pause(); fire(); }
 
     public void addListener(Listener l) { listeners.add(l); }
     public void removeListener(Listener l) { listeners.remove(l); }
@@ -335,7 +358,6 @@ public final class MusicPlayer {
         player.stop();
         save();
         fire();
-        MusicService.update(app, true);
         Bg.run(() -> audioUrl(m), (url, e) -> {
             if (my != seq) return;
             resolving = false;
@@ -348,7 +370,8 @@ public final class MusicPlayer {
             }
             player.setMediaItem(MediaItem.fromUri(url), startMs);
             player.prepare();
-            player.play();
+            // Started while you were leaving the app: ready, but not playing.
+            player.setPlayWhenReady(started > 0);
             fire();
             moreIfNeeded();
             prefetch();

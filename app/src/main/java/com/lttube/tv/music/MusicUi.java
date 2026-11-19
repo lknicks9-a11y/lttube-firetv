@@ -34,9 +34,11 @@ import java.util.Map;
 
 /** The look shared by every music screen: dark glassy background, big rounded art, cards that lift on focus. */
 public final class MusicUi {
-    public static final int BG_TOP = 0xFF16201D, BG_BOTTOM = 0xFF0C0D10;
+    public static final int BG_TOP = 0xFF26292A, BG_BOTTOM = 0xFF141516;
     public static final int TEXT2 = 0xB3FFFFFF, TEXT3 = 0x80FFFFFF;
     public static final int PINK = 0xFFFF4F7B;
+    /** Left edge of rows and titles. */
+    static final int PAD = 52;
 
     public static int dp(Context c, float v) { return Math.round(v * c.getResources().getDisplayMetrics().density); }
 
@@ -147,10 +149,13 @@ public final class MusicUi {
             if (s.items.isEmpty()) continue;
             boolean cats = MItem.CATEGORY.equals(s.items.get(0).type);
             boolean songs = s.list;
+            boolean videos = s.title.toLowerCase(java.util.Locale.US).contains("video");
+            if (videos) for (MItem m : s.items) if (m.playable()) m.video = true;
             if (!s.title.isEmpty() || !s.strap.isEmpty()) {
-                TextView h = text(a, 24, 0xE6FFFFFF, true);
+                // Section titles like Apple TV's: bold, a soft white, aligned with the cards.
+                TextView h = text(a, 22, 0xD9FFFFFF, true);
                 h.setText(s.title.isEmpty() ? s.strap : s.title);
-                h.setPadding(dp(a, 58), dp(a, 26), 0, dp(a, 12));
+                h.setPadding(dp(a, PAD), dp(a, 22), 0, dp(a, 2));
                 into.addView(h);
             }
             if (cats) into.addView(tileGrid(a, s.items, open));
@@ -168,7 +173,7 @@ public final class MusicUi {
         h.setFillViewport(false);
         row.setClipChildren(false);
         row.setClipToPadding(false);
-        row.setPadding(dp(c, 58), dp(c, 14), dp(c, 58), dp(c, 18));
+        row.setPadding(dp(c, PAD), dp(c, 16), dp(c, PAD), dp(c, 22));
         h.addView(row);
         return h;
     }
@@ -176,8 +181,9 @@ public final class MusicUi {
     /** A row of cards. Feature cards: art with a coloured band holding the title, a small label above. */
     static View cardRow(Activity a, Ytm.Shelf s, boolean feature, Opener open) {
         LinearLayout row = new LinearLayout(a);
-        int size = feature ? dp(a, 236) : dp(a, 190);
-        int gap = dp(a, 26);
+        boolean wide = !feature && s.title.toLowerCase(java.util.Locale.US).contains("video");
+        int size = feature ? dp(a, 206) : wide ? dp(a, 262) : dp(a, 164);
+        int gap = dp(a, feature ? 24 : 22);
         for (MItem m : s.items) {
             View card = feature ? featureCard(a, m, size) : artCard(a, m, size);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, -2);
@@ -195,9 +201,9 @@ public final class MusicUi {
     static View featureCard(Activity a, MItem m, int size) {
         LinearLayout col = new LinearLayout(a);
         col.setOrientation(LinearLayout.VERTICAL);
-        TextView strap = line(a, 14, TEXT3, false);
+        TextView strap = line(a, 15, 0x99FFFFFF, false);
         strap.setText(kindLabel(m));
-        strap.setPadding(dp(a, 2), 0, 0, dp(a, 8));
+        strap.setPadding(dp(a, 2), 0, 0, dp(a, 10));
         col.addView(strap);
         final LinearLayout card = new LinearLayout(a);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -211,20 +217,20 @@ public final class MusicUi {
         LinearLayout band = new LinearLayout(a);
         band.setOrientation(LinearLayout.VERTICAL);
         band.setGravity(Gravity.CENTER);
-        band.setPadding(dp(a, 14), dp(a, 14), dp(a, 14), dp(a, 16));
-        TextView t = line(a, 17, Color.WHITE, true);
+        band.setPadding(dp(a, 12), dp(a, 10), dp(a, 12), dp(a, 12));
+        TextView t = line(a, 16, Color.WHITE, true);
         t.setText(m.title);
         t.setGravity(Gravity.CENTER);
         t.setMaxLines(2);
         band.addView(t);
-        TextView sub = line(a, 14, TEXT2, false);
+        TextView sub = line(a, 15, 0xE6FFFFFF, false);
         sub.setText(shortSub(m));
         sub.setGravity(Gravity.CENTER);
-        sub.setPadding(0, dp(a, 4), 0, 0);
+        sub.setPadding(0, dp(a, 3), 0, 0);
         band.addView(sub);
-        card.addView(band, new LinearLayout.LayoutParams(size, dp(a, 86)));
+        card.addView(band, new LinearLayout.LayoutParams(size, Math.round(size * 0.40f)));
         colorOf(a, m.thumb, c -> bg.setColor(c));
-        lift(card, 1.07f);
+        lift(card, 1.10f);
         col.addView(card);
         return new FocusProxy(col, card);
     }
@@ -250,19 +256,25 @@ public final class MusicUi {
         iv.setFocusable(true);
         if (round) circle(iv, m.thumb); else art(iv, m.thumb, dp(a, 12));
         // Music videos come wide: shown wide.
-        boolean wide = m.thumb.contains("i.ytimg.com");
+        boolean wide = m.thumb.contains("i.ytimg.com") || m.video;
         int h = wide ? size * 9 / 16 : size;
         col.addView(iv, new LinearLayout.LayoutParams(size, h));
-        lift(iv, 1.08f);
-        TextView t = line(a, 16, Color.WHITE, true);
+        final TextView t = line(a, 15, 0xF2FFFFFF, true);
+        final TextView sub = line(a, 14, 0x99FFFFFF, false);
+        // tvOS: the picture grows and the title under it slides down out of its way.
+        iv.setOnFocusChangeListener((x, has) -> {
+            x.animate().scaleX(has ? 1.10f : 1f).scaleY(has ? 1.10f : 1f).translationZ(has ? dp(a, 14) : 0).setDuration(170).start();
+            float dy = has ? h * 0.05f + dp(a, 4) : 0;
+            t.animate().translationY(dy).setDuration(170).start();
+            sub.animate().translationY(dy).setDuration(170).start();
+        });
         t.setText(m.title);
         t.setGravity(round ? Gravity.CENTER : Gravity.START);
-        t.setPadding(dp(a, 2), dp(a, 12), 0, 0);
+        t.setPadding(dp(a, 1), dp(a, 10), 0, 0);
         col.addView(t, new LinearLayout.LayoutParams(size, -2));
-        TextView sub = line(a, 14, TEXT2, false);
         sub.setText(shortSub(m));
         sub.setGravity(round ? Gravity.CENTER : Gravity.START);
-        sub.setPadding(dp(a, 2), dp(a, 4), 0, 0);
+        sub.setPadding(dp(a, 1), dp(a, 3), 0, 0);
         col.addView(sub, new LinearLayout.LayoutParams(size, -2));
         return new FocusProxy(col, iv);
     }
@@ -378,6 +390,19 @@ public final class MusicUi {
     // ------------------------------------------------------------------ opening things
     public static void open(Activity a, MItem m, List<MItem> context) {
         MusicPlayer mp = MusicPlayer.get(a);
+        if (m.video && m.playable()) {
+            // Music videos play as video (LTTube's player); the music pauses meanwhile.
+            mp.pause();
+            com.lttube.tv.Item v = new com.lttube.tv.Item();
+            v.url = "https://www.youtube.com/watch?v=" + m.videoId;
+            v.title = m.title;
+            v.channel = m.artist;
+            v.thumb = m.thumb;
+            v.duration = m.seconds;
+            com.lttube.tv.Nav.queue = new java.util.ArrayList<>();
+            com.lttube.tv.Nav.play(a, v);
+            return;
+        }
         if (m.playable()) {
             // A song in a list of songs plays the list from there; on its own, its radio.
             int songs = 0;
@@ -432,24 +457,26 @@ public final class MusicUi {
         b.setPadding(p, p, p, p);
         final GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.OVAL);
-        bg.setColor(0x33FFFFFF);
         b.setBackground(bg);
         b.setOnFocusChangeListener((v, has) -> {
-            bg.setColor(has ? Color.WHITE : 0x33FFFFFF);
-            ((ImageView) v).setColorFilter(has ? 0xFF111111 : (v.isActivated() ? Color.WHITE : 0xCCFFFFFF));
-            v.animate().scaleX(has ? 1.12f : 1f).scaleY(has ? 1.12f : 1f).setDuration(140).start();
+            paintIcon((ImageView) v);
+            v.animate().scaleX(has ? 1.18f : 1f).scaleY(has ? 1.18f : 1f).translationZ(has ? dp(c, 8) : 0).setDuration(150).start();
         });
-        b.setColorFilter(0xCCFFFFFF);
+        paintIcon(b);
         return b;
     }
 
-    /** Marks a toggle button on (filled) or off. */
+    /** Round buttons like Apple TV's: frosted when off, solid white with a dark glyph when on or focused. */
+    private static void paintIcon(ImageView b) {
+        boolean lit = b.isActivated() || b.hasFocus();
+        ((GradientDrawable) b.getBackground()).setColor(b.hasFocus() ? Color.WHITE : b.isActivated() ? 0xF2FFFFFF : 0x40FFFFFF);
+        b.setColorFilter(lit ? 0xFF1C1C1E : 0xF2FFFFFF);
+    }
+
+    /** Marks a toggle button on or off. */
     public static void setOn(ImageView b, boolean on) {
         b.setActivated(on);
-        if (!b.hasFocus()) {
-            ((GradientDrawable) b.getBackground()).setColor(on ? 0x66FFFFFF : 0x33FFFFFF);
-            b.setColorFilter(on ? Color.WHITE : 0xAAFFFFFF);
-        }
+        paintIcon(b);
     }
 
     /** The app's name in the corner: a note in a pink square and "LT Music". */

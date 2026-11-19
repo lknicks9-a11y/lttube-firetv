@@ -24,7 +24,7 @@ import java.util.List;
 
 /** Home of the music app: tabs along the top (Home, New, Charts, Moods, Library, Now Playing, Search) over rows. */
 public class MusicActivity extends Activity implements MusicPlayer.Listener {
-    private static final String[][] TABS = {{"home", "Home"}, {"new", "New"}, {"charts", "Charts"}, {"moods", "Moods"},
+    private static final String[][] TABS = {{"home", "Home"}, {"new", "New"}, {"videos", "Videos"}, {"radio", "Radio"},
             {"library", "Library"}, {"now", "Now Playing"}, {"search", ""}};
 
     private FrameLayout root;
@@ -45,7 +45,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         super.onCreate(b);
         mp = MusicPlayer.get(this);
         root = new FrameLayout(this);
-        root.setBackground(MusicUi.background(0));
+        root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFF26292A, 0xFF1B1D1E, 0xFF141516}));
         setContentView(root);
 
         scroll = new ScrollView(this);
@@ -55,7 +55,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setClipChildren(false);
-        content.setPadding(0, dp(96), 0, dp(60));
+        content.setPadding(0, dp(84), 0, dp(60));
         scroll.addView(content);
         root.addView(scroll, MusicUi.match());
         scroll.getViewTreeObserver().addOnScrollChangedListener(() -> {
@@ -69,7 +69,8 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         tabBar.setGravity(Gravity.CENTER_VERTICAL);
         int p = dp(6);
         tabBar.setPadding(p, p, p, p);
-        tabBar.setBackground(MusicUi.round(0x40FFFFFF, dp(30)));
+        tabBar.setBackground(MusicUi.round(0x26FFFFFF, dp(30)));
+        tabBar.setElevation(dp(6));
         for (String[] t : TABS) {
             if (t[0].equals("search")) {
                 searchTab = new ImageView(this);
@@ -81,15 +82,16 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
                 searchTab.setBackground(bg);
                 searchTab.setOnFocusChangeListener((v, has) -> { bg.setColor(has ? Color.WHITE : 0); searchTab.setColorFilter(has ? 0xFF111111 : 0xDDFFFFFF); });
                 searchTab.setOnClickListener(v -> startActivity(new Intent(this, MusicSearchActivity.class)));
-                tabBar.addView(searchTab, new LinearLayout.LayoutParams(dp(56), dp(44)));
+                tabBar.addView(searchTab, new LinearLayout.LayoutParams(dp(50), dp(38)));
                 continue;
             }
             final String key = t[0];
-            TextView tv = MusicUi.text(this, 17, 0xDDFFFFFF, true);
+            TextView tv = MusicUi.text(this, 16, 0xDDFFFFFF, true);
+            tv.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
             tv.setText(t[1]);
             tv.setFocusable(true);
             tv.setGravity(Gravity.CENTER);
-            tv.setPadding(dp(22), 0, dp(22), 0);
+            tv.setPadding(dp(18), 0, dp(18), 0);
             tv.setTag(key);
             tv.setOnFocusChangeListener((v, has) -> paintTabs());
             tv.setOnClickListener(v -> {
@@ -97,10 +99,10 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
                 show(key, true);
             });
             tabViews.add(tv);
-            tabBar.addView(tv, new LinearLayout.LayoutParams(-2, dp(44)));
+            tabBar.addView(tv, new LinearLayout.LayoutParams(-2, dp(38)));
         }
         FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        tl.topMargin = dp(26);
+        tl.topMargin = dp(22);
         root.addView(tabBar, tl);
 
         spinner = new ProgressBar(this);
@@ -119,8 +121,9 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
     private void paintTabs() {
         for (TextView tv : tabViews) {
             boolean f = tv.hasFocus(), sel = tab.equals(tv.getTag());
-            tv.setBackground(MusicUi.round(f ? Color.WHITE : sel ? 0x40FFFFFF : 0, dp(22)));
-            tv.setTextColor(f ? 0xFF111111 : sel ? Color.WHITE : 0xCCFFFFFF);
+            tv.setBackground(MusicUi.round(f ? Color.WHITE : sel ? 0x40FFFFFF : 0, dp(19)));
+            tv.setTextColor(f ? 0xFF1C1C1E : sel ? Color.WHITE : 0xB3FFFFFF);
+            tv.animate().scaleX(f ? 1.08f : 1f).scaleY(f ? 1.08f : 1f).setDuration(140).start();
             String label = tv.getText().toString().replace("  ▶", "");
             if ("now".equals(tv.getTag()) && mp.current() != null && mp.playing()) label += "  ▶";
             tv.setText(label);
@@ -149,6 +152,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
             }
             if (key.equals("home") && pages.get(0).continuation != null) { moreToken = pages.get(0).continuation; moreId = Ytm.HOME; }
             if (key.equals("home") && mp.current() != null) addResume();
+            if (key.equals("home") && !all.isEmpty() && all.get(0).title.isEmpty()) all.get(0).title = "Top Picks for You";
             MusicUi.addShelves(this, content, all, key.equals("home") || key.equals("new"), (m, ctx) -> MusicUi.open(this, m, ctx));
             if (focusContent) content.post(this::focusFirst);
         });
@@ -176,9 +180,31 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
                 }
                 break;
             }
-            case "new": out.add(Ytm.browse(Ytm.NEW)); break;
-            case "charts": out.add(Ytm.browse(Ytm.CHARTS)); break;
-            case "moods": out.add(Ytm.browse(Ytm.MOODS)); break;
+            case "new":
+            case "videos":
+                // New: new releases and the charts. Videos: the music videos from both.
+                for (String id : new String[]{Ytm.NEW, Ytm.CHARTS}) {
+                    try {
+                        Ytm.Page pg = Ytm.browse(id), keep = new Ytm.Page();
+                        for (Ytm.Shelf sh : pg.shelves) {
+                            boolean vid = sh.title.toLowerCase(java.util.Locale.US).contains("video");
+                            if (sh.title.toLowerCase(java.util.Locale.US).contains("podcast")) continue;
+                            if (vid == key.equals("videos")) {
+                                if (sh.title.isEmpty() && key.equals("new")) sh.title = "New Music";
+                                keep.shelves.add(sh);
+                            }
+                        }
+                        out.add(keep);
+                    } catch (Exception e) { if (out.isEmpty() && id.equals(Ytm.CHARTS)) throw e; }
+                }
+                break;
+            case "radio": {
+                // Stations: YouTube Music's mixes for you, then moods and genres.
+                Ytm.Page moods = Ytm.browse(Ytm.MOODS);
+                for (Ytm.Shelf sh : moods.shelves) if (sh.title.toLowerCase(java.util.Locale.US).startsWith("moods")) sh.title = "Moods & Activities";
+                out.add(moods);
+                break;
+            }
             case "library":
                 for (String[] f : new String[][]{{Ytm.LIKED_SONGS, "Liked songs"}, {Ytm.LIB_PLAYLISTS, "Playlists"}, {Ytm.LIB_ALBUMS, "Albums"},
                         {Ytm.LIB_ARTISTS, "Artists"}, {Ytm.HISTORY, "Recently played"}}) {

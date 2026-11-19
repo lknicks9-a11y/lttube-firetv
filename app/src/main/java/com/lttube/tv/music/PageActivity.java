@@ -27,6 +27,7 @@ public class PageActivity extends Activity {
 
     private MItem item;
     private FrameLayout root;
+    private Backdrop backdrop;
     private ProgressBar spinner;
 
     @Override
@@ -34,11 +35,12 @@ public class PageActivity extends Activity {
         super.onCreate(b);
         try { item = MItem.fromJson(new JSONObject(getIntent().getStringExtra(ITEM))); } catch (Exception e) { finish(); return; }
         root = new FrameLayout(this);
-        root.setBackground(MusicUi.background(0));
         setContentView(root);
+        backdrop = new Backdrop(this);
+        root.addView(backdrop, MusicUi.match());
+        backdrop.setArt(item.thumb);
         spinner = new ProgressBar(this);
         root.addView(spinner, new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER));
-        MusicUi.colorOf(this, item.thumb, c -> root.setBackground(MusicUi.background(c)));
         Bg.run(() -> Ytm.browse(item.browseId, item.params), (pg, e) -> {
             spinner.setVisibility(View.GONE);
             if (pg == null) {
@@ -49,7 +51,7 @@ public class PageActivity extends Activity {
             }
             if (pg.thumb.isEmpty()) pg.thumb = item.thumb;
             if (pg.title.isEmpty()) pg.title = item.title;
-            if (!pg.thumb.equals(item.thumb)) MusicUi.colorOf(this, pg.thumb, c -> root.setBackground(MusicUi.background(c)));
+            backdrop.setArt(pg.thumb);
             boolean list = !MItem.ARTIST.equals(item.type) && !MItem.CATEGORY.equals(item.type) && !pg.songs().isEmpty();
             if (list) album(pg); else rows(pg);
         });
@@ -76,8 +78,15 @@ public class PageActivity extends Activity {
         title.setEllipsize(TextUtils.TruncateAt.END);
         title.setPadding(0, dp(22), 0, 0);
         left.addView(title, new LinearLayout.LayoutParams(dp(290), -2));
+        // Like Apple's album pages: the artist in the accent colour, then the kind and year in grey.
         TextView sub = MusicUi.text(this, 17, MusicUi.TEXT2, false);
-        sub.setText(pg.subtitle);
+        String[] parts = pg.subtitle.split("\\s+•\\s+", 2);
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(pg.subtitle);
+        if (parts.length > 0 && !parts[0].isEmpty()) {
+            sb.setSpan(new android.text.style.ForegroundColorSpan(MusicUi.PINK), 0, parts[0].length(), 0);
+            sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, parts[0].length(), 0);
+        }
+        sub.setText(sb);
         sub.setMaxLines(2);
         sub.setEllipsize(TextUtils.TruncateAt.END);
         sub.setPadding(0, dp(8), 0, 0);

@@ -20,6 +20,8 @@ public class MItem {
     public String browseId = "";
     public String params = "";
     public int seconds;
+    /** A music video: plays as video, in the video player. */
+    public boolean video;
     /** Mood / genre tiles carry their colour. */
     public int color;
 

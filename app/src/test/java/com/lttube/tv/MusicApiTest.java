@@ -106,7 +106,7 @@ public class MusicApiTest {
             }
             MItem first = q.items.isEmpty() ? song : q.items.get(0);
             if (first != null) {
-                Lyrics l = Lyrics.find(first, q.lyricsId);
+                Lyrics l = Lyrics.find(first, q.lyricsId, first.seconds);
                 System.out.println("MUS LYRICS " + (l == null ? "none" : l.source + " timed=" + l.timed + " lines=" + l.lines.size()));
             }
             System.out.println("MUS YT LYRICS " + (Ytm.lyrics(q.lyricsId) == null ? "none" : "yes"));
