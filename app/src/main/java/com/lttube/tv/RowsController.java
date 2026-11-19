@@ -88,6 +88,12 @@ public class RowsController {
             for (int i = 0; i < slot; i++) at += slots.get(i).size();
             boolean wasEmpty = rows.size() == 0;
             for (Shelf sh : list) {
+                // Shorts hidden (Settings): no Shorts rows, no Shorts in other rows.
+                if (Store.hideShorts()) {
+                    if (sh.title != null && sh.title.toLowerCase().contains("shorts")) continue;
+                    java.util.Iterator<Item> it = sh.items.iterator();
+                    while (it.hasNext()) if (it.next().isShort) it.remove();
+                }
                 if (sh.items.isEmpty()) continue;
                 ArrayObjectAdapter a = new ArrayObjectAdapter(cards);
                 a.addAll(0, sh.items);

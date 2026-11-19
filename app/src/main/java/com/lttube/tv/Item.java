@@ -68,7 +68,7 @@ public class Item {
                 List<String> bits = new ArrayList<>();
                 if (!i.channel.isEmpty()) bits.add(i.channel);
                 if (s.getViewCount() >= 0) bits.add(count(s.getViewCount()) + (i.live ? " watching" : " views"));
-                if (s.getTextualUploadDate() != null && !i.live) bits.add(s.getTextualUploadDate());
+                if (!i.live) { String w = niceDate(s.getTextualUploadDate(), i.uploaded); if (!w.isEmpty()) bits.add(w); }
                 i.sub = join(bits);
                 if (i.thumb.isEmpty()) i.thumb = videoThumb(i.url);
                 break;
@@ -114,6 +114,21 @@ public class Item {
         }
         int s = url.lastIndexOf('/');
         return s >= 0 ? url.substring(s + 1) : url;
+    }
+
+    /** "3 hours ago" for a date YouTube sent as raw text (2026-11-18T14:00:12-08:00); other text as it is. */
+    public static String niceDate(String textual, long ms) {
+        boolean raw = textual == null || textual.matches("\\d{4}-\\d{2}-\\d{2}T.*");
+        if (raw && ms <= 0 && textual != null) {
+            try { ms = java.time.OffsetDateTime.parse(textual).toInstant().toEpochMilli(); } catch (Throwable e) { return textual.substring(0, Math.min(10, textual.length())); }
+        }
+        if (!raw) return textual;
+        if (ms <= 0) return "";
+        long sec = Math.max(0, (System.currentTimeMillis() - ms) / 1000);
+        long[] u = {31536000, 2592000, 604800, 86400, 3600, 60};
+        String[] n = {"year", "month", "week", "day", "hour", "minute"};
+        for (int k = 0; k < u.length; k++) if (sec >= u[k]) { long v = sec / u[k]; return v + " " + n[k] + (v == 1 ? "" : "s") + " ago"; }
+        return "Just now";
     }
 
     public static String videoThumb(String url) {

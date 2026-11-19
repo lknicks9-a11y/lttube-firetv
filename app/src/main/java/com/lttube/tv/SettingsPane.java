@@ -84,6 +84,8 @@ public class SettingsPane {
         entry("quality", R.drawable.ic_settings, "Video quality");
         entry("captions", R.drawable.ic_cc, "Subtitles");
         entry("sponsor", R.drawable.ic_speed, "Skip sponsors");
+        header("MENU");
+        entry("menu", R.drawable.ic_library, "Side menu & Shorts");
         header("APP");
         entry("update", R.drawable.ic_replay, "Update Center");
         if (!Account.signedIn()) entry("import", R.drawable.ic_subs, "Import subscriptions");
@@ -181,6 +183,19 @@ public class SettingsPane {
                 body("Tests your Home, Subscriptions, channels, History, Liked videos, Watch later and Playlists, and shows what loaded.");
                 buttons(new String[]{"Run check"}, -1, i -> a.onAction("check"));
                 break;
+            case "menu": {
+                title("Side menu & Shorts");
+                body("Hide Shorts everywhere: Home, Subscriptions, channels, the list under the player and the menu.");
+                buttons(new String[]{"Show Shorts", "Hide Shorts"}, Store.hideShorts() ? 1 : 0, i -> { Store.setHideShorts(i == 1); a.applyNav(); render(key); focusDetail(); });
+                String[][] items = {{"home", "Home"}, {"shorts", "Shorts"}, {"subs", "Subscriptions"}, {"library", "Library"}, {"music", "Music"},
+                        {"movies", "Movies & TV"}, {"live", "Live"}, {"gaming", "Gaming"}, {"news", "News"}, {"sports", "Sports"}, {"podcasts", "Podcasts"}};
+                for (String[] it : items) {
+                    final String k = it[0];
+                    body(it[1] + " in the side menu");
+                    buttons(new String[]{"Shown", "Hidden"}, Store.navHidden(k) ? 1 : 0, i -> { Store.setNavHidden(k, i == 1); a.applyNav(); render(key); focusDetail(); });
+                }
+                break;
+            }
             case "autoplay":
                 title("Autoplay next video");
                 body("When a video ends, play the next one after a short countdown.");

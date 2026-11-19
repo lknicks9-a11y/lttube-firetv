@@ -218,6 +218,7 @@ public class SubsPane {
             report = (String) res[2];
             try {
                 feed = latest;
+                if (Store.hideShorts()) { java.util.Iterator<Item> sh = feed.iterator(); while (sh.hasNext()) if (sh.next().isShort) sh.remove(); }
                 buildList(channels);
                 showing = "";
                 show("all", "All");

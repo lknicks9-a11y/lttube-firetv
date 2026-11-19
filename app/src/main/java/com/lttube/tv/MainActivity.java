@@ -35,8 +35,8 @@ public class MainActivity extends FragmentActivity {
             {"-", ""},
             {"settings", "Settings"}};
     private static final int[] NAV_ICONS = {R.drawable.ic_search, R.drawable.ic_home, R.drawable.ic_shorts,
-            R.drawable.ic_subs, R.drawable.ic_library, 0, R.drawable.ic_music, R.drawable.ic_live, R.drawable.ic_live,
-            R.drawable.ic_gaming, R.drawable.ic_info, R.drawable.ic_check, R.drawable.ic_comment, 0, R.drawable.ic_settings};
+            R.drawable.ic_subs, R.drawable.ic_library, 0, R.drawable.ic_music, R.drawable.ic_movies, R.drawable.ic_live,
+            R.drawable.ic_gaming, R.drawable.ic_news, R.drawable.ic_sports, R.drawable.ic_podcasts, 0, R.drawable.ic_settings};
 
     /** Open menu width: just room for the names (YouTube's is narrow, no dead space). */
     private static final int NAV_OPEN = 210;
@@ -151,6 +151,7 @@ public class MainActivity extends FragmentActivity {
             Nav.open(this, it, row);
         });
         rows.onSelected(this::setAmbient);
+        applyNav();
         loadProfile();
         show("home", false);
         updateLoop.run();
@@ -161,8 +162,18 @@ public class MainActivity extends FragmentActivity {
     protected void onResume() {
         super.onResume();
         loadProfile();
+        applyNav();
         if ("library".equals(section)) show(section, false);
         if (settingsPane != null && "settings".equals(section)) settingsPane.refresh();
+    }
+
+    /** Hides the side menu items you turned off in Settings (and Shorts when Shorts are hidden). */
+    void applyNav() {
+        for (int i = 0; i < navItems.size(); i++) {
+            String k = navKeys.get(i);
+            boolean hide = Store.navHidden(k) || ("shorts".equals(k) && Store.hideShorts());
+            navItems.get(i).setVisibility(hide ? View.GONE : View.VISIBLE);
+        }
     }
 
     // ------------------------------------------------------------------ side menu
@@ -173,8 +184,10 @@ public class MainActivity extends FragmentActivity {
         item.setFocusable(true);
         item.setPadding(dp(16), 0, dp(12), 0);
         ImageView ic = new ImageView(this);
-        if (icon != 0) { ic.setImageResource(icon); ic.setColorFilter(Color.WHITE); }
-        item.addView(ic, new LinearLayout.LayoutParams(icon != 0 ? dp(20) : dp(28), icon != 0 ? dp(20) : dp(28)));
+        if (icon != 0) { ic.setImageResource(icon); ic.setColorFilter(Color.WHITE); ic.setPadding(dp(4), dp(4), dp(4), dp(4)); }
+        // Every icon sits in the same 28dp box as your profile picture, so they all line up under it.
+        ic.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        item.addView(ic, new LinearLayout.LayoutParams(dp(28), dp(28)));
         TextView lab = Ui.text(this, 14, Color.WHITE, false);
         lab.setText(label);
         lab.setSingleLine(true);

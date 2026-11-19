@@ -38,7 +38,8 @@ import java.util.List;
 public class ChannelActivity extends FragmentActivity {
     public static final String URL = "url", TITLE = "title";
 
-    private static final String[][] TABS = {{"home", "Home"}, {ChannelTabs.VIDEOS, "Videos"}, {"popular", "Most viewed"}, {ChannelTabs.SHORTS, "Shorts"},
+    // "Most viewed" is no longer a tab of its own: it's the "Popular" choice inside Videos, like YouTube.
+    private static final String[][] TABS = {{"home", "Home"}, {ChannelTabs.VIDEOS, "Videos"}, {ChannelTabs.SHORTS, "Shorts"},
             {ChannelTabs.LIVESTREAMS, "Live"}, {ChannelTabs.PLAYLISTS, "Playlists"}};
 
     private String url, title;
@@ -128,6 +129,32 @@ public class ChannelActivity extends FragmentActivity {
         }
         root.addView(tabsRow);
 
+        // Videos: Latest · Popular (like YouTube's chips)
+        sortRow = new LinearLayout(this);
+        sortRow.setOrientation(LinearLayout.HORIZONTAL);
+        sortRow.setPadding(dp(56), 0, dp(50), dp(6));
+        for (String[] c : new String[][]{{"latest", "Latest"}, {"popular", "Popular"}}) {
+            final String key = c[0];
+            TextView chip = Ui.text(this, 14, Color.WHITE, true);
+            chip.setText(c[1]);
+            chip.setFocusable(true);
+            chip.setTag(key);
+            chip.setPadding(dp(16), dp(6), dp(16), dp(6));
+            chip.setOnFocusChangeListener((v, has) -> styleChips());
+            chip.setOnClickListener(v -> { sort = key; styleChips(); selectTab(ChannelTabs.VIDEOS); });
+            chip.setOnKeyListener((v, code, ev) -> {
+                if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_DOWN) { grid.requestFocus(); return true; }
+                if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_UP) { for (TextView tv : tabViews) if (tab.equals(tv.getTag())) tv.requestFocus(); return true; }
+                return false;
+            });
+            LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-2, -2);
+            clp.rightMargin = dp(10);
+            sortRow.addView(chip, clp);
+            chipViews.add(chip);
+        }
+        sortRow.setVisibility(View.GONE);
+        root.addView(sortRow);
+
         // ---- content: rows (Home) or a grid (other tabs)
         FrameLayout content = new FrameLayout(this);
         root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -136,8 +163,11 @@ public class ChannelActivity extends FragmentActivity {
         content.addView(rowsHolder, new FrameLayout.LayoutParams(-1, -1));
         float sw = getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density;
         float avail = sw - 56 - 40;
-        int cols = avail >= 4 * 210 + 48 ? 4 : 3;
-        int cardW = (int) ((avail - (cols - 1) * 16) / cols);
+        cols = avail >= 4 * 210 + 48 ? 4 : 3;
+        cardW = (int) ((avail - (cols - 1) * 16) / cols);
+        // Shorts: more, narrower columns so the tall pictures fill their cards (no big gaps).
+        shortCols = cols + 2;
+        shortW = (int) ((avail - (shortCols - 1) * 16) / shortCols);
         cards = new ArrayObjectAdapter(new CardPresenter(cardW));
         grid = new VerticalGridView(this);
         grid.setNumColumns(cols);
@@ -146,18 +176,7 @@ public class ChannelActivity extends FragmentActivity {
         grid.setClipToPadding(false);
         grid.setPadding(dp(56), dp(10), dp(40), dp(40));
         grid.setVisibility(View.GONE);
-        ItemBridgeAdapter bridge = new ItemBridgeAdapter(cards);
-        bridge.setAdapterListener(new ItemBridgeAdapter.AdapterListener() {
-            @Override
-            public void onBind(ItemBridgeAdapter.ViewHolder vh) {
-                vh.itemView.setOnClickListener(v -> {
-                    List<Item> ctx = new ArrayList<>();
-                    for (int i = 0; i < cards.size(); i++) ctx.add((Item) cards.get(i));
-                    Nav.open(ChannelActivity.this, (Item) vh.getItem(), ctx);
-                });
-            }
-        });
-        grid.setAdapter(bridge);
+        grid.setAdapter(makeBridge());
         grid.setOnChildViewHolderSelectedListener(new OnChildViewHolderSelectedListener() {
             @Override
             public void onChildViewHolderSelected(RecyclerView parent, RecyclerView.ViewHolder child, int position, int subposition) {
@@ -179,6 +198,77 @@ public class ChannelActivity extends FragmentActivity {
 
     }
 
+    private int cols, cardW, shortCols, shortW;
+    private LinearLayout sortRow;
+    private final List<TextView> chipViews = new ArrayList<>();
+    private String sort = "latest";
+    /** Until you press a button, the page stays at the top (rows arriving don't pull the focus down to them). */
+    private boolean userMoved;
+
+    private ItemBridgeAdapter makeBridge() {
+        ItemBridgeAdapter bridge = new ItemBridgeAdapter(cards);
+        bridge.setAdapterListener(new ItemBridgeAdapter.AdapterListener() {
+            @Override
+            public void onBind(ItemBridgeAdapter.ViewHolder vh) {
+                vh.itemView.setOnClickListener(v -> {
+                    List<Item> ctx = new ArrayList<>();
+                    for (int i = 0; i < cards.size(); i++) ctx.add((Item) cards.get(i));
+                    Nav.open(ChannelActivity.this, (Item) vh.getItem(), ctx);
+                });
+            }
+        });
+        return bridge;
+    }
+
+    /** Grid set up for this tab: Shorts get narrow cards in more columns. */
+    private void gridFor(String key) {
+        boolean shorts = ChannelTabs.SHORTS.equals(key);
+        grid.setNumColumns(shorts ? shortCols : cols);
+        cards = new ArrayObjectAdapter(new CardPresenter(shorts ? shortW : cardW));
+        grid.setAdapter(makeBridge());
+        sortRow.setVisibility(ChannelTabs.VIDEOS.equals(key) ? View.VISIBLE : View.GONE);
+        styleChips();
+    }
+
+    private void styleChips() {
+        for (TextView c : chipViews) {
+            boolean f = c.isFocused(), cur = sort.equals(c.getTag());
+            c.setBackground(f ? Ui.pill(this, Ui.FOCUS, 18) : cur ? Ui.pill(this, 0xFFF1F1F1, 18) : Ui.pill(this, 0x33FFFFFF, 18));
+            c.setTextColor(f || cur ? 0xFF0F0F0F : Color.WHITE);
+        }
+    }
+
+    /** Views from a card's line ("1.2M views"), for sorting by most viewed. */
+    private static double viewsOf(Item i) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("([\\d.,]+)\\s*([KMB]?)\\s*views", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(i.sub == null ? "" : i.sub);
+        if (!m.find()) return 0;
+        double n;
+        try { n = Double.parseDouble(m.group(1).replace(",", "")); } catch (Exception e) { return 0; }
+        String u = m.group(2).toUpperCase();
+        return n * (u.equals("K") ? 1e3 : u.equals("M") ? 1e6 : u.equals("B") ? 1e9 : 1);
+    }
+
+    /** Most viewed: YouTube's own Popular list, or else this channel's videos (a few pages) sorted by views. */
+    private List<Item> popular() throws Exception {
+        List<Item> l = new ArrayList<>();
+        try { l = Yti.channelPopular(ucId()); } catch (Exception ignored) { }
+        if (!l.isEmpty()) return l;
+        ListLinkHandler h = Feeds.channelTab(info, ChannelTabs.VIDEOS);
+        if (h == null) return l;
+        ChannelTabInfo t = ChannelTabInfo.getInfo(Feeds.yt(), h);
+        Feeds.Result r = new Feeds.Result();
+        Feeds.addAll(r, new ArrayList<InfoItem>(t.getRelatedItems()), false);
+        List<Item> all = new ArrayList<>(r.items);
+        Page page = t.getNextPage();
+        for (int n = 0; n < 3 && page != null; n++) {
+            Feeds.Result m = Feeds.channelMore(info, ChannelTabs.VIDEOS, page);
+            all.addAll(m.items);
+            page = m.next;
+        }
+        java.util.Collections.sort(all, (a, b) -> Double.compare(viewsOf(b), viewsOf(a)));
+        return all.subList(0, Math.min(all.size(), 60));
+    }
+
     private void checkSubscribed() {
         if (!Account.signedIn()) return;
         final String cid = ucId();
@@ -192,7 +282,8 @@ public class ChannelActivity extends FragmentActivity {
 
     private final ViewTreeObserver.OnGlobalFocusChangeListener focusWatcher = (oldF, newF) -> {
         if (newF == null) return;
-        boolean top = newF == subBtn || tabViews.contains(newF);
+        boolean top = newF == subBtn || tabViews.contains(newF) || chipViews.contains(newF);
+        if (!top && !userMoved) { subBtn.post(() -> subBtn.requestFocus()); return; }
         header.setVisibility(top ? View.VISIBLE : View.GONE);
     };
 
@@ -218,7 +309,8 @@ public class ChannelActivity extends FragmentActivity {
             // hide tabs the channel doesn't have
             for (TextView tv : tabViews) {
                 String k = (String) tv.getTag();
-                if (!"home".equals(k) && !"popular".equals(k) && Feeds.channelTab(c, k) == null) tv.setVisibility(View.GONE);
+                if (!"home".equals(k) && Feeds.channelTab(c, k) == null) tv.setVisibility(View.GONE);
+                if (ChannelTabs.SHORTS.equals(k) && Store.hideShorts()) tv.setVisibility(View.GONE);
             }
             if (c.getId() != null && c.getId().startsWith("UC")) url = "https://www.youtube.com/channel/" + c.getId();
             checkSubscribed();
@@ -234,32 +326,28 @@ public class ChannelActivity extends FragmentActivity {
         if (info == null) return;
         if ("home".equals(key)) {
             grid.setVisibility(View.GONE);
+            sortRow.setVisibility(View.GONE);
             rowsHolder.setVisibility(View.VISIBLE);
             rows.clear();
-            for (String[] t : TABS) {
-                if ("home".equals(t[0])) continue;
-                if ("popular".equals(t[0])) addPopularRow();
-                else addRow(t[0], t[1]);
-            }
+            // Top to bottom like YouTube: Videos, Popular, then Shorts, Live, Playlists.
+            addRow(ChannelTabs.VIDEOS, "Videos");
+            addPopularRow();
+            for (String[] t : TABS) if (!"home".equals(t[0]) && !ChannelTabs.VIDEOS.equals(t[0]) && !(ChannelTabs.SHORTS.equals(t[0]) && Store.hideShorts())) addRow(t[0], t[1]);
             return;
         }
-        if ("popular".equals(key)) {
-            rowsHolder.setVisibility(View.GONE);
-            grid.setVisibility(View.VISIBLE);
-            cards.clear();
+        rowsHolder.setVisibility(View.GONE);
+        grid.setVisibility(View.VISIBLE);
+        gridFor(key);
+        if (ChannelTabs.VIDEOS.equals(key) && "popular".equals(sort)) {
             next = null;
-            final String cid = ucId();
-            Bg.run(() -> Yti.channelPopular(cid), (list, err) -> {
+            Bg.run(this::popular, (list, err) -> {
                 if (s != seq) return;
-                if (list == null || list.isEmpty()) { Toast.makeText(this, "Couldn't load most viewed videos", Toast.LENGTH_SHORT).show(); return; }
+                if (list == null || list.isEmpty()) { Toast.makeText(this, "Couldn't load popular videos", Toast.LENGTH_SHORT).show(); return; }
                 fix(list, key);
                 cards.addAll(0, list);
             });
             return;
         }
-        rowsHolder.setVisibility(View.GONE);
-        grid.setVisibility(View.VISIBLE);
-        cards.clear();
         next = null;
         loading = true;
         final ListLinkHandler h = Feeds.channelTab(info, key);
@@ -299,12 +387,11 @@ public class ChannelActivity extends FragmentActivity {
     }
 
     private void addPopularRow() {
-        final String cid = ucId();
         rows.add(() -> {
-            List<Item> l = Yti.channelPopular(cid);
+            List<Item> l = popular();
             fix(l, "popular");
             List<Shelf> out = new ArrayList<>();
-            if (!l.isEmpty()) out.add(new Shelf("Most viewed", l));
+            if (!l.isEmpty()) out.add(new Shelf("Popular", l));
             return out;
         });
     }
@@ -331,7 +418,12 @@ public class ChannelActivity extends FragmentActivity {
 
     private void fix(List<Item> items, String key) {
         for (Item i : items) {
-            if (ChannelTabs.SHORTS.equals(key)) i.isShort = true;
+            if (ChannelTabs.SHORTS.equals(key)) {
+                i.isShort = true;
+                // The Short's own tall picture (the usual one is wide, which crops badly).
+                String id = i.videoId();
+                if (id != null && !id.isEmpty()) i.thumb = "https://i.ytimg.com/vi/" + id + "/oardefault.jpg";
+            }
             if (i.channel.isEmpty()) i.channel = title;
             if (i.channelUrl.isEmpty()) i.channelUrl = url;
         }
@@ -371,6 +463,7 @@ public class ChannelActivity extends FragmentActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
+        if (e.getAction() == KeyEvent.ACTION_DOWN) userMoved = true;
         // Back from the videos goes to the tabs first
         if (e.getKeyCode() == KeyEvent.KEYCODE_BACK && e.getAction() == KeyEvent.ACTION_UP && header.getVisibility() == View.GONE) {
             for (TextView tv : tabViews) if (tab.equals(tv.getTag())) { tv.requestFocus(); return true; }

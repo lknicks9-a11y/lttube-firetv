@@ -134,6 +134,17 @@ public final class Store {
     public static int maxHeight() { return p.getInt("maxHeight", 1080); }
     public static void setMaxHeight(int h) { p.edit().putInt("maxHeight", h).apply(); }
     public static boolean autoplay() { return p.getBoolean("autoplay", true); }
+    /** Hide Shorts everywhere (Home rows, Subscriptions, channels, the player's list, the menu). */
+    public static boolean hideShorts() { return p.getBoolean("hideShorts", false); }
+    public static void setHideShorts(boolean b) { p.edit().putBoolean("hideShorts", b).apply(); }
+    /** Side menu items you've hidden. */
+    public static boolean navHidden(String key) { return ("," + p.getString("navHidden", "") + ",").contains("," + key + ","); }
+    public static void setNavHidden(String key, boolean hide) {
+        java.util.LinkedHashSet<String> s = new java.util.LinkedHashSet<>();
+        for (String k : p.getString("navHidden", "").split(",")) if (!k.isEmpty()) s.add(k);
+        if (hide) s.add(key); else s.remove(key);
+        p.edit().putString("navHidden", android.text.TextUtils.join(",", s)).apply();
+    }
     public static void setAutoplay(boolean b) { p.edit().putBoolean("autoplay", b).apply(); }
     public static boolean sponsorBlock() { return p.getBoolean("sponsorblock", true); }
     public static void setSponsorBlock(boolean b) { p.edit().putBoolean("sponsorblock", b).apply(); }

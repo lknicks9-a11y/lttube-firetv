@@ -666,13 +666,14 @@ public class PlayerActivity extends FragmentActivity {
         titleView.setText(item.title);
         List<String> bits = new ArrayList<>();
         if (si.getViewCount() >= 0) bits.add(Item.count(si.getViewCount()) + " views");
-        if (si.getTextualUploadDate() != null) bits.add(si.getTextualUploadDate());
+        String when = whenText(si);
+        if (!when.isEmpty()) bits.add(when);
         if (si.getLikeCount() >= 0) bits.add(Item.count(si.getLikeCount()) + " likes");
         metaView.setText(TextUtils.join("  •  ", bits));
         List<String> line = new ArrayList<>();
         line.add(item.channel);
         if (si.getViewCount() >= 0) line.add(Item.count(si.getViewCount()) + " views");
-        if (si.getTextualUploadDate() != null) line.add(si.getTextualUploadDate());
+        if (!when.isEmpty()) line.add(when);
         channelView.setText(TextUtils.join(" • ", line));
         item.sub = item.channel + " • " + TextUtils.join(" • ", bits);
         String av = Item.bestImage(si.getUploaderAvatars(), 88);
@@ -973,7 +974,7 @@ public class PlayerActivity extends FragmentActivity {
     /** Adds videos to the grid under the player (no repeats). Up next ones go first. */
     private void addToSheet(List<Item> list, boolean first) {
         List<Item> fresh = new ArrayList<>();
-        for (Item it : list) if (Item.VIDEO.equals(it.type) && it.videoId() != null && sheetSeen.add(it.videoId())) fresh.add(it);
+        for (Item it : list) if (Item.VIDEO.equals(it.type) && !(it.isShort && Store.hideShorts()) && it.videoId() != null && sheetSeen.add(it.videoId())) fresh.add(it);
         if (fresh.isEmpty() && !first) return;
         if (first) sheetItems.addAll(0, fresh); else sheetItems.addAll(fresh);
         if (sheetItems.size() > 90) sheetItems.subList(90, sheetItems.size()).clear();
@@ -1313,7 +1314,8 @@ public class PlayerActivity extends FragmentActivity {
             col.setOrientation(LinearLayout.VERTICAL);
             col.setPadding(dp(12), 0, 0, 0);
             TextView who = text(13, 0xFFBDBDBD, false);
-            String when = c.getTextualUploadDate() == null ? "" : "  •  " + c.getTextualUploadDate();
+            String cw = Item.niceDate(c.getTextualUploadDate(), 0);
+            String when = cw.isEmpty() ? "" : "  •  " + cw;
             who.setText((c.isPinned() ? "📌 " : "") + c.getUploaderName() + when);
             TextView body = text(15, Color.WHITE, false);
             String txt = c.getCommentText() == null ? "" : c.getCommentText().content();
@@ -1457,29 +1459,56 @@ public class PlayerActivity extends FragmentActivity {
         labels.add("Subtitles: " + (Store.captions() ? "On" : "Off"));
         actions.add(this::toggleCaptions);
         labels.add("Autoplay: " + (Store.autoplay() ? "On" : "Off"));
-        actions.add(() -> Store.setAutoplay(!Store.autoplay()));
+        actions.add(() -> { Store.setAutoplay(!Store.autoplay()); settingsMenu(); });
         labels.add("Skip sponsors: " + (Store.sponsorBlock() ? "On" : "Off"));
-        actions.add(() -> Store.setSponsorBlock(!Store.sponsorBlock()));
+        actions.add(() -> { Store.setSponsorBlock(!Store.sponsorBlock()); settingsMenu(); });
         labels.add("Loop this video: " + (player.getRepeatMode() == Player.REPEAT_MODE_ONE ? "On" : "Off"));
-        actions.add(() -> player.setRepeatMode(player.getRepeatMode() == Player.REPEAT_MODE_ONE ? Player.REPEAT_MODE_OFF : Player.REPEAT_MODE_ONE));
-        new AlertDialog.Builder(this).setTitle("Settings")
-                .setItems(labels.toArray(new String[0]), (dd, w) -> actions.get(w).run())
-                .show();
+        actions.add(() -> { player.setRepeatMode(player.getRepeatMode() == Player.REPEAT_MODE_ONE ? Player.REPEAT_MODE_OFF : Player.REPEAT_MODE_ONE); settingsMenu(); });
+        menuPanel("Settings", labels, -1, w -> actions.get(w).run());
     }
+
+    public interface Pick { void pick(int which); }
+
+    /**
+     * A settings list in the player's own side panel (like YouTube), not Fire TV's popup: rounded rows, the one
+     * in use ticked, Back closes it.
+     */
+    private void menuPanel(String title, List<String> labels, int checked, Pick onPick) {
+        openPanel(title);
+        View first = null;
+        for (int i = 0; i < labels.size(); i++) {
+            final int w = i;
+            final TextView t = text(18, Color.WHITE, i == checked);
+            t.setText((i == checked ? "✓   " : "      ") + labels.get(i));
+            t.setPadding(dp(18), dp(13), dp(18), dp(13));
+            t.setFocusable(true);
+            t.setOnFocusChangeListener((v, has) -> {
+                t.setBackground(has ? rounded(0xFFF1F1F1) : null);
+                t.setTextColor(has ? 0xFF0F0F0F : Color.WHITE);
+            });
+            t.setOnClickListener(v -> { closePanel(); onPick.pick(w); });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.bottomMargin = dp(4);
+            panelList.addView(t, lp);
+            if (first == null || i == checked) first = t;
+        }
+        if (first != null) { final View f = first; f.post(f::requestFocus); }
+    }
+
+    private static List<String> listOf(String... a) { return new ArrayList<>(java.util.Arrays.asList(a)); }
 
     private void qualityMenu() {
         final int[] hs = {2160, 1440, 1080, 720, 480, 360};
         String[] names = {"4K (2160p)", "1440p", "1080p", "720p", "480p", "360p"};
         int cur = 2;
         for (int i = 0; i < hs.length; i++) if (hs[i] == Store.maxHeight()) cur = i;
-        new AlertDialog.Builder(this).setTitle("Quality")
-                .setSingleChoiceItems(names, cur, (dd, w) -> {
-                    Store.setMaxHeight(hs[w]);
-                    portraitChecked = false;
-                    applyTrackPrefs(hs[w]);
-                    fixPortraitLimit(player.getCurrentTracks());
-                    dd.dismiss();
-                }).show();
+        menuPanel("Quality", listOf(names), cur, w -> {
+            Store.setMaxHeight(hs[w]);
+            portraitChecked = false;
+            applyTrackPrefs(hs[w]);
+            fixPortraitLimit(player.getCurrentTracks());
+            settingsMenu();
+        });
     }
 
     private void speedMenu() {
@@ -1487,12 +1516,11 @@ public class PlayerActivity extends FragmentActivity {
         String[] names = new String[ss.length];
         int cur = 3;
         for (int i = 0; i < ss.length; i++) { names[i] = speedName(ss[i]); if (ss[i] == Store.speed()) cur = i; }
-        new AlertDialog.Builder(this).setTitle("Playback speed")
-                .setSingleChoiceItems(names, cur, (dd, w) -> {
-                    Store.setSpeed(ss[w]);
-                    player.setPlaybackParameters(new PlaybackParameters(ss[w]));
-                    dd.dismiss();
-                }).show();
+        menuPanel("Playback speed", listOf(names), cur, w -> {
+            Store.setSpeed(ss[w]);
+            player.setPlaybackParameters(new PlaybackParameters(ss[w]));
+            settingsMenu();
+        });
     }
 
     private void audioMenu() {
@@ -1511,10 +1539,26 @@ public class PlayerActivity extends FragmentActivity {
             }
         }
         if (langs.size() < 2) { Toast.makeText(this, "This video has one audio language", Toast.LENGTH_SHORT).show(); return; }
-        new AlertDialog.Builder(this).setTitle("Audio language")
-                .setItems(names.toArray(new String[0]), (dd, w) -> selector.setParameters(
-                        selector.buildUponParameters().setPreferredAudioLanguage(langs.get(w)).build()))
-                .show();
+        menuPanel("Audio language", names, -1, w -> selector.setParameters(
+                selector.buildUponParameters().setPreferredAudioLanguage(langs.get(w)).build()));
+    }
+
+    /** "3 hours ago" — YouTube sometimes sends the date as raw text like 2026-11-18T14:00:12-08:00. */
+    private static String whenText(StreamInfo si) {
+        long ms = 0;
+        try { if (si.getUploadDate() != null) ms = si.getUploadDate().getInstant().toEpochMilli(); } catch (Throwable ignored) { }
+        String t = si.getTextualUploadDate();
+        if (ms > 0 && (t == null || t.matches("\\d{4}-\\d{2}-\\d{2}T.*"))) return Item.niceDate(null, ms);
+        return Item.niceDate(t, ms);
+    }
+
+    static String ago(long ms) {
+        long s = Math.max(0, (System.currentTimeMillis() - ms) / 1000);
+        if (s < 60) return "Just now";
+        long[] u = {31536000, 2592000, 604800, 86400, 3600, 60};
+        String[] n = {"year", "month", "week", "day", "hour", "minute"};
+        for (int i = 0; i < u.length; i++) if (s >= u[i]) { long v = s / u[i]; return v + " " + n[i] + (v == 1 ? "" : "s") + " ago"; }
+        return "Just now";
     }
 
     private static String speedName(float s) {
