@@ -9,6 +9,7 @@ import android.text.TextWatcher;
 import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.Gravity;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -51,31 +52,49 @@ public class SearchActivity extends FragmentActivity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        // Like YouTube on TV: the search bar on top, an on-screen keyboard under it (no Fire TV keyboard),
+        // suggestions beside it, and videos below.
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xFF0F0F0F);
-        root.setPadding(dp(48), dp(24), dp(24), 0);
+        root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFF26272D, 0xFF1C1D22}));
+        root.setPadding(dp(48), dp(26), dp(24), 0);
 
-        box = new EditText(this);
-        box.setSingleLine(true);
-        box.setHint("Search YouTube");
-        box.setTextColor(Color.WHITE);
-        box.setHintTextColor(0xFF888888);
-        box.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
-        box.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
-        box.setPadding(dp(20), dp(10), dp(20), dp(10));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xFF222222);
-        bg.setCornerRadius(dp(28));
-        bg.setStroke(dp(2), 0xFF444444);
-        box.setBackground(bg);
-        box.setOnFocusChangeListener((v, has) -> bg.setStroke(dp(2), has ? 0xFFFFFFFF : 0xFF444444));
-        root.addView(box, new LinearLayout.LayoutParams(dp(640), ViewGroup.LayoutParams.WRAP_CONTENT));
+        box = new EditText(this); // kept for the typed text; never shown
+        box.setVisibility(View.GONE);
+        root.addView(box);
+
+        pill = new TextView(this);
+        pill.setTextColor(0xFFB8BAC2);
+        pill.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        pill.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        pill.setText("Search");
+        pill.setSingleLine(true);
+        pill.setGravity(Gravity.CENTER_VERTICAL);
+        pill.setPadding(dp(22), 0, dp(22), 0);
+        GradientDrawable pb = new GradientDrawable();
+        pb.setColor(0xFF4A4C55);
+        pb.setCornerRadius(dp(26));
+        pill.setBackground(pb);
+        LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(560), dp(44));
+        pl.leftMargin = dp(90);
+        root.addView(pill, pl);
+
+        LinearLayout mid = new LinearLayout(this);
+        mid.setOrientation(LinearLayout.HORIZONTAL);
+        mid.setPadding(0, dp(14), 0, dp(6));
+        suggestList = new LinearLayout(this);
+        suggestList.setOrientation(LinearLayout.VERTICAL);
+        mid.addView(suggestList, new LinearLayout.LayoutParams(dp(330), -2));
+        keyboard = new LinearLayout(this);
+        keyboard.setOrientation(LinearLayout.VERTICAL);
+        mid.addView(keyboard);
+        root.addView(mid);
+        buildKeys();
 
         status = new TextView(this);
         status.setTextColor(0xFFAAAAAA);
-        status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        status.setPadding(dp(8), dp(8), 0, 0);
+        status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        status.setPadding(dp(8), 0, 0, 0);
         root.addView(status);
 
         FrameLayout holder = new FrameLayout(this);
@@ -99,8 +118,7 @@ public class SearchActivity extends FragmentActivity {
         rowsFragment.setOnItemViewClickedListener((vh, o, rvh, row) -> {
             Item it = (Item) o;
             if (Item.ACTION.equals(it.type)) {
-                box.setText(it.title);
-                box.setSelection(it.title.length());
+                setTyped(it.title);
                 search(it.title);
                 return;
             }
@@ -113,7 +131,7 @@ public class SearchActivity extends FragmentActivity {
             if (videos.indexOf(o) >= videos.size() - 6) loadMore();
         });
 
-        box.setOnEditorActionListener((v, actionId, ev) -> {
+        if (false) box.setOnEditorActionListener((v, actionId, ev) -> {
             if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE
                     || (ev != null && ev.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
                 search(box.getText().toString());
@@ -128,11 +146,125 @@ public class SearchActivity extends FragmentActivity {
         });
 
         showRecent();
-        box.requestFocus();
-        box.postDelayed(() -> {
-            InputMethodManager im = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (im != null) im.showSoftInput(box, InputMethodManager.SHOW_IMPLICIT);
-        }, 300);
+        startRow();
+        if (keyboard.getChildCount() > 0) ((ViewGroup) keyboard.getChildAt(0)).getChildAt(0).requestFocus();
+    }
+
+    // ------------------------------------------------------------------ on-screen keyboard
+    private TextView pill;
+    private LinearLayout keyboard, suggestList;
+    private boolean symbols;
+
+    private void buildKeys() {
+        keyboard.removeAllViews();
+        String[][] rowsK = symbols
+                ? new String[][]{{"1", "2", "3", "4", "5", "6", "7", "⌫"}, {"8", "9", "0", "&", "#", "@", "!", "ABC"}, {"?", ",", ".", ":", "(", ")", "+", "$"}, {"/", "%", "\"", "_", "=", "-", "'"}}
+                : new String[][]{{"A", "B", "C", "D", "E", "F", "G", "⌫"}, {"H", "I", "J", "K", "L", "M", "N", "&123"}, {"O", "P", "Q", "R", "S", "T", "U", "⌫"}, {"V", "W", "X", "Y", "Z", "-", "'"}};
+        if (!symbols) rowsK[2][7] = "";
+        for (String[] r : rowsK) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            for (String k : r) {
+                if (k.isEmpty()) continue;
+                row.addView(key(k, k.length() > 1 && !k.equals("⌫") ? dp(64) : dp(46)), new LinearLayout.LayoutParams(-2, dp(42)));
+            }
+            keyboard.addView(row);
+        }
+        LinearLayout last = new LinearLayout(this);
+        last.setOrientation(LinearLayout.HORIZONTAL);
+        last.setPadding(0, dp(8), 0, 0);
+        for (String k : new String[]{"SPACE", "CLEAR", "SEARCH"}) {
+            TextView b = key(k, dp(96));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(38));
+            lp.rightMargin = dp(10);
+            last.addView(b, lp);
+        }
+        keyboard.addView(last);
+    }
+
+    private TextView key(final String k, int width) {
+        final TextView t = new TextView(this);
+        t.setText(k);
+        t.setGravity(Gravity.CENTER);
+        t.setTextColor(Color.WHITE);
+        boolean big = k.length() > 1 && !k.equals("⌫");
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, big ? 14 : 20);
+        t.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        t.setMinWidth(width);
+        t.setFocusable(true);
+        final boolean button = k.equals("SPACE") || k.equals("CLEAR") || k.equals("SEARCH");
+        final Runnable paint = () -> {
+            GradientDrawable g = new GradientDrawable();
+            g.setCornerRadius(dp(8));
+            g.setColor(t.isFocused() ? 0xFFF1F1F1 : button ? 0xFF4A4C55 : 0x00000000);
+            t.setBackground(g);
+            t.setTextColor(t.isFocused() ? 0xFF0F0F0F : Color.WHITE);
+        };
+        paint.run();
+        t.setOnFocusChangeListener((v, has) -> paint.run());
+        t.setOnClickListener(v -> press(k));
+        return t;
+    }
+
+    private void press(String k) {
+        String cur = box.getText().toString();
+        switch (k) {
+            case "⌫": if (!cur.isEmpty()) setTyped(cur.substring(0, cur.length() - 1)); return;
+            case "&123": symbols = true; buildKeys(); ((ViewGroup) keyboard.getChildAt(1)).getChildAt(7).requestFocus(); return;
+            case "ABC": symbols = false; buildKeys(); ((ViewGroup) keyboard.getChildAt(1)).getChildAt(7).requestFocus(); return;
+            case "SPACE": setTyped(cur + " "); return;
+            case "CLEAR": setTyped(""); return;
+            case "SEARCH": search(cur); return;
+            default: setTyped(cur + (symbols ? k : k.toLowerCase()));
+        }
+    }
+
+    private void setTyped(String s) {
+        box.setText(s);
+        pill.setText(s.isEmpty() ? "Search" : s);
+        pill.setTextColor(s.isEmpty() ? 0xFFB8BAC2 : Color.WHITE);
+    }
+
+    /** Suggestions as a list beside the keyboard (like YouTube); choosing one searches it. */
+    private void showSuggestList(List<String> list) {
+        suggestList.removeAllViews();
+        for (final String q : list) {
+            if (suggestList.getChildCount() >= 6) break;
+            final TextView t = new TextView(this);
+            t.setText(q);
+            t.setSingleLine(true);
+            t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            t.setTextColor(Color.WHITE);
+            t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
+            t.setPadding(dp(16), dp(7), dp(16), dp(7));
+            t.setFocusable(true);
+            t.setOnFocusChangeListener((v, has) -> {
+                GradientDrawable g = new GradientDrawable();
+                g.setCornerRadius(dp(20));
+                g.setColor(has ? 0xFFF1F1F1 : 0x00000000);
+                t.setBackground(g);
+                t.setTextColor(has ? 0xFF0F0F0F : Color.WHITE);
+            });
+            t.setOnClickListener(v -> { setTyped(q); search(q); });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.rightMargin = dp(24);
+            suggestList.addView(t, lp);
+        }
+    }
+
+    /** Before you type: videos from your recent searches (or what's trending), like YouTube's "From recommended searches". */
+    private void startRow() {
+        final List<String> recent = Store.searches();
+        final String q = recent.isEmpty() ? "" : recent.get(0);
+        Bg.run(() -> q.isEmpty() ? Feeds.search("trending today") : Feeds.search(q), (r, err) -> {
+            if (r == null || !query.isEmpty()) return;
+            List<Item> v = new ArrayList<>();
+            for (Item i : r.items) if (Item.VIDEO.equals(i.type)) v.add(i);
+            videos.clear();
+            videos.addAll(0, v);
+            videoRow = new ListRow(new HeaderItem(q.isEmpty() ? "Trending" : "From recommended searches"), videos);
+            rows.add(videoRow);
+        });
     }
 
     private void showRecent() {
@@ -159,9 +291,7 @@ public class SearchActivity extends FragmentActivity {
             if (seq != suggestSeq) return;
             Bg.run(() -> Feeds.suggestions(q), (list, err) -> {
                 if (seq != suggestSeq || list == null) return;
-                List<Item> s = new ArrayList<>();
-                for (String x : list) if (s.size() < 10) s.add(Item.action("q", x, "Search", 0xFF303030));
-                setSuggestions("Suggestions", s);
+                showSuggestList(list);
             });
         }, 300);
     }
@@ -172,8 +302,6 @@ public class SearchActivity extends FragmentActivity {
         query = q;
         suggestSeq++;
         Store.searched(q);
-        InputMethodManager im = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (im != null) im.hideSoftInputFromWindow(box.getWindowToken(), 0);
         status.setText("Searching for \"" + q + "\"…");
         final int seq = ++searchSeq;
         final String fq = q;

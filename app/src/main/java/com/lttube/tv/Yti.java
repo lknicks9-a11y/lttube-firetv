@@ -245,6 +245,39 @@ public final class Yti {
         return out;
     }
 
+    /**
+     * Posts a comment on a video as your signed-in channel. YouTube hands out a "create comment" ticket inside the
+     * video's comments section; this finds it (TV app first, then web) and posts the text with it.
+     */
+    public static void postComment(String videoId, String text) throws Exception {
+        if (!Account.signedIn()) throw new Exception("Sign in to comment");
+        Exception last = null;
+        for (boolean tv : new boolean[]{false, true}) {
+            try {
+                JSONObject r = call("next", new JSONObject().put("videoId", videoId), tv);
+                String params = findString(r, "createCommentParams");
+                if (params == null) {
+                    // The comments section comes in a second request.
+                    String token = null;
+                    List<JSONObject> secs = new ArrayList<>();
+                    collectWith(r, "sectionIdentifier", secs);
+                    for (JSONObject o : secs) if ("comment-item-section".equals(o.optString("sectionIdentifier"))) token = findString(o, "token");
+                    if (token == null) {
+                        List<JSONObject> panels = new ArrayList<>();
+                        collectWith(r, "targetId", panels);
+                        for (JSONObject o : panels) if (o.optString("targetId").contains("comments")) { token = findString(o, "token"); if (token != null) break; }
+                    }
+                    if (token != null) params = findString(call("next", new JSONObject().put("continuation", token), tv), "createCommentParams");
+                }
+                if (params == null) throw new Exception("Comments are off for this video");
+                JSONObject res = call("comment/create_comment", new JSONObject().put("commentText", text).put("createCommentParams", params), tv);
+                if (res.toString().contains("\"status\":\"STATUS_FAILED\"")) throw new Exception("YouTube didn't accept the comment");
+                return;
+            } catch (Exception e) { last = e; }
+        }
+        throw last == null ? new Exception("Couldn't post") : last;
+    }
+
     /** Every object that has the given key, anywhere in a response. */
     private static void collectWith(Object node, String key, List<JSONObject> out) {
         if (node instanceof JSONArray) {

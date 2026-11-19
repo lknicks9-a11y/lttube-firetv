@@ -371,7 +371,7 @@ public class PlayerActivity extends FragmentActivity {
         // ---- side panel (comments / description)
         panel = new FrameLayout(this);
         panel.setVisibility(View.GONE);
-        panel.setBackground(Ui.panel(this, 0));
+        panel.setBackgroundColor(Color.TRANSPARENT);
         panelScroll = new ScrollView(this);
         panelScroll.setFillViewport(true);
         panelList = new LinearLayout(this);
@@ -468,11 +468,11 @@ public class PlayerActivity extends FragmentActivity {
         b.setBackground(isAvatar ? null : glassCircle());
         b.setOnFocusChangeListener((v, has) -> {
             if (b == btnPlay) {
-                b.setBackground(has ? circleStroke(Color.WHITE, dp(3), 0x99FFFFFF) : circle(Color.WHITE));
+                b.setBackground(has ? circleStroke(0xFFCFD1D6, dp(3), 0x99FFFFFF) : circle(0xFFCFD1D6));
                 return;
             }
             if (isAvatar) { b.setBackground(has ? circleStroke(Color.TRANSPARENT, dp(3), Color.WHITE) : null); return; }
-            b.setBackground(has ? circle(Color.WHITE) : glassCircle());
+            b.setBackground(has ? circle(0xFFCFD1D6) : glassCircle());
             b.setColorFilter(has ? 0xFF0F0F0F : Color.WHITE);
         });
         b.setOnClickListener(click);
@@ -1058,6 +1058,12 @@ public class PlayerActivity extends FragmentActivity {
         timeRow.setVisibility(View.GONE);
         bar.setVisibility(View.GONE);
         controls.setVisibility(View.GONE);
+        // Like YouTube: the list glides up and fades in instead of jumping into place.
+        upNextRow.setAlpha(0.35f);
+        upNextRow.setTranslationY(dp(160));
+        upNextRow.animate().alpha(1f).translationY(0).setDuration(320).setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+        bottom.setAlpha(0.6f);
+        bottom.animate().alpha(1f).setDuration(320).start();
         upNextScroll.scrollTo(0, 0);
         moreScroll.scrollTo(0, 0);
         upNextCards.getChildAt(0).requestFocus();
@@ -1146,6 +1152,14 @@ public class PlayerActivity extends FragmentActivity {
         int top = row == null ? 0 : moreBox.getTop() + row.getTop();
         final int y = Math.max(0, top - Math.round(moreScroll.getHeight() * 0.36f));
         moreScroll.post(() -> moreScroll.smoothScrollTo(0, y));
+        // The row you left fades back; the one you're on and those below are bright (like YouTube's cross-fade).
+        List<ViewGroup> all = sheetRows();
+        int at = all.indexOf(cardsRow);
+        for (int i = 0; i < all.size(); i++) {
+            ViewGroup cr = all.get(i);
+            View holder = cr == upNextCards ? upNextScroll : (View) cr.getParent().getParent();
+            holder.animate().alpha(i < at ? 0.28f : 1f).setDuration(260).start();
+        }
     }
 
     private View firstCard(LinearLayout box) {
@@ -1207,6 +1221,12 @@ public class PlayerActivity extends FragmentActivity {
         if (upNextScroll != null) upNextScroll.scrollTo(0, 0);
         controls.setVisibility(View.VISIBLE);
         topInfo.setVisibility(View.VISIBLE);
+        // Back up: the controls fade back in.
+        for (View fv : new View[]{controls, topInfo}) { fv.setAlpha(0f); fv.animate().alpha(1f).setDuration(240).start(); }
+        upNextRow.setTranslationY(dp(60));
+        upNextRow.animate().translationY(0).setDuration(240).start();
+        if (moreBox != null) for (int i = 0; i < moreBox.getChildCount(); i++) moreBox.getChildAt(i).setAlpha(1f);
+        if (upNextScroll != null) upNextScroll.setAlpha(1f);
         if (timeRow != null) timeRow.setVisibility(View.VISIBLE);
         bar.setVisibility(View.VISIBLE);
     }
@@ -1218,10 +1238,12 @@ public class PlayerActivity extends FragmentActivity {
     // ================================================================== side panels
     private void openPanel(String title) {
         panelList.removeAllViews();
-        TextView t = text(22, Color.WHITE, true);
-        t.setText(title);
-        t.setPadding(0, 0, 0, dp(16));
-        panelList.addView(t);
+        if (title != null && !title.isEmpty()) {
+            TextView t = text(22, Color.WHITE, true);
+            t.setText(title);
+            t.setPadding(dp(4), 0, 0, dp(16));
+            panelList.addView(t);
+        }
         panel.setVisibility(View.VISIBLE);
         panelScroll.scrollTo(0, 0);
         setOverlay(false);
@@ -1243,7 +1265,7 @@ public class PlayerActivity extends FragmentActivity {
             root.setBackgroundColor(shortsMode ? 0xFF1A1E26 : Color.BLACK);
             return;
         }
-        root.setBackgroundColor(0xFF1E1F25);
+        root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFF4B4E58, 0xFF3A3C44, 0xFF2E3037}));
         int panelW = panel.getLayoutParams().width > 0 ? panel.getLayoutParams().width : dp(460);
         int room = W - panelW - dp(70);
         float sc;
@@ -1290,36 +1312,177 @@ public class PlayerActivity extends FragmentActivity {
         return t;
     }
 
+    /** A rounded card in the side panel; when you're on it, it turns white with dark text (like YouTube). */
+    private LinearLayout card(boolean focusable) {
+        final LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setPadding(dp(18), dp(14), dp(18), dp(14));
+        c.setBackground(rounded(0x29FFFFFF));
+        if (focusable) {
+            c.setFocusable(true);
+            c.setOnFocusChangeListener((v, has) -> paintCard(c, has));
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.bottomMargin = dp(10);
+        c.setLayoutParams(lp);
+        return c;
+    }
+
+    private void paintCard(ViewGroup c, boolean on) {
+        c.setBackground(rounded(on ? 0xFFF1F1F1 : 0x29FFFFFF));
+        tint(c, on);
+    }
+
+    private void tint(ViewGroup g, boolean on) {
+        for (int i = 0; i < g.getChildCount(); i++) {
+            View v = g.getChildAt(i);
+            if (v instanceof TextView) {
+                TextView t = (TextView) v;
+                if (t.getTag(R.id.tag_color) == null) t.setTag(R.id.tag_color, t.getCurrentTextColor());
+                int base = (Integer) t.getTag(R.id.tag_color);
+                t.setTextColor(on ? (base == Color.WHITE ? 0xFF0F0F0F : 0xFF50525A) : base);
+            } else if (v instanceof ImageView && Boolean.TRUE.equals(v.getTag(R.id.tag_tint))) {
+                ((ImageView) v).setColorFilter(on ? 0xFF0F0F0F : Color.WHITE);
+            } else if (v instanceof ViewGroup) tint((ViewGroup) v, on);
+        }
+    }
+
     private void openDescription() {
         if (info == null) return;
-        openPanel("Description");
-        panelText(item.title, 18, Color.WHITE, false).setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        panelText(metaView.getText(), 15, 0xFFBDBDBD, false);
-        List<StreamSegment> segs = info.getStreamSegments();
-        View first = null;
-        if (segs != null && !segs.isEmpty()) {
-            panelText("Chapters", 17, Color.WHITE, false);
-            for (final StreamSegment s : segs) {
-                TextView t = panelText(fmt(s.getStartTimeSeconds() * 1000L) + "   " + s.getTitle(), 15, 0xFF3EA6FF, true);
-                t.setOnClickListener(v -> { player.seekTo(s.getStartTimeSeconds() * 1000L); player.play(); closePanel(); });
-                if (first == null) first = t;
+        openPanel("");
+        // Title
+        TextView title = text(22, Color.WHITE, true);
+        title.setText(item.title);
+        title.setMaxLines(4);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        title.setPadding(dp(4), 0, 0, dp(16));
+        panelList.addView(title);
+        // Likes · Views · Date, big numbers like YouTube
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+        stats.setPadding(0, 0, 0, dp(16));
+        long likes = info.getLikeCount(), views = info.getViewCount();
+        String[] top = new String[3], bottom = new String[3];
+        top[0] = likes >= 0 ? java.text.NumberFormat.getIntegerInstance().format(likes) : "—"; bottom[0] = "Likes";
+        top[1] = views >= 0 ? java.text.NumberFormat.getIntegerInstance().format(views) : "—"; bottom[1] = "Views";
+        top[2] = ""; bottom[2] = "";
+        try {
+            if (info.getUploadDate() != null) {
+                java.util.Date d = new java.util.Date(info.getUploadDate().getInstant().toEpochMilli());
+                top[2] = new java.text.SimpleDateFormat("MMM d", Locale.US).format(d);
+                bottom[2] = new java.text.SimpleDateFormat("yyyy", Locale.US).format(d);
             }
+        } catch (Throwable ignored) { }
+        for (int i = 0; i < 3; i++) {
+            if (top[i].isEmpty()) continue;
+            LinearLayout col = new LinearLayout(this);
+            col.setOrientation(LinearLayout.VERTICAL);
+            col.setGravity(Gravity.CENTER_HORIZONTAL);
+            TextView a = text(20, Color.WHITE, true);
+            a.setText(top[i]);
+            TextView b = text(14, 0xFFC4C6CC, false);
+            b.setText(bottom[i]);
+            col.addView(a);
+            col.addView(b);
+            stats.addView(col, new LinearLayout.LayoutParams(0, -2, 1f));
         }
+        panelList.addView(stats);
+        // Channel
+        LinearLayout ch = card(true);
+        ch.setOrientation(LinearLayout.HORIZONTAL);
+        ch.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView av = new ImageView(this);
+        String avUrl = Item.bestImage(info.getUploaderAvatars(), 88);
+        if (!avUrl.isEmpty()) Glide.with(this).load(avUrl).apply(RequestOptions.circleCropTransform()).into(av);
+        ch.addView(av, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        TextView chName = text(17, Color.WHITE, false);
+        chName.setText(item.channel);
+        chName.setPadding(dp(14), 0, 0, 0);
+        ch.addView(chName, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView chev = text(22, Color.WHITE, false);
+        chev.setText("›");
+        ch.addView(chev);
+        ch.setOnClickListener(v -> { if (!item.channelUrl.isEmpty()) Nav.channel(this, item.channelUrl, item.channel); });
+        panelList.addView(ch);
+        // Description (opens fully when chosen)
         String desc = info.getDescription() == null ? "" : info.getDescription().content();
         desc = desc.replaceAll("(?i)<br\\s*/?>", "\n").replaceAll("<[^>]+>", "").replace("&amp;", "&")
-                .replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">");
-        for (String para : desc.split("\n\n")) {
-            if (para.trim().isEmpty()) continue;
-            TextView t = panelText(para.trim(), 15, 0xFFE0E0E0, true);
-            if (first == null) first = t;
+                .replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">").trim();
+        if (!desc.isEmpty()) {
+            final LinearLayout dc = card(true);
+            TextView h1 = text(17, Color.WHITE, true);
+            h1.setText("Description");
+            dc.addView(h1);
+            final TextView body = text(16, Color.WHITE, false);
+            body.setText(desc);
+            body.setMaxLines(4);
+            body.setEllipsize(TextUtils.TruncateAt.END);
+            body.setLineSpacing(0, 1.15f);
+            body.setPadding(0, dp(6), 0, 0);
+            dc.addView(body);
+            dc.setOnClickListener(v -> body.setMaxLines(body.getMaxLines() == 4 ? Integer.MAX_VALUE : 4));
+            panelList.addView(dc);
         }
-        if (first != null) first.requestFocus();
-        else panel.requestFocus();
+        // Chapters
+        List<StreamSegment> segs = info.getStreamSegments();
+        if (segs != null && !segs.isEmpty()) {
+            TextView hc = text(17, Color.WHITE, true);
+            hc.setText("Chapters");
+            hc.setPadding(dp(4), dp(6), 0, dp(8));
+            panelList.addView(hc);
+            for (final StreamSegment sg : segs) {
+                LinearLayout c = card(true);
+                TextView t = text(16, Color.WHITE, false);
+                t.setText(fmt(sg.getStartTimeSeconds() * 1000L) + "   " + sg.getTitle());
+                c.addView(t);
+                c.setOnClickListener(v -> { player.seekTo(sg.getStartTimeSeconds() * 1000L); player.play(); closePanel(); });
+                panelList.addView(c);
+            }
+        }
+        // Comments
+        LinearLayout cc = card(true);
+        cc.setOrientation(LinearLayout.HORIZONTAL);
+        cc.setGravity(Gravity.CENTER_VERTICAL);
+        TextView ct = text(17, Color.WHITE, true);
+        ct.setText("Comments");
+        cc.addView(ct, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView cchev = text(22, Color.WHITE, false);
+        cchev.setText("›");
+        cc.addView(cchev);
+        cc.setOnClickListener(v -> openComments());
+        panelList.addView(cc);
+        ch.post(ch::requestFocus);
     }
 
     private void openComments() {
         if (info == null) return;
-        openPanel("Comments");
+        openPanel("");
+        final TextView head = text(22, Color.WHITE, true);
+        head.setText("Comments");
+        head.setPadding(dp(4), 0, 0, dp(14));
+        panelList.addView(head);
+        // "Comment as @you" — choose it to write and post a comment
+        LinearLayout box = card(true);
+        box.setOrientation(LinearLayout.HORIZONTAL);
+        box.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView me = new ImageView(this);
+        if (!Account.photo().isEmpty()) Glide.with(this).load(Account.photo()).apply(RequestOptions.circleCropTransform()).into(me);
+        box.addView(me, new LinearLayout.LayoutParams(dp(32), dp(32)));
+        TextView as = text(16, 0xFFC4C6CC, false);
+        String who = !Account.handle().isEmpty() ? Account.handle() : Account.name();
+        as.setText(Account.signedIn() ? "Comment as " + who : "Sign in to comment");
+        as.setSingleLine(true);
+        as.setEllipsize(TextUtils.TruncateAt.END);
+        as.setPadding(dp(14), 0, dp(8), 0);
+        box.addView(as, new LinearLayout.LayoutParams(0, -2, 1f));
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_comment);
+        icon.setColorFilter(Color.WHITE);
+        icon.setTag(R.id.tag_tint, Boolean.TRUE);
+        box.addView(icon, new LinearLayout.LayoutParams(dp(24), dp(24)));
+        box.setOnClickListener(v -> writeComment());
+        panelList.addView(box);
+        box.post(box::requestFocus);
         final TextView loading = panelText("Loading comments…", 15, 0xFFBDBDBD, false);
         commentsUrl = item.url;
         final String url = item.url;
@@ -1329,9 +1492,13 @@ public class PlayerActivity extends FragmentActivity {
             if (!url.equals(commentsUrl)) return;
             panelList.removeView(loading);
             if (ci == null) { panelText("Comments couldn't be loaded: " + Bg.message(err), 15, 0xFFFF8A80, false); return; }
-            if (ci.getCommentsCount() > 0) ((TextView) panelList.getChildAt(0)).setText(Item.count(ci.getCommentsCount()) + " Comments");
+            if (ci.getCommentsCount() > 0) {
+                android.text.SpannableString sp = new android.text.SpannableString("Comments  " + Item.count(ci.getCommentsCount()));
+                sp.setSpan(new android.text.style.ForegroundColorSpan(0xFFC4C6CC), 10, sp.length(), 0);
+                head.setText(sp);
+            }
             commentsNext = ci.getNextPage();
-            addComments(ci.getRelatedItems(), true);
+            addComments(ci.getRelatedItems(), false);
             if (ci.getRelatedItems().isEmpty()) panelText("Comments are turned off or there aren't any yet.", 15, 0xFFBDBDBD, false);
         });
     }
@@ -1339,43 +1506,85 @@ public class PlayerActivity extends FragmentActivity {
     private void addComments(List<CommentsInfoItem> list, boolean focusFirst) {
         View first = null;
         for (CommentsInfoItem c : list) {
-            final LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setPadding(dp(10), dp(10), dp(10), dp(10));
-            row.setFocusable(true);
+            final LinearLayout row = card(true);
             row.setOnFocusChangeListener((v, has) -> {
-                row.setBackground(has ? rounded(0x33FFFFFF) : null);
+                paintCard(row, has);
                 if (has && panelList.indexOfChild(row) >= panelList.getChildCount() - 3) moreComments();
             });
+            LinearLayout headRow = new LinearLayout(this);
+            headRow.setOrientation(LinearLayout.HORIZONTAL);
+            headRow.setGravity(Gravity.CENTER_VERTICAL);
             ImageView av = new ImageView(this);
             String a = Item.bestImage(c.getUploaderAvatars(), 48);
             if (!a.isEmpty()) Glide.with(this).load(a).apply(RequestOptions.circleCropTransform()).into(av);
-            row.addView(av, new LinearLayout.LayoutParams(dp(32), dp(32)));
-            LinearLayout col = new LinearLayout(this);
-            col.setOrientation(LinearLayout.VERTICAL);
-            col.setPadding(dp(12), 0, 0, 0);
-            TextView who = text(13, 0xFFBDBDBD, false);
+            headRow.addView(av, new LinearLayout.LayoutParams(dp(30), dp(30)));
+            TextView who = text(15, Color.WHITE, true);
             String cw = Item.niceDate(c.getTextualUploadDate(), 0);
-            String when = cw.isEmpty() ? "" : "  •  " + cw;
-            who.setText((c.isPinned() ? "📌 " : "") + c.getUploaderName() + when);
-            TextView body = text(15, Color.WHITE, false);
+            who.setText((c.isPinned() ? "📌 " : "") + c.getUploaderName() + (cw.isEmpty() ? "" : "  •  " + cw));
+            who.setSingleLine(true);
+            who.setEllipsize(TextUtils.TruncateAt.END);
+            who.setPadding(dp(12), 0, 0, 0);
+            headRow.addView(who, new LinearLayout.LayoutParams(0, -2, 1f));
+            row.addView(headRow);
+            TextView body = text(16, Color.WHITE, false);
             String txt = c.getCommentText() == null ? "" : c.getCommentText().content();
             body.setText(txt.replaceAll("(?i)<br\\s*/?>", "\n").replaceAll("<[^>]+>", "").replace("&amp;", "&").replace("&quot;", "\"").replace("&#39;", "'"));
             body.setLineSpacing(0, 1.12f);
-            TextView likes = text(13, 0xFFBDBDBD, false);
+            body.setPadding(0, dp(8), 0, 0);
+            row.addView(body);
             List<String> bits = new ArrayList<>();
             if (c.getLikeCount() > 0) bits.add("👍 " + Item.count(c.getLikeCount()));
             if (c.isHeartedByUploader()) bits.add("❤ by creator");
             if (c.getReplyCount() > 0) bits.add(c.getReplyCount() + " replies");
-            likes.setText(TextUtils.join("    ", bits));
-            col.addView(who);
-            col.addView(body);
-            if (!bits.isEmpty()) col.addView(likes);
-            row.addView(col, new LinearLayout.LayoutParams(0, -2, 1f));
+            if (!bits.isEmpty()) {
+                TextView likes = text(14, 0xFFC4C6CC, false);
+                likes.setText(TextUtils.join("    ", bits));
+                likes.setPadding(0, dp(8), 0, 0);
+                row.addView(likes);
+            }
             panelList.addView(row);
             if (first == null) first = row;
         }
         if (focusFirst && first != null) first.requestFocus();
+    }
+
+    /** Write a comment (on-screen typing) and post it to YouTube as your channel. */
+    private void writeComment() {
+        if (!Account.signedIn()) { Toast.makeText(this, "Sign in (Settings) to comment", Toast.LENGTH_SHORT).show(); return; }
+        final android.widget.EditText in = new android.widget.EditText(this);
+        in.setHint("Add a comment…");
+        in.setTextColor(Color.WHITE);
+        in.setHintTextColor(0xFF9A9CA4);
+        in.setMinLines(2);
+        in.setBackground(rounded(0x29FFFFFF));
+        in.setPadding(dp(16), dp(12), dp(16), dp(12));
+        final String vid = item.videoId();
+        new LtDialog.Builder(this)
+                .setTitle("Comment as " + (!Account.handle().isEmpty() ? Account.handle() : Account.name()))
+                .setView(in)
+                .setPositiveButton("Comment", (d, w) -> {
+                    final String text = in.getText().toString().trim();
+                    if (text.isEmpty()) return;
+                    Bg.run(() -> { Yti.postComment(vid, text); return true; }, (r, e) -> {
+                        if (r == null) { Toast.makeText(this, "Couldn't post: " + Bg.message(e), Toast.LENGTH_LONG).show(); return; }
+                        Toast.makeText(this, "Comment posted", Toast.LENGTH_SHORT).show();
+                        // Show it at the top right away.
+                        if (panel.getVisibility() == View.VISIBLE && panelList.getChildCount() > 2) {
+                            LinearLayout mine = card(true);
+                            TextView h = text(15, Color.WHITE, true);
+                            h.setText((!Account.handle().isEmpty() ? Account.handle() : Account.name()) + "  •  Just now");
+                            TextView b = text(16, Color.WHITE, false);
+                            b.setText(text);
+                            b.setPadding(0, dp(8), 0, 0);
+                            mine.addView(h);
+                            mine.addView(b);
+                            panelList.addView(mine, 2);
+                        }
+                    });
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+        in.post(in::requestFocus);
     }
 
     private void moreComments() {
