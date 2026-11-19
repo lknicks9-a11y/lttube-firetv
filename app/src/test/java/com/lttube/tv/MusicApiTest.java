@@ -1,0 +1,83 @@
+package com.lttube.tv;
+
+import com.lttube.tv.music.Lyrics;
+import com.lttube.tv.music.MItem;
+import com.lttube.tv.music.Ytm;
+
+import org.junit.Test;
+import org.schabi.newpipe.extractor.NewPipe;
+import org.schabi.newpipe.extractor.localization.ContentCountry;
+import org.schabi.newpipe.extractor.localization.Localization;
+import org.schabi.newpipe.extractor.stream.AudioStream;
+import org.schabi.newpipe.extractor.stream.StreamInfo;
+
+/** Prints what YouTube Music's API gives the music app (as a guest). Never fails. */
+public class MusicApiTest {
+    private static void dump(String name, Ytm.Page p) {
+        System.out.println("MUS " + name + " title=[" + p.title + "] sub=[" + p.subtitle + "] thumb=" + !p.thumb.isEmpty()
+                + " pl=" + p.playlistId + " shelves=" + p.shelves.size() + " cont=" + (p.continuation != null));
+        for (Ytm.Shelf s : p.shelves) {
+            System.out.println("MUS   SHELF [" + s.strap + " / " + s.title + "] list=" + s.list + " n=" + s.items.size());
+            for (int i = 0; i < Math.min(3, s.items.size()); i++) {
+                MItem m = s.items.get(i);
+                System.out.println("MUS     " + m.type + " | " + m.title + " | sub=" + m.subtitle + " | artist=" + m.artist + " | album=" + m.album
+                        + " | v=" + m.videoId + " pl=" + m.playlistId + " b=" + m.browseId + " s=" + m.seconds + " thumb=" + (m.thumb.length() > 0 ? m.thumb.substring(0, Math.min(70, m.thumb.length())) : "-"));
+            }
+        }
+    }
+
+    private static Ytm.Page safe(String name, java.util.concurrent.Callable<Ytm.Page> c) {
+        try { Ytm.Page p = c.call(); dump(name, p); return p; }
+        catch (Throwable e) { System.out.println("MUS " + name + " FAILED " + e); return null; }
+    }
+
+    @Test
+    public void everything() {
+        Localization loc = new Localization("en", "US");
+        NewPipe.init(NpDownloader.get(), loc, new ContentCountry("US"));
+        Ytm.Page home = safe("HOME", () -> Ytm.browse(Ytm.HOME));
+        if (home != null && home.continuation != null) safe("HOME+", () -> Ytm.more(home.continuation));
+        safe("NEW", () -> Ytm.browse(Ytm.NEW));
+        safe("CHARTS", () -> Ytm.browse(Ytm.CHARTS));
+        Ytm.Page moods = safe("MOODS", () -> Ytm.browse(Ytm.MOODS));
+        if (moods != null) for (Ytm.Shelf s : moods.shelves) for (MItem m : s.items) if (MItem.CATEGORY.equals(m.type)) {
+            System.out.println("MUS MOOD color=" + Integer.toHexString(m.color));
+            safe("MOOD " + m.title, () -> Ytm.browse(m.browseId, m.params));
+            break;
+        }
+        Ytm.Page search = safe("SEARCH", () -> Ytm.search("coldplay", false));
+        safe("SEARCH SONGS", () -> Ytm.search("yellow coldplay", true));
+        System.out.println("MUS SUGGEST " + Ytm.suggestions("taylor"));
+        MItem album = null, artist = null, playlist = null, song = null;
+        if (search != null) for (Ytm.Shelf s : search.shelves) for (MItem m : s.items) {
+            if (album == null && MItem.ALBUM.equals(m.type)) album = m;
+            if (artist == null && MItem.ARTIST.equals(m.type)) artist = m;
+            if (playlist == null && MItem.PLAYLIST.equals(m.type)) playlist = m;
+            if (song == null && m.playable()) song = m;
+        }
+        final MItem a = album, ar = artist, pl = playlist;
+        if (a != null) safe("ALBUM " + a.browseId, () -> Ytm.browse(a.browseId));
+        if (ar != null) safe("ARTIST " + ar.browseId, () -> Ytm.browse(ar.browseId));
+        if (pl != null) safe("PLAYLIST " + pl.browseId, () -> Ytm.browse(pl.browseId));
+        String vid = song != null ? song.videoId : "yKNxeF4KMsY";
+        try {
+            Ytm.Queue q = Ytm.queue(vid, null, true);
+            System.out.println("MUS QUEUE n=" + q.items.size() + " cont=" + (q.continuation != null) + " lyrics=" + q.lyricsId + " related=" + q.relatedId);
+            for (int i = 0; i < Math.min(4, q.items.size()); i++) { MItem m = q.items.get(i); System.out.println("MUS   Q " + m.title + " | " + m.artist + " | " + m.album + " | " + m.seconds + " | " + m.thumb.length()); }
+            if (q.continuation != null) {
+                Ytm.Queue q2 = Ytm.queueMore(q.continuation, vid, "RDAMVM" + vid);
+                System.out.println("MUS QUEUE+ n=" + q2.items.size());
+            }
+            MItem first = q.items.isEmpty() ? song : q.items.get(0);
+            if (first != null) {
+                Lyrics l = Lyrics.find(first, q.lyricsId);
+                System.out.println("MUS LYRICS " + (l == null ? "none" : l.source + " timed=" + l.timed + " lines=" + l.lines.size()));
+            }
+            System.out.println("MUS YT LYRICS " + (Ytm.lyrics(q.lyricsId) == null ? "none" : "yes"));
+        } catch (Throwable e) { System.out.println("MUS QUEUE FAILED " + e); }
+        try {
+            StreamInfo si = StreamInfo.getInfo(NewPipe.getService(0), "https://www.youtube.com/watch?v=" + vid);
+            for (AudioStream s : si.getAudioStreams()) System.out.println("MUS AUDIO " + s.getFormat() + " " + s.getAverageBitrate() + " " + s.getDeliveryMethod() + " " + s.getCodec());
+        } catch (Throwable e) { System.out.println("MUS AUDIO FAILED " + e); }
+    }
+}
