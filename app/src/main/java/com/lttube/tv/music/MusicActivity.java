@@ -157,7 +157,25 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
     private List<Ytm.Page> load(String key) throws Exception {
         List<Ytm.Page> out = new ArrayList<>();
         switch (key) {
-            case "home": out.add(Ytm.browse(Ytm.HOME)); break;
+            case "home": {
+                Ytm.Page home = Ytm.browse(Ytm.HOME);
+                out.add(home);
+                // Signed out, YouTube Music's Home is short: new releases and the charts fill it out.
+                int n = home.shelves.size();
+                if (n < 6) {
+                    java.util.Set<String> have = new java.util.HashSet<>();
+                    for (Ytm.Shelf sh : home.shelves) have.add(sh.title);
+                    for (String id : new String[]{Ytm.NEW, Ytm.CHARTS}) {
+                        try {
+                            Ytm.Page more = Ytm.browse(id);
+                            Ytm.Page keep = new Ytm.Page();
+                            for (Ytm.Shelf sh : more.shelves) if (!sh.title.isEmpty() && have.add(sh.title) && !sh.title.toLowerCase(java.util.Locale.US).contains("podcast")) keep.shelves.add(sh);
+                            out.add(keep);
+                        } catch (Exception ignored) { }
+                    }
+                }
+                break;
+            }
             case "new": out.add(Ytm.browse(Ytm.NEW)); break;
             case "charts": out.add(Ytm.browse(Ytm.CHARTS)); break;
             case "moods": out.add(Ytm.browse(Ytm.MOODS)); break;

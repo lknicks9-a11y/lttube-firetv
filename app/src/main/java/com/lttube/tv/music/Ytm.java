@@ -46,6 +46,8 @@ public final class Ytm {
         public String playlistId = "";
         public final List<Shelf> shelves = new ArrayList<>();
         public String continuation;
+        /** Results that come one per section (search), grouped into shelves afterwards. */
+        final List<MItem> loose = new ArrayList<>();
         /** For a song list page: every song on it. */
         public List<MItem> songs() {
             List<MItem> l = new ArrayList<>();
@@ -247,6 +249,7 @@ public final class Ytm {
         Page p = new Page();
         header(r, p);
         walk(r, p, 0);
+        group(p);
         // Continuation for more shelves.
         List<JSONObject> lists = new ArrayList<>();
         collect(r, "sectionListRenderer", lists);
@@ -259,6 +262,26 @@ public final class Ytm {
             if (m.album.isEmpty() && s.list && !p.title.isEmpty() && p.subtitle.toLowerCase(Locale.US).contains("album")) m.album = p.title;
         }
         return p;
+    }
+
+    /** Search results by kind, in YouTube Music's order of usefulness. */
+    private static void group(Page p) {
+        if (p.loose.isEmpty()) return;
+        String[][] kinds = {{"song", "Songs"}, {MItem.ALBUM, "Albums"}, {MItem.ARTIST, "Artists"}, {MItem.PLAYLIST, "Playlists"}, {"video", "Videos"}};
+        int at = 0;
+        for (Shelf s : p.shelves) if ("Top result".equals(s.title)) at = p.shelves.indexOf(s) + 1;
+        for (String[] k : kinds) {
+            Shelf sh = new Shelf();
+            sh.title = k[1];
+            for (MItem m : p.loose) {
+                boolean video = m.playable() && m.thumb.contains("i.ytimg.com");
+                String kind = m.playable() ? (video ? "video" : "song") : m.type;
+                if (kind.equals(k[0])) sh.items.add(m);
+            }
+            sh.list = k[0].equals("song");
+            if (!sh.items.isEmpty()) p.shelves.add(Math.min(at++, p.shelves.size()), sh);
+        }
+        p.loose.clear();
     }
 
     private static void header(JSONObject r, Page p) {
@@ -307,6 +330,19 @@ public final class Ytm {
             Shelf sh = shelf(k, s);
             if (!sh.items.isEmpty()) p.shelves.add(sh);
             return;
+        }
+        // Search: one result per section, no headings.
+        JSONObject is = o.optJSONObject("itemSectionRenderer");
+        if (is != null && is.optJSONArray("contents") != null) {
+            JSONArray c = is.optJSONArray("contents");
+            boolean any = false;
+            for (int i = 0; i < c.length(); i++) {
+                JSONObject x = c.optJSONObject(i);
+                if (x == null || !x.has("musicResponsiveListItemRenderer")) continue;
+                MItem m = listItem(x.optJSONObject("musicResponsiveListItemRenderer"));
+                if (m != null && !m.title.isEmpty()) { p.loose.add(m); any = true; }
+            }
+            if (any) return;
         }
         // Mood / genre buttons sit in grids of their own.
         JSONObject nb = o.optJSONObject("musicNavigationButtonRenderer");
