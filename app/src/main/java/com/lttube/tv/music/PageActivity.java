@@ -214,6 +214,20 @@ public class PageActivity extends Activity {
                         l.addView(r, new LinearLayout.LayoutParams(-1, dp(62)));
                     }
                     content.addView(l);
+                    if (!s.moreId.isEmpty()) {
+                        // Every song of theirs (official releases only), not just the top few.
+                        final MItem allSongs = new MItem();
+                        allSongs.type = MItem.PLAYLIST;
+                        allSongs.title = "All songs";
+                        allSongs.browseId = s.moreId;
+                        allSongs.params = s.moreParams;
+                        allSongs.thumb = item.thumb;
+                        TextView more = MusicUi.pill(this, R.drawable.ic_m_queue, "All songs");
+                        more.setOnClickListener(v -> MusicUi.open(this, allSongs, null));
+                        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, dp(42));
+                        ml.setMargins(dp(MusicUi.PAD), dp(10), 0, dp(4));
+                        content.addView(more, ml);
+                    }
                 } else if (st.matches(".*\\b(albums?|singles?|eps?)\\b.*")) rest.add(s);
             }
             MusicUi.addShelves(this, content, rest, open, null);
