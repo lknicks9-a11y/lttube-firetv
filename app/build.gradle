@@ -17,6 +17,16 @@ android {
         versionName file('../VERSION').text.trim()
     }
 
+    // Two apps from one codebase: LTTube (tube) and LT Music (music), installable side by side.
+    flavorDimensions 'app'
+    productFlavors {
+        tube { dimension 'app' }
+        music {
+            dimension 'app'
+            applicationId 'com.lttube.music'
+        }
+    }
+
     signingConfigs {
         // Fixed key so new versions install over old ones.
         release {

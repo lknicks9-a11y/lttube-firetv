@@ -94,7 +94,7 @@ public class WelcomeActivity extends FragmentActivity {
         LinearLayout btns = new LinearLayout(this);
         btns.setOrientation(LinearLayout.HORIZONTAL);
         btns.setGravity(Gravity.CENTER);
-        TextView guest = pillButton("Watch as guest");
+        TextView guest = pillButton(getResources().getBoolean(R.bool.is_music) ? "Listen as guest" : "Watch as guest");
         guest.setOnClickListener(v -> { Account.watchAsGuest(); openHome(); });
         btns.addView(guest);
         if (!profiles.isEmpty()) {
@@ -284,7 +284,7 @@ public class WelcomeActivity extends FragmentActivity {
     }
 
     private void openHome() {
-        Intent i = new Intent(this, MainActivity.class);
+        Intent i = new Intent(this, getResources().getBoolean(R.bool.is_music) ? com.lttube.tv.music.MusicActivity.class : MainActivity.class);
         i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(i);
         finish();
@@ -323,7 +323,7 @@ public class WelcomeActivity extends FragmentActivity {
         LinearLayout.LayoutParams linel = new LinearLayout.LayoutParams(-1, dp(1));
         linel.setMargins(dp(10), dp(26), dp(30), dp(26));
         left.addView(line, linel);
-        TextView guest = menuButton(R.drawable.ic_play, "Watch as guest");
+        TextView guest = menuButton(R.drawable.ic_play, getResources().getBoolean(R.bool.is_music) ? "Listen as guest" : "Watch as guest");
         guest.setOnClickListener(v -> { Account.watchAsGuest(); openHome(); });
         left.addView(guest, menuLp());
 

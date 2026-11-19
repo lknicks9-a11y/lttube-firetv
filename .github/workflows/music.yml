@@ -1,0 +1,39 @@
+name: Build LT Music APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Build
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          gradle :app:assembleMusicRelease --no-daemon
+          cp app/build/outputs/apk/music/release/app-music-release.apk LTMusic.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LTMusic
+          path: LTMusic.apk
+      - name: Publish (tag "music", never marked latest so LTTube's updates are unaffected)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="$(cat VERSION | tr -d '[:space:]')"
+          gh release delete music --yes --cleanup-tag 2>/dev/null || true
+          gh release create music LTMusic.apk --title "LT Music $V (build ${GITHUB_RUN_NUMBER})" --latest=false \
+            --notes "LT Music for Fire TV. Install: https://github.com/${GITHUB_REPOSITORY}/releases/download/music/LTMusic.apk"

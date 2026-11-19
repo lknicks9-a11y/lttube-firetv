@@ -42,6 +42,7 @@ public final class Lyrics {
     public static Lyrics find(MItem song, String ytLyricsId) {
         Lyrics l = lrclib(song);
         if (l != null) return l;
+        if (ytLyricsId == null) try { ytLyricsId = Ytm.queue(song.videoId, null, false).lyricsId; } catch (Exception ignored) { }
         String plain = Ytm.lyrics(ytLyricsId);
         if (plain == null || plain.trim().isEmpty()) return null;
         l = new Lyrics();

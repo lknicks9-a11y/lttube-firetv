@@ -1,4 +1,4 @@
-name: Check YouTube Music API
+name: Check LT Music
 
 on:
   push:
@@ -16,7 +16,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - name: Check
+      - name: Build both apps
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          gradle :app:testReleaseUnitTest --tests com.lttube.tv.MusicApiTest --no-daemon 2>&1 | grep -E "MUS|FAILED|error:|BUILD" | head -400
+          gradle :app:assembleMusicRelease :app:assembleTubeRelease --no-daemon 2>&1 | grep -E "error|warning: \[|FAILED|BUILD|e: " | head -120
+      - name: API check
+        run: |
+          gradle :app:testMusicReleaseUnitTest --tests com.lttube.tv.MusicApiTest --no-daemon 2>&1 | grep -E "MUS|FAILED|error:|BUILD" | head -400

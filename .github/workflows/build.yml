@@ -28,16 +28,16 @@ jobs:
       - name: Build
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          gradle :app:assembleRelease --no-daemon
+          gradle :app:assembleTubeRelease --no-daemon
 
       - name: Check YouTube extraction (does not block the build)
         continue-on-error: true
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          gradle :app:testReleaseUnitTest --tests com.lttube.tv.ExtractionTest --tests com.lttube.tv.TvFeedTest --no-daemon 2>&1 | grep -E "LTT|FAILED|Exception" | head -200 || true
+          gradle :app:testTubeReleaseUnitTest --tests com.lttube.tv.ExtractionTest --tests com.lttube.tv.TvFeedTest --no-daemon 2>&1 | grep -E "LTT|FAILED|Exception" | head -200 || true
 
       - name: Rename
-        run: cp app/build/outputs/apk/release/app-release.apk LTTube-TV.apk
+        run: cp app/build/outputs/apk/tube/release/app-tube-release.apk LTTube-TV.apk
 
       - uses: actions/upload-artifact@v4
         with:
