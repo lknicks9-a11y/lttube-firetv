@@ -1193,7 +1193,8 @@ public class PlayerActivity extends FragmentActivity {
         for (int i = 0; i < all.size(); i++) {
             ViewGroup cr = all.get(i);
             View holder = cr == upNextCards ? upNextScroll : (View) cr.getParent().getParent();
-            holder.animate().alpha(i < at ? 0.28f : 1f).setDuration(260).start();
+            // Only rows two or more above you fade; the one just above stays clear.
+            holder.animate().alpha(i < at - 1 ? 0.28f : 1f).setDuration(260).start();
         }
     }
 

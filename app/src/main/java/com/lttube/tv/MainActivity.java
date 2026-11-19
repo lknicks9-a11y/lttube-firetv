@@ -15,6 +15,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.fragment.app.FragmentActivity;
 
@@ -138,6 +139,7 @@ public class MainActivity extends FragmentActivity {
             LinearLayout item = navRow(NAV_ICONS[i], NAV[i][1]);
             item.setOnClickListener(v -> {
                 if ("search".equals(key)) { startActivity(new Intent(this, SearchActivity.class)); return; }
+                if ("shorts".equals(key)) { playShorts(); return; }
                 show(key, true);
             });
             navList.addView(item, rowLp());
@@ -303,6 +305,7 @@ public class MainActivity extends FragmentActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
+        if (e.getAction() == KeyEvent.ACTION_DOWN && rows != null && e.getKeyCode() != KeyEvent.KEYCODE_BACK) rows.keepTop = false;
         if (e.getKeyCode() == KeyEvent.KEYCODE_BACK) {
             if (e.getAction() != KeyEvent.ACTION_UP) return true;
             View f = getCurrentFocus();
@@ -317,6 +320,26 @@ public class MainActivity extends FragmentActivity {
             return true;
         }
         return super.dispatchKeyEvent(e);
+    }
+
+    /** Shorts: straight into the Shorts player (like YouTube), not a page of rows. Down = next Short. */
+    private void playShorts() {
+        Toast.makeText(this, "Loading Shorts…", Toast.LENGTH_SHORT).show();
+        final boolean in = Account.signedIn();
+        Bg.run(() -> {
+            java.util.List<Item> all = new java.util.ArrayList<>();
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            java.util.List<java.util.List<Shelf>> sources = new java.util.ArrayList<>();
+            if (in) try { sources.add(Sources.accountShorts()); } catch (Exception ignored) { }
+            try { sources.add(Sources.searchShorts("#shorts", "Shorts")); } catch (Exception ignored) { }
+            for (java.util.List<Shelf> l : sources) for (Shelf sh : l) for (Item it : sh.items)
+                if (it.videoId() != null && seen.add(it.videoId())) { it.isShort = true; all.add(it); }
+            if (all.isEmpty()) throw new Exception("No Shorts right now");
+            return all;
+        }, (list, err) -> {
+            if (list == null) { Toast.makeText(this, "Couldn't load Shorts: " + Bg.message(err), Toast.LENGTH_LONG).show(); show("shorts", true); return; }
+            Nav.open(this, list.get(0), list);
+        });
     }
 
     /** YouTube's own page for a topic (Trending, Recommended, …) — nothing if it doesn't load; the other rows still do. */
@@ -354,6 +377,8 @@ public class MainActivity extends FragmentActivity {
             }
             return;
         }
+        // Each page opens at its top row while rows load in (until you start moving).
+        rows.keepTop = true;
         if (focusContent) rows.onFirstRow(() -> rows.focus());
         else rows.onFirstRow(() -> { View f = getCurrentFocus(); if (f == null) rows.focus(); });
         boolean in = Account.signedIn();

@@ -133,7 +133,8 @@ public class WelcomeActivity extends FragmentActivity {
         title.setText("Choose which channels show up");
         col.addView(title);
         TextView sub = Ui.text(this, 16, 0xB3FFFFFF, false);
-        sub.setText("Every channel on your Google account. Hidden ones stay signed in but don't appear in Who's watching.");
+        sub.setText("Every channel on your Google account. Hidden ones stay signed in but don't appear in Who's watching."
+                + (Yti.lastAccountsReport.isEmpty() ? "" : "\n" + Yti.lastAccountsReport));
         sub.setPadding(0, dp(6), 0, dp(18));
         col.addView(sub);
         android.widget.ScrollView sv = new android.widget.ScrollView(this);

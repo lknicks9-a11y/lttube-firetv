@@ -89,6 +89,7 @@ public class SearchActivity extends FragmentActivity {
         keyboard.setOrientation(LinearLayout.VERTICAL);
         mid.addView(keyboard);
         root.addView(mid);
+        midArea = mid;
         buildKeys();
 
         status = new TextView(this);
@@ -145,6 +146,13 @@ public class SearchActivity extends FragmentActivity {
             @Override public void afterTextChanged(Editable s) { suggest(s.toString()); }
         });
 
+        // On the videos: the keyboard folds away so whole rows fit on screen (nothing cut off).
+        // Up from the top row brings it back.
+        root.getViewTreeObserver().addOnGlobalFocusChangeListener((was, now) -> {
+            if (now == null || rowsFragment.getView() == null) return;
+            boolean inRows = isInside(now, rowsFragment.getView());
+            midArea.setVisibility(inRows ? View.GONE : View.VISIBLE);
+        });
         showRecent();
         startRow();
         if (keyboard.getChildCount() > 0) ((ViewGroup) keyboard.getChildAt(0)).getChildAt(0).requestFocus();
@@ -152,6 +160,7 @@ public class SearchActivity extends FragmentActivity {
 
     // ------------------------------------------------------------------ on-screen keyboard
     private TextView pill;
+    private View midArea;
     private LinearLayout keyboard, suggestList;
     private boolean symbols;
 
@@ -265,6 +274,30 @@ public class SearchActivity extends FragmentActivity {
             videoRow = new ListRow(new HeaderItem(q.isEmpty() ? "Trending" : "From recommended searches"), videos);
             rows.add(videoRow);
         });
+    }
+
+    private static boolean isInside(View v, View parent) {
+        for (View p = v; p != null; p = p.getParent() instanceof View ? (View) p.getParent() : null) if (p == parent) return true;
+        return false;
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent e) {
+        if (e.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP && e.getAction() == KeyEvent.ACTION_DOWN && rowsFragment.getView() != null) {
+            View before = getCurrentFocus();
+            if (before != null && isInside(before, rowsFragment.getView())) {
+                boolean r = super.dispatchKeyEvent(e);
+                View after = getCurrentFocus();
+                if (after == before || after == null || !isInside(after, rowsFragment.getView())) {
+                    midArea.setVisibility(View.VISIBLE);
+                    ViewGroup lastRow = (ViewGroup) keyboard.getChildAt(keyboard.getChildCount() - 1);
+                    lastRow.getChildAt(lastRow.getChildCount() - 1).requestFocus();
+                    return true;
+                }
+                return r;
+            }
+        }
+        return super.dispatchKeyEvent(e);
     }
 
     private void showRecent() {

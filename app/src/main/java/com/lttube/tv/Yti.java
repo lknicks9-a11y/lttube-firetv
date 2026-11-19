@@ -207,6 +207,8 @@ public final class Yti {
     }
 
     /** The main account and each of its channels, for "Who's watching?". */
+    public static volatile String lastAccountsReport = "";
+
     public static List<Account.Profile> accountsList(String acct) throws Exception {
         // Every channel on this Google account: YouTube lists them differently in the TV app, the web's account
         // menu and the web's channel switcher, so all three are asked and put together (no duplicates).
@@ -221,9 +223,13 @@ public final class Yti {
                 {"account/accounts_list", true, new JSONObject().put("requestType", "ACCOUNTS_LIST_REQUEST_TYPE_CHANNEL_SWITCHER")},
                 {"account/account_menu", false, new JSONObject()},
         };
+        StringBuilder rep = new StringBuilder();
+        int n0 = 0;
         for (Object[] ask : asks) {
+            if (rep.length() > 0) rep.append(" · ");
             try {
                 JSONObject r = callAs(acct, "", (String) ask[0], (JSONObject) ask[2], (Boolean) ask[1]);
+                n0 = out.size();
                 List<JSONObject> items = new ArrayList<>();
                 collectWith(r, "accountName", items);
                 for (JSONObject it : items) {
@@ -235,12 +241,22 @@ public final class Yti {
                     if (pr.handle.isEmpty()) pr.handle = text(it.optJSONObject("accountByline"));
                     String pid = findString(it, "pageId");
                     if (pid == null) pid = findString(it, "obfuscatedPageId");
+                    if (pid == null) {
+                        // Some lists give "datasyncId" = "<pageId>||<accountId>" instead.
+                        String ds = findString(it, "datasyncId");
+                        if (ds != null && ds.contains("||") && !ds.startsWith("||")) pid = ds.substring(0, ds.indexOf("||"));
+                    }
                     pr.pageId = pid == null ? "" : pid;
-                    if (pr.name.isEmpty() || !seen.add(pr.pageId.isEmpty() ? "main" : pr.pageId)) continue;
+                    // Main account = no page id. Channels without one are told apart by name (not all merged into one).
+                    boolean isMain = pr.pageId.isEmpty() && (it.optBoolean("isSelected", false) || out.isEmpty());
+                    String key = !pr.pageId.isEmpty() ? pr.pageId : isMain ? "main" : "name:" + pr.name;
+                    if (pr.name.isEmpty() || !seen.add(key) || !seen.add("n:" + pr.name + "|" + pr.pageId)) continue;
                     if (pr.pageId.isEmpty()) out.add(0, pr); else out.add(pr);
                 }
-            } catch (Exception e) { last = e; }
+                rep.append("+").append(out.size() - n0);
+            } catch (Exception e) { last = e; rep.append("✗"); }
         }
+        lastAccountsReport = out.size() + " channels found (" + rep + ")";
         if (out.isEmpty() && last != null) throw last;
         return out;
     }
