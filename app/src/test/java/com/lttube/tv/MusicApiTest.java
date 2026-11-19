@@ -66,6 +66,12 @@ public class MusicApiTest {
         }
         try {
             Ytm.Page ar = Ytm.browse("UCIaFw5VBEK8qaW6nRpx_qnw");
+            for (Ytm.Shelf s : ar.shelves) System.out.println("MUS MORE [" + s.title + "] more=" + s.moreId + " params=" + (s.moreParams.isEmpty() ? "-" : "yes"));
+            for (Ytm.Shelf s : ar.shelves) if (!s.moreId.isEmpty() && s.title.toLowerCase().contains("album")) {
+                Ytm.Page all = Ytm.browse(s.moreId, s.moreParams);
+                int n = 0; for (Ytm.Shelf x : all.shelves) n += x.items.size();
+                System.out.println("MUS SEEALL " + s.title + " -> items=" + n + " shelves=" + all.shelves.size());
+            }
             for (Ytm.Shelf s : ar.shelves) if (s.list) { int off = 0; for (MItem m : s.items) if (m.official()) off++; System.out.println("MUS OFFICIAL top=" + s.items.size() + " official=" + off + " first mv=" + (s.items.isEmpty() ? "" : s.items.get(0).mvType + " album=" + s.items.get(0).album)); }
         } catch (Throwable e) { System.out.println("MUS OFFICIAL FAILED " + e); }
         safe("PLAYLIST fixed", () -> Ytm.browse("VLRDCLAK5uy_lWy02cQBnTVTlwuRauaGKeUDH3L6PXNxI"));

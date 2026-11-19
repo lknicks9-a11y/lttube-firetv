@@ -56,7 +56,7 @@ public class PageActivity extends Activity {
         root.addView(hero, new FrameLayout.LayoutParams(-1, dp(Math.round(H * 0.74f)), Gravity.TOP));
         if (!item.thumb.isEmpty()) hero.set(MItem.art(item.thumb, 1080), false);
         // The page takes on a deep shade of the album / artist picture.
-        MusicUi.colorOf(this, item.thumb, c -> { int t = MusicUi.tintOf(c); MusicUi.fadeTo(root, t); hero.setTint(t); });
+        MusicUi.colorOf(this, item.thumb, c -> MusicUi.fadeTo(root, MusicUi.tintOf(c), t -> hero.setTint(t)));
 
         scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
@@ -72,7 +72,8 @@ public class PageActivity extends Activity {
 
         spinner = new ProgressBar(this);
         root.addView(spinner, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER));
-        Bg.run(() -> item.browseId.startsWith("LOCAL:") ? Imports.page(this, item.browseId) : Ytm.browse(item.browseId, item.params), (pg, e) -> {
+        Bg.run(() -> item.browseId.startsWith("LOCAL:") ? Imports.page(this, item.browseId)
+                : item.browseId.startsWith("MIX:") ? Mixes.page(this, item.browseId) : Ytm.browse(item.browseId, item.params), (pg, e) -> {
             spinner.setVisibility(View.GONE);
             if (pg == null) {
                 TextView t = MusicUi.text(this, 18, MusicUi.TEXT2, false);
@@ -88,6 +89,7 @@ public class PageActivity extends Activity {
     private int dp(float v) { return MusicUi.dp(this, v); }
 
     private void show(Ytm.Page pg) {
+        if (MItem.MORE.equals(item.type)) { all(pg); return; }
         boolean artist = MItem.ARTIST.equals(item.type) || item.browseId.startsWith("UC");
         if (!pg.banner.isEmpty()) hero.set(pg.banner, true);
         else if (!pg.thumb.isEmpty()) hero.set(MItem.art(pg.thumb, 1080), false);
@@ -221,9 +223,30 @@ public class PageActivity extends Activity {
         play.requestFocus();
     }
 
+    /** "See all": every release in the shelf (official only), as a grid. */
+    private void all(Ytm.Page pg) {
+        hero.setVisibility(View.GONE);
+        TextView t = MusicUi.text(this, 30, Color.WHITE, true);
+        t.setText(item.title.isEmpty() ? pg.title : item.title);
+        t.setPadding(dp(MusicUi.PAD), dp(36), dp(MusicUi.PAD), dp(4));
+        content.addView(t);
+        List<MItem> items = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Ytm.Shelf s : pg.shelves) for (MItem m : s.items) if (m.official() && seen.add(m.browseId + m.videoId)) items.add(m);
+        if (items.isEmpty()) { TextView n = MusicUi.text(this, 17, MusicUi.TEXT2, false); n.setText("Nothing here."); n.setPadding(dp(MusicUi.PAD), dp(20), 0, 0); content.addView(n); return; }
+        MusicUi.addGrid(this, content, items, 6, (m, ctx) -> MusicUi.open(this, m, ctx));
+        content.post(() -> { View f = firstFocusable(content); if (f != null) f.requestFocus(); });
+        if (!items.get(0).thumb.isEmpty()) MusicUi.colorOf(this, items.get(0).thumb, c -> MusicUi.fadeTo(root, MusicUi.tintOf(c)));
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
         int k = e.getKeyCode();
+        if (e.getAction() == KeyEvent.ACTION_DOWN && (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN)) {
+            if (MusicUi.moveVertical(content, getCurrentFocus(), k == KeyEvent.KEYCODE_DPAD_UP)) return true;
+            if (k == KeyEvent.KEYCODE_DPAD_UP) scroll.smoothScrollTo(0, 0);
+            return true;
+        }
         if (k == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) { if (e.getAction() == KeyEvent.ACTION_DOWN) MusicPlayer.get(this).toggle(); return true; }
         if (k == KeyEvent.KEYCODE_BACK && e.getAction() == KeyEvent.ACTION_UP && scroll.getScrollY() > 10) {
             scroll.smoothScrollTo(0, 0);

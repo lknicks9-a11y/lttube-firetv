@@ -200,14 +200,24 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         tintWant = want;
         MusicUi.colorOf(this, thumb, c -> {
             if (!want.equals(tintWant)) return;
-            int t = MusicUi.tintOf(c);
-            MusicUi.fadeTo(root, t);
-            hero.setTint(t);
-            scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{t, t & 0xCCFFFFFF, t & 0x00FFFFFF}));
+            MusicUi.fadeTo(root, MusicUi.tintOf(c), t -> {
+                hero.setTint(t);
+                scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{t, t & 0xCCFFFFFF, t & 0x00FFFFFF}));
+            });
         });
     }
 
     private String tintWant;
+
+    /** Worth showing: albums, artists, YouTube Music's own playlists and mixes, official songs — not random uploads. */
+    private static boolean curated(MItem m) {
+        if (m.playable()) return m.official();
+        if (MItem.PLAYLIST.equals(m.type)) {
+            String b = m.browseId, s = m.subtitle.toLowerCase(java.util.Locale.US);
+            return b.startsWith("VLRDCLAK") || b.startsWith("RDCLAK") || m.playlistId.startsWith("RD") || s.contains("youtube music") || b.startsWith("MIX:");
+        }
+        return true;
+    }
 
     private void paintNow() {
         MItem cur = mp.current();
@@ -338,8 +348,30 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
                             if (quick.size() < 8 && !m.title.equalsIgnoreCase("New playlist")) quick.add(m);
                     } catch (Exception ignored) { }
                     Ytm.Page home = Ytm.browse(Ytm.HOME);
+                    // Leave out random people's playlists and anything that isn't an official release.
+                    for (Ytm.Shelf s : home.shelves) {
+                        List<MItem> keep = new ArrayList<>();
+                        for (MItem m : s.items) if (curated(m)) keep.add(m);
+                        s.items.clear();
+                        s.items.addAll(keep);
+                    }
                     if (quick.size() < 8) for (Ytm.Shelf s : home.shelves) for (MItem m : s.items) if (quick.size() < 8 && !m.playable()) quick.add(m);
                     out.add(quick);
+                    // Made for you (from what you play here), and more from the artists you play most.
+                    Ytm.Page mine = new Ytm.Page();
+                    List<MItem> made = Mixes.cards(this);
+                    if (!made.isEmpty()) { Ytm.Shelf ms = new Ytm.Shelf(); ms.title = "Made for you"; ms.items.addAll(made); mine.shelves.add(ms); }
+                    for (MItem a : Mixes.topArtists(this, 2)) {
+                        try {
+                            Ytm.Page ap = Ytm.browse(a.browseId);
+                            for (Ytm.Shelf s : ap.shelves) if (!s.list && s.title.toLowerCase(java.util.Locale.US).matches(".*\\balbums?\\b.*")) {
+                                s.title = "More from " + (ap.title.isEmpty() ? a.title : ap.title);
+                                mine.shelves.add(s);
+                                break;
+                            }
+                        } catch (Exception ignored) { }
+                    }
+                    out.add(mine);
                     out.add(home);
                     if (home.shelves.size() < 6) {
                         Ytm.Page more = new Ytm.Page();
@@ -615,12 +647,12 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
             if (first != null) first.requestFocus();
             return true;
         }
-        if (down && k == KeyEvent.KEYCODE_DPAD_UP && !inBar()) {
-            View f = getCurrentFocus();
-            View next = f == null ? null : f.focusSearch(View.FOCUS_UP);
-            boolean leaves = true;
-            for (Object p = next; p instanceof View; p = ((View) p).getParent()) if (p == content) { leaves = false; break; }
-            if (leaves) { scroll.smoothScrollTo(0, 0); focusTab(); return true; }
+        if (down && (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN) && !inBar()) {
+            // One row at a time, landing on the item nearest across; past the top row, up to the bar.
+            boolean up = k == KeyEvent.KEYCODE_DPAD_UP;
+            if (MusicUi.moveVertical(content, getCurrentFocus(), up)) return true;
+            if (up) { scroll.smoothScrollTo(0, 0); focusTab(); }
+            return true;
         }
         return super.dispatchKeyEvent(e);
     }

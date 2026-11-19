@@ -4,7 +4,15 @@ import org.json.JSONObject;
 
 /** A song, album, playlist, artist or category on YouTube Music. */
 public class MItem {
-    public static final String SONG = "song", ALBUM = "album", PLAYLIST = "playlist", ARTIST = "artist", CATEGORY = "category";
+    public static final String SONG = "song", ALBUM = "album", PLAYLIST = "playlist", ARTIST = "artist", CATEGORY = "category",
+            /** "See all" of a shelf: opens everything in it as a grid. */
+            MORE = "more";
+
+    /** Not real songs: sped-up / slowed edits, AI covers, karaoke, "type beats" and the like. */
+    private static final java.util.regex.Pattern SLOP = java.util.regex.Pattern.compile(
+            "(?i)\\b(sped ?up|slowed|reverb|nightcore|8d audio|type beat|ai cover|ai version|ai generated|karaoke|instrumental version|lofi version|tribute to|in the style of|made famous by|cover version)\\b");
+
+    public boolean slop() { return SLOP.matcher(title).find() || SLOP.matcher(artist).find(); }
 
     public String type = SONG;
     public String title = "";
@@ -29,6 +37,7 @@ public class MItem {
     /** An official release — the song as it is on Spotify / Apple Music, not an upload or a clip. */
     public boolean official() {
         if (!playable()) return true;
+        if (slop()) return false;
         if (mvType.endsWith("ATV")) return true;
         if (mvType.endsWith("UGC") || mvType.contains("PODCAST")) return false;
         return !album.isEmpty();

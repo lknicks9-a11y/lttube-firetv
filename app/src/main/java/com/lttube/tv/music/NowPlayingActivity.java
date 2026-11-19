@@ -329,6 +329,9 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         lyWindow = new FadeFrame(this, dp(70), dp(56));
         lyLines = new LinearLayout(this);
         lyLines.setOrientation(LinearLayout.VERTICAL);
+        // Every line can be drawn wherever it slides to (the window around them does the cutting, softly).
+        lyLines.setClipChildren(false);
+        lyLines.setClipToPadding(false);
         lyWindow.addView(lyLines, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
         lyricsBox.addView(lyWindow, at(lx, ly, W - lx - MusicUi.PAD, by - ly - 18));
         lySource = MusicUi.text(this, 12, 0x99FFFFFF, false);

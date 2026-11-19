@@ -47,7 +47,6 @@ public class Hero extends FrameLayout {
         fadeLeft.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{bg, bg & 0xCCFFFFFF, bg & 0x66FFFFFF, bg & 0x00FFFFFF}));
         fadeBottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{bg, bg & 0xB3FFFFFF, bg & 0x00FFFFFF}));
         fadeTop.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg & 0x99FFFFFF, bg & 0x00FFFFFF}));
-        setBackgroundColor(url == null ? 0 : bg);
     }
 
     /** wide: an artist banner (fills the width); otherwise a square cover kept whole on the right. */
@@ -62,8 +61,6 @@ public class Hero extends FrameLayout {
         LayoutParams lp = new LayoutParams(fl, h, Gravity.TOP | Gravity.START);
         lp.leftMargin = w - iw;
         fadeLeft.setLayoutParams(lp);
-        // Everything left of the picture is plain background.
-        setBackgroundColor(bg);
         fadeBottom.setLayoutParams(new LayoutParams(-1, Math.round(h * 0.42f), Gravity.BOTTOM));
         fadeTop.setLayoutParams(new LayoutParams(-1, Math.round(h * 0.22f), Gravity.TOP));
         Glide.with(this).load(u).transition(DrawableTransitionOptions.withCrossFade(350)).into(img);

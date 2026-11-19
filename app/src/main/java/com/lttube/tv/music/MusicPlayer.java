@@ -372,6 +372,7 @@ public final class MusicPlayer {
                 if (index + 1 < queue.size()) Bg.UI.postDelayed(() -> { if (my == seq) next(); }, 1500);
                 return;
             }
+            Mixes.played(app, m);
             player.setMediaItem(MediaItem.fromUri(url), startMs);
             player.prepare();
             // Started while you were leaving the app: ready, but not playing.

@@ -39,6 +39,8 @@ public final class Ytm {
         public final List<MItem> items = new ArrayList<>();
         /** Song lists show as rows of tracks; carousels as cards. */
         public boolean list;
+        /** "See all": the page with everything in this shelf (an artist's full albums / singles). */
+        public String moreId = "", moreParams = "";
     }
 
     public static class Page {
@@ -437,6 +439,13 @@ public final class Ytm {
             if (h == null) h = head;
             sh.title = runs(h.optJSONObject("title"));
             sh.strap = runs(h.optJSONObject("strapline"));
+            JSONObject more = findObj(h.optJSONObject("moreContentButton"), "browseEndpoint");
+            if (more == null) more = findObj(h.optJSONObject("title"), "browseEndpoint");
+            if (more != null) { sh.moreId = more.optString("browseId"); sh.moreParams = more.optString("params"); }
+        }
+        if (sh.moreId.isEmpty()) {
+            JSONObject more = findObj(s.optJSONObject("bottomEndpoint"), "browseEndpoint");
+            if (more != null) { sh.moreId = more.optString("browseId"); sh.moreParams = more.optString("params"); }
         }
         if (sh.title.isEmpty()) sh.title = runs(s.optJSONObject("title"));
         sh.list = kind.equals("musicShelfRenderer") || kind.equals("musicPlaylistShelfRenderer");

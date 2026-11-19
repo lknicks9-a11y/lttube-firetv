@@ -83,23 +83,31 @@ public final class MusicUi {
     public static int tintOf(int c) {
         float[] hsv = new float[3];
         Color.colorToHSV(c, hsv);
-        hsv[1] = Math.min(0.55f, hsv[1] * 0.85f);
-        hsv[2] = 0.30f;
-        return blend(Color.HSVToColor(hsv), BG, 0.25f);
+        // The cover's own colour, deep enough for white text to read on.
+        hsv[1] = Math.min(0.75f, Math.max(0.25f, hsv[1]));
+        hsv[2] = 0.36f;
+        return Color.HSVToColor(hsv);
     }
 
     /** Fades a page's background to a new colour. */
-    public static void fadeTo(View v, int to) {
-        android.graphics.drawable.Drawable d = v.getBackground();
-        if (!(d instanceof GradientDrawable)) { v.setBackground(round(to, 0)); return; }
-        GradientDrawable g = (GradientDrawable) d;
+    public static void fadeTo(View v, int to) { fadeTo(v, to, null); }
+
+    /** Fades a page to a colour; each step also goes to `also` (the big picture's fades), so they never differ. */
+    public static void fadeTo(View v, int to, ColorDone also) {
         Object tag = v.getTag(R.id.tag_color);
         int from = tag instanceof Integer ? (Integer) tag : BG;
-        if (from == to) return;
-        v.setTag(R.id.tag_color, to);
+        Object run = v.getTag(R.id.tag_tint);
+        if (run instanceof android.animation.ValueAnimator) ((android.animation.ValueAnimator) run).cancel();
+        if (from == to) { v.setBackgroundColor(to); if (also != null) also.color(to); return; }
         android.animation.ValueAnimator a = android.animation.ValueAnimator.ofArgb(from, to);
-        a.setDuration(500);
-        a.addUpdateListener(an -> g.setColor((int) an.getAnimatedValue()));
+        a.setDuration(450);
+        a.addUpdateListener(an -> {
+            int col = (int) an.getAnimatedValue();
+            v.setTag(R.id.tag_color, col);
+            v.setBackgroundColor(col);
+            if (also != null) also.color(col);
+        });
+        v.setTag(R.id.tag_tint, a);
         a.start();
     }
 
@@ -394,6 +402,11 @@ public final class MusicUi {
     // ------------------------------------------------------------------ rows
     /** A titled row of covers that scrolls sideways. */
     public static void addRow(Activity a, LinearLayout into, String title, List<MItem> items, int size, Opener open, Hover hover) {
+        addRow(a, into, title, items, size, open, hover, null);
+    }
+
+    /** more: a "See all" card at the end of the row, opening everything in it. */
+    public static void addRow(Activity a, LinearLayout into, String title, List<MItem> items, int size, Opener open, Hover hover, MItem more) {
         if (items.isEmpty()) return;
         if (title != null && !title.isEmpty()) into.addView(heading(a, title));
         LinearLayout row = new LinearLayout(a);
@@ -403,7 +416,87 @@ public final class MusicUi {
             lp.rightMargin = dp(a, 18);
             row.addView(card(a, m, dp(a, size), items, open, hover), lp);
         }
+        if (more != null) row.addView(seeAll(a, more, dp(a, size), open));
         into.addView(hscroll(a, row));
+    }
+
+    private static View seeAll(Activity a, MItem more, int size, Opener open) {
+        LinearLayout col = new LinearLayout(a);
+        col.setOrientation(LinearLayout.VERTICAL);
+        TextView t = text(a, 17, Color.WHITE, true);
+        t.setText("See all");
+        t.setGravity(Gravity.CENTER);
+        t.setFocusable(true);
+        t.setBackground(round(0x33FFFFFF, dp(a, 6)));
+        t.setOnFocusChangeListener((x, has) -> { x.setBackground(round(has ? 0x59FFFFFF : 0x33FFFFFF, dp(a, 6))); markFocus(x, has, dp(a, 6), false, 1.0f); });
+        t.setOnClickListener(v -> open.open(more, null));
+        col.addView(t, new LinearLayout.LayoutParams(size, size));
+        return col;
+    }
+
+    /** Everything as a wrapping grid (a "See all" page, Your Library). */
+    public static void addGrid(Activity a, LinearLayout into, List<MItem> items, int cols, Opener open) {
+        int W = Math.round(a.getResources().getDisplayMetrics().widthPixels / a.getResources().getDisplayMetrics().density);
+        int gap = 18, size = (W - PAD * 2 - gap * (cols - 1)) / cols;
+        LinearLayout g = new LinearLayout(a);
+        g.setOrientation(LinearLayout.VERTICAL);
+        g.setPadding(dp(a, PAD), dp(a, 14), dp(a, PAD), dp(a, 40));
+        g.setClipChildren(false);
+        LinearLayout row = null;
+        for (int i = 0; i < items.size(); i++) {
+            if (i % cols == 0) {
+                row = new LinearLayout(a);
+                row.setClipChildren(false);
+                LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-1, -2);
+                rl.bottomMargin = dp(a, 18);
+                g.addView(row, rl);
+            }
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(a, size), -2);
+            if (i % cols != cols - 1) lp.rightMargin = dp(a, gap);
+            row.addView(card(a, items.get(i), dp(a, size), items, open, null), lp);
+        }
+        into.addView(g);
+    }
+
+    /**
+     * Up / down one row at a time: to the nearest row above / below, onto the item closest to where you are
+     * across. (The TV's own guess sometimes jumps a row, or lands off to the side.) False when there's no row
+     * that way inside `area`.
+     */
+    public static boolean moveVertical(View area, View from, boolean up) {
+        if (from == null) return false;
+        List<View> all = new java.util.ArrayList<>();
+        focusables(area, all);
+        int[] p = new int[2];
+        from.getLocationOnScreen(p);
+        float fy = p[1] + from.getHeight() / 2f, fx = p[0] + from.getWidth() / 2f;
+        int screenW = area.getResources().getDisplayMetrics().widthPixels;
+        float bestRow = up ? -Float.MAX_VALUE : Float.MAX_VALUE;
+        for (View v : all) {
+            if (v == from) continue;
+            v.getLocationOnScreen(p);
+            float cy = p[1] + v.getHeight() / 2f;
+            float gap = Math.max(8, from.getHeight() * 0.4f);
+            if (up ? cy < fy - gap && cy > bestRow : cy > fy + gap && cy < bestRow) bestRow = cy;
+        }
+        if (bestRow == Float.MAX_VALUE || bestRow == -Float.MAX_VALUE) return false;
+        View best = null;
+        float bestDx = Float.MAX_VALUE;
+        for (View v : all) {
+            v.getLocationOnScreen(p);
+            float cy = p[1] + v.getHeight() / 2f;
+            if (Math.abs(cy - bestRow) > Math.max(12, v.getHeight() * 0.35f)) continue;
+            float cx = p[0] + v.getWidth() / 2f;
+            float dx = Math.abs(cx - fx) + (cx < 0 || cx > screenW ? screenW : 0);
+            if (dx < bestDx) { bestDx = dx; best = v; }
+        }
+        return best != null && best.requestFocus();
+    }
+
+    private static void focusables(View v, List<View> out) {
+        if (v.getVisibility() != View.VISIBLE || v.getAlpha() == 0f) return;
+        if (v.isFocusable() && v.getWidth() > 0) { out.add(v); return; }
+        if (v instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) v).getChildCount(); i++) focusables(((ViewGroup) v).getChildAt(i), out);
     }
 
     public static TextView heading(Context a, String title) {
@@ -465,7 +558,17 @@ public final class MusicUi {
             String title = s.title.isEmpty() ? s.strap : s.title;
             if (MItem.CATEGORY.equals(s.items.get(0).type)) addTiles(a, into, title, s.items, open);
             else if (s.list) addSongs(a, into, title, s.items, open, hover);
-            else addRow(a, into, title, s.items, videos ? 118 : 136, open, hover);
+            else {
+                MItem more = null;
+                if (!s.moreId.isEmpty()) {
+                    more = new MItem();
+                    more.type = MItem.MORE;
+                    more.title = title;
+                    more.browseId = s.moreId;
+                    more.params = s.moreParams;
+                }
+                addRow(a, into, title, s.items, videos ? 118 : 136, open, hover, more);
+            }
         }
     }
 
