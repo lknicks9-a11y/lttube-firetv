@@ -15,7 +15,8 @@ import org.schabi.newpipe.extractor.stream.StreamInfo;
 public class MusicApiTest {
     private static void dump(String name, Ytm.Page p) {
         System.out.println("MUS " + name + " title=[" + p.title + "] sub=[" + p.subtitle + "] thumb=" + !p.thumb.isEmpty()
-                + " pl=" + p.playlistId + " shelves=" + p.shelves.size() + " cont=" + (p.continuation != null));
+                + " pl=" + p.playlistId + " shelves=" + p.shelves.size() + " cont=" + (p.continuation != null)
+                + " banner=" + (p.banner.length() > 0 ? p.banner.substring(0, Math.min(90, p.banner.length())) : "-") + " subs=[" + p.subscribers + "] monthly=[" + p.monthly + "] ch=" + p.channelId + " desc=" + p.description.length());
         for (Ytm.Shelf s : p.shelves) {
             System.out.println("MUS   SHELF [" + s.strap + " / " + s.title + "] list=" + s.list + " n=" + s.items.size());
             for (int i = 0; i < Math.min(3, s.items.size()); i++) {
@@ -99,7 +100,7 @@ public class MusicApiTest {
         try {
             Ytm.Queue q = Ytm.queue(vid, null, true);
             System.out.println("MUS QUEUE n=" + q.items.size() + " cont=" + (q.continuation != null) + " lyrics=" + q.lyricsId + " related=" + q.relatedId);
-            for (int i = 0; i < Math.min(4, q.items.size()); i++) { MItem m = q.items.get(i); System.out.println("MUS   Q " + m.title + " | " + m.artist + " | " + m.album + " | " + m.seconds + " | " + m.thumb.length()); }
+            for (int i = 0; i < Math.min(4, q.items.size()); i++) { MItem m = q.items.get(i); System.out.println("MUS   Q " + m.title + " | " + m.artist + " [" + m.artistId + "] | " + m.album + " | " + m.seconds + " | " + m.thumb.length()); }
             if (q.continuation != null) {
                 Ytm.Queue q2 = Ytm.queueMore(q.continuation, vid, "RDAMVM" + vid);
                 System.out.println("MUS QUEUE+ n=" + q2.items.size());
