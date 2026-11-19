@@ -324,6 +324,7 @@ public final class Ytm {
             if (subs != null) p.subscribers = runs(subs);
             JSONObject sb = findObj(h, "subscribeButtonRenderer");
             if (sb != null) { p.channelId = sb.optString("channelId"); if (p.subscribers.isEmpty()) p.subscribers = runs(sb.optJSONObject("subscriberCountText")); }
+            if (p.subscribers.matches("[\\d.,]+\\s*[KMB]?")) p.subscribers = p.subscribers + " subscribers";
             JSONObject mon = h.optJSONObject("monthlyListenerCount");
             if (mon != null) p.monthly = runs(mon);
             if (p.thumb.isEmpty()) p.thumb = bestThumb(h.optJSONObject("foregroundThumbnail"));
