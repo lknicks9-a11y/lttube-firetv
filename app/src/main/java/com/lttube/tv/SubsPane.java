@@ -260,7 +260,7 @@ public class SubsPane {
         }
         // How many came from where (small, at the end of the list).
         TextView info = Ui.text(a, 12, Ui.TEXT2, false);
-        info.setText(channels.size() + " channels" + (report.isEmpty() ? "" : "  ·  " + report));
+        info.setText(channels.size() + " channels" + (report.isEmpty() || channels.size() >= 5 ? "" : "  ·  " + report));
         info.setPadding(dp(14), dp(16), 0, dp(8));
         list.addView(info);
         names.add(info);

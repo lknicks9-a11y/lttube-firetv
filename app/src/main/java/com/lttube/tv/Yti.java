@@ -671,6 +671,11 @@ public final class Yti {
         it.url = "https://www.youtube.com/watch?v=" + vid;
         it.thumb = thumb.isEmpty() ? Item.videoThumb(it.url) : thumb;
         if (!parts.isEmpty()) it.channel = parts.get(0);
+        // The channel's link: TV tiles carry it in their menu ("Go to channel").
+        JSONObject menu = r.optJSONObject("menu");
+        String tcid = menu == null ? null : findChannelId(menu);
+        if (tcid == null) { JSONObject lp = r.optJSONObject("onLongPressCommand"); if (lp != null) tcid = findChannelId(lp); }
+        if (tcid != null) it.channelUrl = "https://www.youtube.com/channel/" + tcid;
         String time = header == null ? "" : overlayTime(header);
         it.duration = seconds(time);
         it.live = "LIVE".equalsIgnoreCase(time);
@@ -727,6 +732,14 @@ public final class Yti {
                 collectChannels(r, out);
                 collectAnyChannels(r, out, 0);
             }
+            for (String extra : new String[]{"FEchannels", "FEguide"}) {
+                try {
+                    JSONObject x = call("browse", new JSONObject().put("browseId", extra), true);
+                    collectChannels(x, out);
+                    collectAnyChannels(x, out, 0);
+                } catch (Exception ignored) { }
+            }
+            try { JSONObject g = call("guide", new JSONObject(), true); collectChannels(g, out); collectAnyChannels(g, out, 0); } catch (Exception ignored) { }
             int got = out.size() - before;
             report.append(" · tv ").append(got);
             if (got < 5) report.append(" [").append(rendererKeys(r)).append("]");
@@ -746,6 +759,11 @@ public final class Yti {
     private static final Set<String> NOT_NAMES = new HashSet<>(java.util.Arrays.asList(
             "go to channel", "visit channel", "view channel", "subscribed", "subscribe", "all", "channel", "more", "see all"));
 
+    private static boolean genericName(String n) {
+        String l = n.trim().toLowerCase();
+        return NOT_NAMES.contains(l) || l.startsWith("go to") || l.startsWith("visit ") || l.startsWith("view ") || l.startsWith("{") || l.startsWith("[");
+    }
+
     /** Every entry that opens a channel by itself and carries a name (TV lists, owner names on videos, menus). */
     private static void collectAnyChannels(Object node, java.util.Map<String, Item> out, int depth) {
         if (depth > 60) return;
@@ -763,14 +781,14 @@ public final class Yti {
         }
         if (id != null) {
             String name = text(o.optJSONObject("title"));
-            if (name.isEmpty()) name = o.optString("title", "");
-            if (name.isEmpty()) name = o.optString("text", "");
+            if (name.isEmpty() && o.opt("title") instanceof String) name = o.optString("title", "");
+            if (name.isEmpty() && o.opt("text") instanceof String) name = o.optString("text", "");
             if (name.isEmpty()) name = text(o.optJSONObject("text"));
             if (name.isEmpty()) name = text(o.optJSONObject("formattedTitle"));
             if (name.isEmpty()) { JSONObject h = o.optJSONObject("header"); if (h != null) { String t = findString(h, "simpleText"); if (t != null) name = t; } }
             name = name.trim();
             String url = "https://www.youtube.com/channel/" + id;
-            if (!name.isEmpty() && name.length() < 80 && !NOT_NAMES.contains(name.toLowerCase())) {
+            if (!name.isEmpty() && name.length() < 80 && !genericName(name)) {
                 Item have = out.get(url);
                 String thumb = bestThumb(o.optJSONObject("thumbnail"));
                 if (thumb == null || thumb.isEmpty()) { JSONObject av = o.optJSONObject("avatar"); if (av != null) thumb = bestThumb(av.optJSONObject("thumbnail") != null ? av.optJSONObject("thumbnail") : av); }
@@ -935,12 +953,12 @@ public final class Yti {
         if (id.isEmpty()) return null;
         String name = text(r.optJSONObject("title"));
         if (name.isEmpty()) name = text(r.optJSONObject("formattedTitle"));
-        if (name.isEmpty()) name = r.optString("title", "");
+        if (name.isEmpty() && r.opt("title") instanceof String) name = r.optString("title", "");
         if (name.isEmpty()) {
             JSONObject md = r.optJSONObject("metadata");
             if (md != null) name = findString(md, "simpleText") == null ? "" : findString(md, "simpleText");
         }
-        if (name.isEmpty()) return null;
+        if (name.isEmpty() || genericName(name)) return null;
         Item it = new Item();
         it.type = Item.CHANNEL;
         it.url = "https://www.youtube.com/channel/" + id;
