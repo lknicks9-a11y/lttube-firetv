@@ -79,6 +79,7 @@ public final class Sources {
     public static List<Item> shortsForYou(boolean signedIn, boolean quick) {
         List<Item> mine = new ArrayList<>(), subs = new ArrayList<>(), wide = new ArrayList<>();
         Set<String> seen = java.util.Collections.synchronizedSet(new HashSet<>());
+        final Set<String> subNames = java.util.Collections.synchronizedSet(new HashSet<>());
         java.util.concurrent.ExecutorService ex = java.util.concurrent.Executors.newFixedThreadPool(6);
         try {
             List<java.util.concurrent.Future<List<Item>>> acct = new ArrayList<>();
@@ -87,6 +88,7 @@ public final class Sources {
                     List<Item> l = new ArrayList<>();
                     try {
                         for (Shelf sh : Yti.sections(feed, "")) for (Item i : sh.items) {
+                            if (Yti.SUBS.equals(feed) && i.channel != null && !i.channel.isEmpty()) subNames.add(i.channel.toLowerCase());
                             if (!Item.VIDEO.equals(i.type) || i.url == null) continue;
                             boolean sh2 = i.isShort || (i.duration > 0 && i.duration <= 75) || i.url.contains("/shorts/");
                             if (sh2 || ("FEshorts".equals(feed) && i.duration <= 0)) { i.isShort = true; l.add(i); }
@@ -112,16 +114,29 @@ public final class Sources {
             }
             for (java.util.concurrent.Future<List<Item>> f : pub) for (Item i : get(f)) if (seen.add(i.url)) wide.add(i);
         } finally { ex.shutdownNow(); }
+        // Shorts from channels you follow only come in now and then — the rest is recommendations.
+        for (List<Item> l : java.util.Arrays.asList(mine, wide)) {
+            for (java.util.Iterator<Item> it = l.iterator(); it.hasNext(); ) {
+                Item i = it.next();
+                if (i.channel != null && subNames.contains(i.channel.toLowerCase())) { subs.add(i); it.remove(); }
+            }
+        }
+        java.util.Collections.shuffle(mine);
         java.util.Collections.shuffle(wide);
         java.util.Collections.shuffle(subs);
-        // For you first, then popular ones with one from your subscriptions every few Shorts.
-        List<Item> out = new ArrayList<>(mine);
-        int si = 0;
-        for (int i = 0; i < wide.size(); i++) {
-            out.add(wide.get(i));
-            if (i % 5 == 4 && si < subs.size()) out.add(subs.get(si++));
+        // Recommended and popular taken in turn, with one from your subscriptions every six or so.
+        List<Item> rec = new ArrayList<>();
+        for (int a = 0, b = 0; a < mine.size() || b < wide.size(); ) {
+            if (a < mine.size()) rec.add(mine.get(a++));
+            if (b < wide.size()) rec.add(wide.get(b++));
         }
-        while (si < subs.size() && out.size() < 200) out.add(subs.get(si++));
+        List<Item> out = new ArrayList<>();
+        int si = 0;
+        for (int i = 0; i < rec.size(); i++) {
+            out.add(rec.get(i));
+            if (i % 6 == 5 && si < subs.size()) out.add(subs.get(si++));
+        }
+        if (out.isEmpty()) { out.addAll(subs); return out; }
         return out;
     }
 

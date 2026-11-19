@@ -107,6 +107,7 @@ public class PlayerActivity extends FragmentActivity {
     private LinearLayout shortsSide;
     private TextView shortsTitle, shortsChannel, shortsSub, shortsHint;
     private boolean shortsMode;
+    private View panelFrom;
     /** The Short's own picture, shown the moment it opens (until the video's first frame). */
     private ImageView poster;
     /** Video details fetched ahead of time for the next Short, so it starts right away. */
@@ -1280,8 +1281,11 @@ public class PlayerActivity extends FragmentActivity {
             t.setPadding(dp(4), 0, 0, dp(16));
             panelList.addView(t);
         }
+        if (panel.getVisibility() != View.VISIBLE) panelFrom = getCurrentFocus();
         panel.setVisibility(View.VISIBLE);
         panelScroll.scrollTo(0, 0);
+        // Shorts: the Short's title and buttons step aside so the panel never covers them or the Short.
+        if (shortsMode) { shortsSide.setVisibility(View.GONE); shortsHint.setVisibility(View.GONE); }
         setOverlay(false);
         h.removeCallbacks(hideOverlay);
         shrinkVideo(true);
@@ -1329,10 +1333,18 @@ public class PlayerActivity extends FragmentActivity {
 
     private void closePanel() {
         if (panel == null) return;
-        if (panel.getVisibility() == View.VISIBLE) shrinkVideo(false);
+        boolean was = panel.getVisibility() == View.VISIBLE;
+        if (was) shrinkVideo(false);
         panel.setVisibility(View.GONE);
         panelList.removeAllViews();
         commentsUrl = null;
+        if (was && shortsMode) {
+            shortsSide.setVisibility(View.VISIBLE);
+            shortsHint.setVisibility(View.VISIBLE);
+            View back = panelFrom != null && panelFrom.isShown() ? panelFrom : videoBox;
+            back.requestFocus();
+        }
+        panelFrom = null;
     }
 
     private TextView panelText(CharSequence s, int sp, int color, boolean focusable) {
@@ -2086,6 +2098,14 @@ public class PlayerActivity extends FragmentActivity {
             }
             if ((k == KeyEvent.KEYCODE_DPAD_LEFT) && f == videoBox) {
                 if (down) { player.seekBack(); }
+                return true;
+            }
+            if (k == KeyEvent.KEYCODE_DPAD_RIGHT && f == videoBox) {
+                if (down && e.getRepeatCount() == 0) shortsLike.requestFocus();
+                return true;
+            }
+            if (k == KeyEvent.KEYCODE_BACK && f != null && f != videoBox && f != root) {
+                if (!down) videoBox.requestFocus();
                 return true;
             }
             return super.dispatchKeyEvent(e);

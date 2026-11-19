@@ -410,12 +410,12 @@ public class MainActivity extends FragmentActivity {
                 }
                 break;
             case "shorts":
+                rows.add(() -> Sources.searchShorts("shorts trending", "Trending Shorts"));
+                rows.add(() -> Sources.searchShorts("funny shorts", "Comedy"));
+                rows.add(() -> Sources.searchShorts("sports shorts", "Sports"));
+                rows.add(() -> Sources.searchShorts("gaming shorts", "Gaming"));
+                rows.add(() -> Sources.searchShorts("music shorts", "Music"));
                 if (in) rows.add(Sources::accountShorts);
-                rows.add(() -> Sources.searchShorts("#shorts", "Trending Shorts"));
-                rows.add(() -> Sources.searchShorts("#shorts funny", "Comedy"));
-                rows.add(() -> Sources.searchShorts("#shorts sports", "Sports"));
-                rows.add(() -> Sources.searchShorts("#shorts gaming", "Gaming"));
-                rows.add(() -> Sources.searchShorts("#shorts music", "Music"));
                 break;
             case "library":
                 rows.add(Sources::continueWatching);
