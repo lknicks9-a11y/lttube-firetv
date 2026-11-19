@@ -78,29 +78,43 @@ public final class Sources {
     /** quick = just enough to start playing now (the rest is added while you watch). */
     public static List<Item> shortsForYou(boolean signedIn, boolean quick) {
         List<Item> mine = new ArrayList<>(), subs = new ArrayList<>(), wide = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        if (signedIn) {
-            for (String feed : new String[]{"FEshorts", Yti.HOME}) {
-                try {
-                    for (Shelf sh : Yti.sections(feed, "")) for (Item i : sh.items)
-                        if (Item.VIDEO.equals(i.type) && (i.isShort || "FEshorts".equals(feed)) && seen.add(i.url)) { i.isShort = true; mine.add(i); }
-                } catch (Exception ignored) { }
+        Set<String> seen = java.util.Collections.synchronizedSet(new HashSet<>());
+        java.util.concurrent.ExecutorService ex = java.util.concurrent.Executors.newFixedThreadPool(6);
+        try {
+            List<java.util.concurrent.Future<List<Item>>> acct = new ArrayList<>();
+            if (signedIn) {
+                for (String feed : new String[]{"FEshorts", Yti.HOME, Yti.SUBS}) acct.add(ex.submit(() -> {
+                    List<Item> l = new ArrayList<>();
+                    try {
+                        for (Shelf sh : Yti.sections(feed, "")) for (Item i : sh.items) {
+                            if (!Item.VIDEO.equals(i.type) || i.url == null) continue;
+                            boolean sh2 = i.isShort || (i.duration > 0 && i.duration <= 75) || i.url.contains("/shorts/");
+                            if (sh2 || ("FEshorts".equals(feed) && i.duration <= 0)) { i.isShort = true; l.add(i); }
+                        }
+                    } catch (Exception ignored) { }
+                    return l;
+                }));
             }
-            if (quick && mine.size() >= 6) return mine;
-            if (!quick) try {
-                for (Shelf sh : Yti.sections(Yti.SUBS, "")) for (Item i : sh.items) if (i.isShort && seen.add(i.url)) subs.add(i);
-            } catch (Exception ignored) { }
-        }
-        String[] topics = {"#shorts", "#shorts viral", "#shorts funny", "#shorts sports", "#shorts gaming", "#shorts music", "#shorts food"};
-        for (String q : topics) {
-            try {
-                for (Shelf sh : searchShorts(q, "")) for (Item i : sh.items) if (seen.add(i.url)) wide.add(i);
-            } catch (Exception ignored) { }
-            if (wide.size() > 120 || (quick && wide.size() >= 10)) break;
-        }
+            // Plain words, not "#shorts": a lone hashtag search gives YouTube's hashtag page, which comes back empty.
+            String[] topics = quick
+                    ? new String[]{"shorts trending", "funny shorts", "viral shorts"}
+                    : new String[]{"shorts trending", "funny shorts", "viral shorts", "sports shorts", "gaming shorts",
+                                   "music shorts", "food shorts", "satisfying shorts", "animals shorts", "comedy shorts"};
+            List<java.util.concurrent.Future<List<Item>>> pub = new ArrayList<>();
+            for (String q : topics) pub.add(ex.submit(() -> {
+                List<Item> l = new ArrayList<>();
+                try { for (Shelf sh : searchShorts(q, "Shorts")) l.addAll(sh.items); } catch (Exception ignored) { }
+                return l;
+            }));
+            for (int k = 0; k < acct.size(); k++) {
+                List<Item> l = get(acct.get(k));
+                for (Item i : l) if (seen.add(i.url)) (k == 2 ? subs : mine).add(i);
+            }
+            for (java.util.concurrent.Future<List<Item>> f : pub) for (Item i : get(f)) if (seen.add(i.url)) wide.add(i);
+        } finally { ex.shutdownNow(); }
         java.util.Collections.shuffle(wide);
         java.util.Collections.shuffle(subs);
-        // For you first, then every few Shorts one from your subscriptions among the popular ones.
+        // For you first, then popular ones with one from your subscriptions every few Shorts.
         List<Item> out = new ArrayList<>(mine);
         int si = 0;
         for (int i = 0; i < wide.size(); i++) {
@@ -109,6 +123,10 @@ public final class Sources {
         }
         while (si < subs.size() && out.size() < 200) out.add(subs.get(si++));
         return out;
+    }
+
+    private static List<Item> get(java.util.concurrent.Future<List<Item>> f) {
+        try { return f.get(25, java.util.concurrent.TimeUnit.SECONDS); } catch (Exception e) { return new ArrayList<>(); }
     }
 
     /** Your playlists (only playlists — not the recently watched videos YouTube puts on the same page). */

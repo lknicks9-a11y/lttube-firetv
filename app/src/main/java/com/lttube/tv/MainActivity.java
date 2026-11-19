@@ -331,6 +331,10 @@ public class MainActivity extends FragmentActivity {
             java.util.List<Item> all = new java.util.ArrayList<>();
             java.util.Set<String> seen = new java.util.HashSet<>();
             for (Item it : Sources.shortsForYou(in, true)) if (it.videoId() != null && seen.add(it.videoId())) { it.isShort = true; all.add(it); }
+            if (all.isEmpty()) {
+                // Last resort: Shorts from your subscriptions, as before.
+                try { for (Shelf sh : Sources.accountShorts()) for (Item it : sh.items) if (it.videoId() != null && seen.add(it.videoId())) { it.isShort = true; all.add(it); } } catch (Exception ignored) { }
+            }
             if (all.isEmpty()) throw new Exception("No Shorts right now");
             return all;
         }, (list, err) -> {
