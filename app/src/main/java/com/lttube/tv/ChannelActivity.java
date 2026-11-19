@@ -119,7 +119,11 @@ public class ChannelActivity extends FragmentActivity {
             tv.setOnFocusChangeListener((v, has) -> styleTabs());
             tv.setOnClickListener(v -> selectTab(key));
             tv.setOnKeyListener((v, code, ev) -> {
-                if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_DOWN) { focusContent(); return true; }
+                if (ev.getAction() == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    if (sortRow.getVisibility() == View.VISIBLE) { focusChip(); return true; }
+                    focusContent();
+                    return true;
+                }
                 return false;
             });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
@@ -198,7 +202,7 @@ public class ChannelActivity extends FragmentActivity {
 
     }
 
-    private int cols, cardW, shortCols, shortW;
+    private int cols, cardW, shortCols, shortW, curCols = 4;
     private LinearLayout sortRow;
     private final List<TextView> chipViews = new ArrayList<>();
     private String sort = "latest";
@@ -223,11 +227,23 @@ public class ChannelActivity extends FragmentActivity {
     /** Grid set up for this tab: Shorts get narrow cards in more columns. */
     private void gridFor(String key) {
         boolean shorts = ChannelTabs.SHORTS.equals(key);
-        grid.setNumColumns(shorts ? shortCols : cols);
+        curCols = shorts ? shortCols : cols;
+        grid.setNumColumns(curCols);
         cards = new ArrayObjectAdapter(new CardPresenter(shorts ? shortW : cardW));
         grid.setAdapter(makeBridge());
         sortRow.setVisibility(ChannelTabs.VIDEOS.equals(key) ? View.VISIBLE : View.GONE);
         styleChips();
+    }
+
+    private void focusChip() {
+        for (TextView c : chipViews) if (sort.equals(c.getTag())) { c.requestFocus(); return; }
+        if (!chipViews.isEmpty()) chipViews.get(0).requestFocus();
+    }
+
+    /** Up from the videos' top row: back to the chips (Videos) or the tabs, like YouTube. */
+    private void focusTop() {
+        if (sortRow.getVisibility() == View.VISIBLE) { focusChip(); return; }
+        for (TextView tv : tabViews) if (tab.equals(tv.getTag())) { tv.requestFocus(); return; }
     }
 
     private void styleChips() {
@@ -464,12 +480,27 @@ public class ChannelActivity extends FragmentActivity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
         if (e.getAction() == KeyEvent.ACTION_DOWN) userMoved = true;
+        // Up with nowhere further up inside the videos → the chips / tabs.
+        if (e.getKeyCode() == KeyEvent.KEYCODE_DPAD_UP && e.getAction() == KeyEvent.ACTION_DOWN) {
+            View before = getCurrentFocus();
+            boolean inContent = before != null && (isInside(before, grid) || isInside(before, rowsHolder));
+            if (inContent && grid.getVisibility() == View.VISIBLE && isInside(before, grid) && grid.getSelectedPosition() < curCols) { focusTop(); return true; }
+            boolean r = super.dispatchKeyEvent(e);
+            View after = getCurrentFocus();
+            if (inContent && (after == before || after == null || !(isInside(after, grid) || isInside(after, rowsHolder) || tabViews.contains(after) || chipViews.contains(after)))) { focusTop(); return true; }
+            return r;
+        }
         // Back from the videos goes to the tabs first
         if (e.getKeyCode() == KeyEvent.KEYCODE_BACK && e.getAction() == KeyEvent.ACTION_UP && header.getVisibility() == View.GONE) {
             for (TextView tv : tabViews) if (tab.equals(tv.getTag())) { tv.requestFocus(); return true; }
         }
         if (e.getKeyCode() == KeyEvent.KEYCODE_BACK && e.getAction() == KeyEvent.ACTION_DOWN && header.getVisibility() == View.GONE) return true;
         return super.dispatchKeyEvent(e);
+    }
+
+    private static boolean isInside(View v, View parent) {
+        for (View p = v; p != null; p = p.getParent() instanceof View ? (View) p.getParent() : null) if (p == parent) return true;
+        return false;
     }
 
     private int dp(float v) { return Ui.dp(this, v); }

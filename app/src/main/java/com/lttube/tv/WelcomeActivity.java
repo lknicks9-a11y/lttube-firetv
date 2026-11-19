@@ -69,13 +69,21 @@ public class WelcomeActivity extends FragmentActivity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER);
-        col.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        // Many channels: the row scrolls sideways instead of running off the screen.
+        android.widget.HorizontalScrollView rs = new android.widget.HorizontalScrollView(this);
+        rs.setHorizontalScrollBarEnabled(false);
+        rs.setFillViewport(true);
+        rs.setClipToPadding(false);
+        rs.setPadding(dp(40), dp(10), dp(40), dp(10));
+        rs.addView(row, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+        col.addView(rs, new LinearLayout.LayoutParams(-1, -2));
 
         final List<Account.Profile> profiles = Account.profiles();
         View first = null;
         for (int i = 0; i < profiles.size(); i++) {
             final int idx = i;
             final Account.Profile pr = profiles.get(i);
+            if (pr.hidden) continue; // you chose not to show this channel
             View v = profileTile(pr.name, pr.handle, pr.photo, 0, () -> choose(idx), () -> removeDialog(pr));
             row.addView(v);
             Account.Profile act = Account.active();
@@ -83,11 +91,22 @@ public class WelcomeActivity extends FragmentActivity {
         }
         row.addView(profileTile("Add account", "", null, R.drawable.ic_account, this::showSignInFromPicker, null));
 
+        LinearLayout btns = new LinearLayout(this);
+        btns.setOrientation(LinearLayout.HORIZONTAL);
+        btns.setGravity(Gravity.CENTER);
         TextView guest = pillButton("Watch as guest");
         guest.setOnClickListener(v -> { Account.watchAsGuest(); openHome(); });
+        btns.addView(guest);
+        if (!profiles.isEmpty()) {
+            TextView choose = pillButton("Choose channels");
+            choose.setOnClickListener(v -> showChannelChooser());
+            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(-2, -2);
+            cl.leftMargin = dp(16);
+            btns.addView(choose, cl);
+        }
         LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(-2, -2);
         gl.topMargin = dp(40);
-        col.addView(guest, gl);
+        col.addView(btns, gl);
 
         TextView hint = Ui.text(this, 14, 0x99FFFFFF, false);
         hint.setText("Press ≡ on a profile to remove it from this TV");
@@ -99,6 +118,105 @@ public class WelcomeActivity extends FragmentActivity {
     }
 
     private void showSignInFromPicker() { showSignIn(); }
+
+    /**
+     * Every channel on your signed-in Google accounts, each Shown or Hidden: only the shown ones appear in
+     * "Who's watching?". "Look again" reloads the list from YouTube (new channels you made show up).
+     */
+    private void showChannelChooser() {
+        clear();
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(dp(80), dp(50), dp(80), dp(30));
+        root.addView(col, new FrameLayout.LayoutParams(-1, -1));
+        TextView title = Ui.text(this, 30, Color.WHITE, true);
+        title.setText("Choose which channels show up");
+        col.addView(title);
+        TextView sub = Ui.text(this, 16, 0xB3FFFFFF, false);
+        sub.setText("Every channel on your Google account. Hidden ones stay signed in but don't appear in Who's watching.");
+        sub.setPadding(0, dp(6), 0, dp(18));
+        col.addView(sub);
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        sv.addView(list);
+        col.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
+        final List<Account.Profile> all = Account.profiles();
+        View first = null;
+        for (int i = 0; i < all.size(); i++) {
+            final int idx = i;
+            final Account.Profile pr = all.get(i);
+            final LinearLayout r = new LinearLayout(this);
+            r.setOrientation(LinearLayout.HORIZONTAL);
+            r.setGravity(Gravity.CENTER_VERTICAL);
+            r.setFocusable(true);
+            r.setPadding(dp(18), dp(10), dp(18), dp(10));
+            ImageView av = new ImageView(this);
+            if (pr.photo != null && !pr.photo.isEmpty()) com.bumptech.glide.Glide.with(this).load(pr.photo).apply(com.bumptech.glide.request.RequestOptions.circleCropTransform()).into(av);
+            else { av.setImageResource(R.drawable.ic_account); av.setColorFilter(Color.WHITE); }
+            r.addView(av, new LinearLayout.LayoutParams(dp(44), dp(44)));
+            LinearLayout texts = new LinearLayout(this);
+            texts.setOrientation(LinearLayout.VERTICAL);
+            texts.setPadding(dp(16), 0, 0, 0);
+            final TextView n = Ui.text(this, 19, Color.WHITE, true);
+            n.setText(pr.name.isEmpty() ? "Your account" : pr.name);
+            texts.addView(n);
+            final TextView hnd = Ui.text(this, 14, 0xB3FFFFFF, false);
+            hnd.setText(pr.pageId.isEmpty() ? "Main account" : pr.handle);
+            texts.addView(hnd);
+            r.addView(texts, new LinearLayout.LayoutParams(0, -2, 1f));
+            final TextView state = Ui.text(this, 16, Color.WHITE, true);
+            state.setPadding(dp(18), dp(7), dp(18), dp(7));
+            r.addView(state);
+            final boolean[] hidden = {pr.hidden};
+            final Runnable paint = () -> {
+                boolean f = r.isFocused();
+                r.setBackground(Ui.pill(this, f ? 0xFFF1F1F1 : 0x14FFFFFF, 18));
+                n.setTextColor(f ? 0xFF0F0F0F : Color.WHITE);
+                hnd.setTextColor(f ? 0xFF4A4C55 : 0xB3FFFFFF);
+                state.setText(hidden[0] ? "Hidden" : "Shown");
+                state.setBackground(Ui.pill(this, hidden[0] ? 0x40888888 : 0xFF3EA6FF, 16));
+                state.setTextColor(Color.WHITE);
+            };
+            paint.run();
+            r.setOnFocusChangeListener((v, has) -> paint.run());
+            r.setOnClickListener(v -> { hidden[0] = !hidden[0]; Account.setHidden(idx, hidden[0]); paint.run(); });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.bottomMargin = dp(8);
+            list.addView(r, lp);
+            if (first == null) first = r;
+        }
+        LinearLayout btns = new LinearLayout(this);
+        btns.setOrientation(LinearLayout.HORIZONTAL);
+        btns.setPadding(0, dp(16), 0, 0);
+        TextView done = pillButton("Done");
+        done.setOnClickListener(v -> showPicker());
+        btns.addView(done);
+        TextView again = pillButton("Look again");
+        again.setOnClickListener(v -> reloadChannels());
+        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(-2, -2);
+        al.leftMargin = dp(16);
+        btns.addView(again, al);
+        col.addView(btns);
+        if (first != null) first.requestFocus(); else done.requestFocus();
+    }
+
+    /** Asks YouTube again for every channel on each signed-in Google account. */
+    private void reloadChannels() {
+        java.util.LinkedHashSet<String> accts = new java.util.LinkedHashSet<>();
+        for (Account.Profile pr : Account.profiles()) accts.add(pr.acct);
+        Toast.makeText(this, "Loading your channels…", Toast.LENGTH_SHORT).show();
+        Bg.run(() -> {
+            for (String k : accts) {
+                List<Account.Profile> l = Yti.accountsList(k);
+                if (!l.isEmpty()) Account.setProfilesFor(k, l, false);
+            }
+            return true;
+        }, (r, e) -> {
+            if (r == null) Toast.makeText(this, "Couldn't load channels: " + Bg.message(e), Toast.LENGTH_LONG).show();
+            showChannelChooser();
+        });
+    }
 
     private View profileTile(String name, String handle, String photo, int icon, Runnable click, Runnable menu) {
         final LinearLayout tile = new LinearLayout(this);
@@ -285,8 +403,8 @@ public class WelcomeActivity extends FragmentActivity {
                         for (int i = 0; i < all.size(); i++) if (all.get(i).acct.equals(key)) { Account.setActive(i); break; }
                         Bg.run(() -> { Yti.loadProfile(); return true; }, (r, e3) -> openHome());
                     } else {
-                        Toast.makeText(this, "Choose who's watching", Toast.LENGTH_SHORT).show();
-                        showPicker();
+                        // Several channels on this account: pick which ones show up, then who's watching.
+                        showChannelChooser();
                     }
                 });
             });

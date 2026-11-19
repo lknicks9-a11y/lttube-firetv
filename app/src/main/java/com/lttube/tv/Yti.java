@@ -208,27 +208,35 @@ public final class Yti {
 
     /** The main account and each of its channels, for "Who's watching?". */
     public static List<Account.Profile> accountsList(String acct) throws Exception {
+        // Every channel on this Google account: YouTube lists them differently in the TV app, the web's account
+        // menu and the web's channel switcher, so all three are asked and put together (no duplicates).
         List<Account.Profile> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
         Exception last = null;
-        for (int i = 0; i < 2 && out.isEmpty(); i++) {
-            boolean tv = i == 0;
+        Object[][] asks = {
+                {"account/accounts_list", true, new JSONObject().put("accountReadMask", new JSONObject().put("returnOwner", true)
+                        .put("returnBrandAccounts", true).put("returnPersonalAccount", true))},
+                {"account/accounts_list", false, new JSONObject().put("requestType", "ACCOUNTS_LIST_REQUEST_TYPE_CHANNEL_SWITCHER")
+                        .put("callCircumstance", "SWITCHING_USERS_FULL")},
+                {"account/accounts_list", true, new JSONObject().put("requestType", "ACCOUNTS_LIST_REQUEST_TYPE_CHANNEL_SWITCHER")},
+                {"account/account_menu", false, new JSONObject()},
+        };
+        for (Object[] ask : asks) {
             try {
-                JSONObject r = callAs(acct, "", tv ? "account/accounts_list" : "account/account_menu",
-                        tv ? new JSONObject().put("accountReadMask", new JSONObject().put("returnOwner", true)
-                                .put("returnBrandAccounts", true).put("returnPersonalAccount", true))
-                           : new JSONObject(), tv);
+                JSONObject r = callAs(acct, "", (String) ask[0], (JSONObject) ask[2], (Boolean) ask[1]);
                 List<JSONObject> items = new ArrayList<>();
                 collectWith(r, "accountName", items);
-                Set<String> seen = new HashSet<>();
                 for (JSONObject it : items) {
                     Account.Profile pr = new Account.Profile();
                     pr.acct = acct;
                     pr.name = text(it.optJSONObject("accountName"));
                     pr.photo = bestThumb(it.optJSONObject("accountPhoto"));
                     pr.handle = text(it.optJSONObject("channelHandle"));
+                    if (pr.handle.isEmpty()) pr.handle = text(it.optJSONObject("accountByline"));
                     String pid = findString(it, "pageId");
+                    if (pid == null) pid = findString(it, "obfuscatedPageId");
                     pr.pageId = pid == null ? "" : pid;
-                    if (pr.name.isEmpty() || !seen.add(pr.pageId + "|" + pr.name)) continue;
+                    if (pr.name.isEmpty() || !seen.add(pr.pageId.isEmpty() ? "main" : pr.pageId)) continue;
                     if (pr.pageId.isEmpty()) out.add(0, pr); else out.add(pr);
                 }
             } catch (Exception e) { last = e; }

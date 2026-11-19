@@ -33,10 +33,12 @@ public final class Account {
     /** One "who's watching" choice: a Google account, or one of its channels. */
     public static class Profile {
         public String acct = "", pageId = "", name = "", photo = "", handle = "";
+        /** Left out of "Who's watching?" (you chose which channels show up). */
+        public boolean hidden;
 
         JSONObject json() {
             JSONObject o = new JSONObject();
-            try { o.put("acct", acct).put("pageId", pageId).put("name", name).put("photo", photo).put("handle", handle); }
+            try { o.put("acct", acct).put("pageId", pageId).put("name", name).put("photo", photo).put("handle", handle).put("hidden", hidden); }
             catch (Exception ignored) { }
             return o;
         }
@@ -48,6 +50,7 @@ public final class Account {
             pr.name = o.optString("name");
             pr.photo = o.optString("photo");
             pr.handle = o.optString("handle");
+            pr.hidden = o.optBoolean("hidden", false);
             return pr;
         }
     }
@@ -123,6 +126,8 @@ public final class Account {
         List<Profile> out = new ArrayList<>();
         for (Profile pr : l) if (!pr.acct.equals(acct)) out.add(pr);
         int firstNew = out.size();
+        // Keep your Shown / Hidden choices for channels already known.
+        for (Profile n : list) for (Profile old : l) if (old.acct.equals(acct) && old.pageId.equals(n.pageId)) n.hidden = old.hidden;
         out.addAll(list);
         saveProfiles(out);
         int active = -1;
@@ -132,6 +137,14 @@ public final class Account {
             if (pr.acct.equals(cur.acct) && pr.pageId.equals(cur.pageId)) active = i;
         }
         p.edit().putInt("active", active).apply();
+    }
+
+    /** Show or hide one channel in "Who's watching?". */
+    public static synchronized void setHidden(int index, boolean hide) {
+        List<Profile> l = profiles();
+        if (index < 0 || index >= l.size()) return;
+        l.get(index).hidden = hide;
+        saveProfiles(l);
     }
 
     static synchronized void saveProfile(String name, String photo) {
