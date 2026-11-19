@@ -36,7 +36,7 @@ public class MusicApiTest {
         Localization loc = new Localization("en", "US");
         NewPipe.init(NpDownloader.get(), loc, new ContentCountry("US"));
         Ytm.Page home = safe("HOME", () -> Ytm.browse(Ytm.HOME));
-        if (home != null && home.continuation != null) safe("HOME+", () -> Ytm.more(home.continuation));
+        if (home != null && home.continuation != null) safe("HOME+", () -> Ytm.more(Ytm.HOME, home.continuation));
         safe("NEW", () -> Ytm.browse(Ytm.NEW));
         safe("CHARTS", () -> Ytm.browse(Ytm.CHARTS));
         Ytm.Page moods = safe("MOODS", () -> Ytm.browse(Ytm.MOODS));
@@ -55,6 +55,20 @@ public class MusicApiTest {
             if (playlist == null && MItem.PLAYLIST.equals(m.type)) playlist = m;
             if (song == null && m.playable()) song = m;
         }
+        safe("ALBUM fixed", () -> Ytm.browse("MPREb_pnVvyDhXXd0"));
+        safe("PLAYLIST fixed", () -> Ytm.browse("VLRDCLAK5uy_lWy02cQBnTVTlwuRauaGKeUDH3L6PXNxI"));
+        try {
+            java.lang.reflect.Method m = Ytm.class.getDeclaredMethod("call", String.class, org.json.JSONObject.class, String.class);
+            m.setAccessible(true);
+            org.json.JSONObject r = (org.json.JSONObject) m.invoke(null, "search", new org.json.JSONObject().put("query", "coldplay"), null);
+            String text = r.toString();
+            java.util.Map<String,Integer> keys = new java.util.TreeMap<>();
+            java.util.regex.Matcher mm = java.util.regex.Pattern.compile("\"(\\w+(Renderer|ViewModel))\"").matcher(text);
+            while (mm.find()) keys.merge(mm.group(1), 1, Integer::sum);
+            System.out.println("MUS SEARCHKEYS " + keys);
+            int at = text.indexOf("\"musicShelfRenderer\"");
+            System.out.println("MUS SEARCHRAW " + (at < 0 ? "none" : text.substring(Math.max(0, at - 300), Math.min(text.length(), at + 400))));
+        } catch (Throwable e) { System.out.println("MUS SEARCHKEYS FAILED " + e); }
         final MItem a = album, ar = artist, pl = playlist;
         if (a != null) safe("ALBUM " + a.browseId, () -> Ytm.browse(a.browseId));
         if (ar != null) safe("ARTIST " + ar.browseId, () -> Ytm.browse(ar.browseId));

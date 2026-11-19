@@ -120,9 +120,13 @@ public final class Ytm {
     }
 
     /** More shelves of a long page (Home keeps going as you scroll). */
-    public static Page more(String continuation) throws Exception {
+    public static Page more(String browseId, String continuation) throws Exception {
         String c = java.net.URLEncoder.encode(continuation, "UTF-8");
-        return page(call("browse", new JSONObject(), "&ctoken=" + c + "&continuation=" + c + "&type=next"));
+        JSONObject body = new JSONObject();
+        if (browseId != null) body.put("browseId", browseId);
+        Page p = page(call("browse", body, "&ctoken=" + c + "&continuation=" + c + "&type=next"));
+        if (p.shelves.isEmpty()) p = page(call("browse", new JSONObject().put("continuation", continuation), null));
+        return p;
     }
 
     public static Page search(String q, boolean songsOnly) throws Exception {
