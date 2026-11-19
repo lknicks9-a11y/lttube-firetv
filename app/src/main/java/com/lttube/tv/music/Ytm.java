@@ -390,6 +390,8 @@ public final class Ytm {
             else if (o.has("musicResponsiveListItemRenderer")) m = listItem(o.optJSONObject("musicResponsiveListItemRenderer"));
             else if (o.has("musicMultiRowListItemRenderer")) m = twoRow(o.optJSONObject("musicMultiRowListItemRenderer"));
             else if (o.has("musicNavigationButtonRenderer")) m = navButton(o.optJSONObject("musicNavigationButtonRenderer"));
+            // Podcast shows and episodes aren't music: left out.
+            if (m != null && (m.browseId.startsWith("MPSP") || m.browseId.startsWith("MPED"))) continue;
             if (m != null && !m.title.isEmpty()) sh.items.add(m);
         }
         return sh;

@@ -107,9 +107,10 @@ public final class MusicUi {
         Integer hit = colors.get(url);
         if (hit != null) { done.color(hit); return; }
         try {
-            Glide.with(c.getApplicationContext()).asBitmap().load(url).override(24, 24).into(new CustomTarget<Bitmap>() {
+            Glide.with(c.getApplicationContext()).asBitmap().load(url).override(24, 24).disallowHardwareConfig().into(new CustomTarget<Bitmap>() {
                 @Override public void onResourceReady(Bitmap b, Transition<? super Bitmap> t) {
-                    int col = vivid(b);
+                    int col;
+                    try { col = vivid(b); } catch (Throwable e) { col = 0xFF3A3D46; }
                     colors.put(url, col);
                     done.color(col);
                 }
@@ -386,7 +387,9 @@ public final class MusicUi {
             a.startActivity(MusicPlayer.nowPlaying(a));
             return;
         }
-        if (MItem.PLAYLIST.equals(m.type) && m.browseId.isEmpty() && !m.playlistId.isEmpty()) {
+        // Mixes (made for you, radio) just play — they have no page of their own.
+        boolean mix = m.playlistId.startsWith("RD") && !m.playlistId.startsWith("RDCLAK");
+        if (MItem.PLAYLIST.equals(m.type) && !m.playlistId.isEmpty() && (m.browseId.isEmpty() || mix)) {
             mp.playId(null, m.playlistId);
             a.startActivity(MusicPlayer.nowPlaying(a));
             return;

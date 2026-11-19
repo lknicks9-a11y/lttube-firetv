@@ -119,7 +119,6 @@ public class PageActivity extends Activity {
             java.util.List<Ytm.Shelf> one = new java.util.ArrayList<>();
             one.add(s);
             MusicUi.addShelves(this, extra, one, false, (m, ctx) -> MusicUi.open(this, m, ctx));
-            extra.setPadding(-dp(58), 0, 0, 0);
             list.addView(extra);
         }
         sv.addView(list);
