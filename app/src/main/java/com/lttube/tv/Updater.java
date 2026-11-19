@@ -127,9 +127,10 @@ public final class Updater {
             if (changed != null) changed.run();
             if (act.isFinishing()) return;
             android.content.SharedPreferences up = act.getSharedPreferences("updater", 0);
-            if (newer && (userAsked || rel.build > up.getInt("promptedBuild", 0))) {
+            if (newer && (userAsked || !up.getBoolean("askedOnce", false))) {
                 promptedFor = rel.version;
-                up.edit().putInt("promptedBuild", rel.build).apply();
+                // Asked by itself one time only; after that, updates are in Settings → Update Center.
+                up.edit().putBoolean("askedOnce", true).putInt("promptedBuild", rel.build).apply();
                 offer(act, rel);
             } else if (!newer && userAsked) {
                 Toast.makeText(act, "LTTube is up to date (" + currentVersion(act) + ")", Toast.LENGTH_SHORT).show();

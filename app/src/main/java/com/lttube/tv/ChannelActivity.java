@@ -170,7 +170,7 @@ public class ChannelActivity extends FragmentActivity {
         cols = avail >= 4 * 210 + 48 ? 4 : 3;
         cardW = (int) ((avail - (cols - 1) * 16) / cols);
         // Shorts: more, narrower columns so the tall pictures fill their cards (no big gaps).
-        shortCols = cols + 2;
+        shortCols = cols + 3;
         shortW = (int) ((avail - (shortCols - 1) * 16) / shortCols);
         cards = new ArrayObjectAdapter(new CardPresenter(cardW));
         grid = new VerticalGridView(this);
@@ -178,7 +178,12 @@ public class ChannelActivity extends FragmentActivity {
         grid.setHorizontalSpacing(dp(16));
         grid.setVerticalSpacing(dp(18));
         grid.setClipToPadding(false);
-        grid.setPadding(dp(56), dp(10), dp(40), dp(40));
+        grid.setPadding(dp(56), dp(16), dp(40), dp(40));
+        grid.setWindowAlignment(androidx.leanback.widget.BaseGridView.WINDOW_ALIGN_LOW_EDGE);
+        grid.setWindowAlignmentOffsetPercent(0);
+        grid.setWindowAlignmentOffset(dp(16));
+        grid.setItemAlignmentOffsetPercent(0);
+        grid.setItemAlignmentOffset(0);
         grid.setVisibility(View.GONE);
         grid.setAdapter(makeBridge());
         grid.setOnChildViewHolderSelectedListener(new OnChildViewHolderSelectedListener() {
@@ -305,7 +310,7 @@ public class ChannelActivity extends FragmentActivity {
     };
 
     private void focusContent() {
-        if ("home".equals(tab)) rows.focus();
+        if ("home".equals(tab)) { rows.toTop(); rows.focus(); }
         else grid.requestFocus();
     }
 
@@ -346,6 +351,7 @@ public class ChannelActivity extends FragmentActivity {
             sortRow.setVisibility(View.GONE);
             rowsHolder.setVisibility(View.VISIBLE);
             rows.clear();
+            rows.keepTop = true;
             // Top to bottom like YouTube: Videos, Popular, then Shorts, Live, Playlists.
             addRow(ChannelTabs.VIDEOS, "Videos");
             addPopularRow();

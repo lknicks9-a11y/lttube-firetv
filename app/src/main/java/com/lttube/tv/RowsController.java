@@ -104,11 +104,7 @@ public class RowsController {
                 slots.get(slot).add(lr);
                 rows.add(at++, lr);
             }
-            if (keepTop) {
-                try { fragment.setSelectedPosition(0, false); } catch (Exception ignored) { }
-                View gv = fragment.getView();
-                if (gv != null) gv.scrollTo(0, 0);
-            }
+            if (keepTop) toTop();
             if (wasEmpty && rows.size() > 0 && onFirstRow != null) {
                 Runnable r = onFirstRow;
                 onFirstRow = null;
@@ -183,6 +179,17 @@ public class RowsController {
     }
 
     public boolean isEmpty() { return rows.size() == 0; }
+
+    /** Back to the first row: rows that arrive later are put above the one showing, which pushed it down. */
+    public void toTop() {
+        try {
+            androidx.leanback.widget.VerticalGridView g = fragment.getVerticalGridView();
+            if (g == null) return;
+            g.setSelectedPosition(0);
+            g.scrollToPosition(0);
+            g.post(() -> { if (keepTop) { g.setSelectedPosition(0); g.scrollToPosition(0); } });
+        } catch (Exception ignored) { }
+    }
 
     /** While true, rows loading in keep the list at its first row (until you start moving). */
     public boolean keepTop;
