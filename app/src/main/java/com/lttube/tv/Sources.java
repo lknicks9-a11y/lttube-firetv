@@ -69,6 +69,64 @@ public final class Sources {
         return out;
     }
 
+    /**
+     * Shorts picked for you, like YouTube's Shorts tab: YouTube's own Shorts feed and the Shorts it recommends on
+     * your Home first, mixed with what's popular across topics — with only a few from channels you follow.
+     */
+    public static List<Item> shortsForYou(boolean signedIn) { return shortsForYou(signedIn, false); }
+
+    /** quick = just enough to start playing now (the rest is added while you watch). */
+    public static List<Item> shortsForYou(boolean signedIn, boolean quick) {
+        List<Item> mine = new ArrayList<>(), subs = new ArrayList<>(), wide = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        if (signedIn) {
+            for (String feed : new String[]{"FEshorts", Yti.HOME}) {
+                try {
+                    for (Shelf sh : Yti.sections(feed, "")) for (Item i : sh.items)
+                        if (Item.VIDEO.equals(i.type) && (i.isShort || "FEshorts".equals(feed)) && seen.add(i.url)) { i.isShort = true; mine.add(i); }
+                } catch (Exception ignored) { }
+            }
+            if (quick && mine.size() >= 6) return mine;
+            if (!quick) try {
+                for (Shelf sh : Yti.sections(Yti.SUBS, "")) for (Item i : sh.items) if (i.isShort && seen.add(i.url)) subs.add(i);
+            } catch (Exception ignored) { }
+        }
+        String[] topics = {"#shorts", "#shorts viral", "#shorts funny", "#shorts sports", "#shorts gaming", "#shorts music", "#shorts food"};
+        for (String q : topics) {
+            try {
+                for (Shelf sh : searchShorts(q, "")) for (Item i : sh.items) if (seen.add(i.url)) wide.add(i);
+            } catch (Exception ignored) { }
+            if (wide.size() > 120 || (quick && wide.size() >= 10)) break;
+        }
+        java.util.Collections.shuffle(wide);
+        java.util.Collections.shuffle(subs);
+        // For you first, then every few Shorts one from your subscriptions among the popular ones.
+        List<Item> out = new ArrayList<>(mine);
+        int si = 0;
+        for (int i = 0; i < wide.size(); i++) {
+            out.add(wide.get(i));
+            if (i % 5 == 4 && si < subs.size()) out.add(subs.get(si++));
+        }
+        while (si < subs.size() && out.size() < 200) out.add(subs.get(si++));
+        return out;
+    }
+
+    /** Your playlists (only playlists — not the recently watched videos YouTube puts on the same page). */
+    public static List<Shelf> accountPlaylists() throws Exception {
+        List<Item> l = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        Exception last = null;
+        for (String feed : new String[]{Yti.PLAYLISTS, "FEplaylist_aggregation", "FElibrary"}) {
+            try {
+                for (Shelf sh : Yti.sections(feed, "Playlists")) for (Item i : sh.items)
+                    if (Item.PLAYLIST.equals(i.type) && seen.add(i.url)) l.add(i);
+            } catch (Exception e) { last = e; }
+            if (l.size() >= 4) break;
+        }
+        if (l.isEmpty() && last != null) throw last;
+        return one(new Shelf("Playlists", l));
+    }
+
     /** One of your account lists as a single row (History, Watch later, …). */
     public static List<Shelf> accountRow(String feed, String title) throws Exception {
         List<Shelf> parts = Yti.sections(feed, title);

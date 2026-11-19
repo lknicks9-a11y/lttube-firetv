@@ -330,16 +330,19 @@ public class MainActivity extends FragmentActivity {
         Bg.run(() -> {
             java.util.List<Item> all = new java.util.ArrayList<>();
             java.util.Set<String> seen = new java.util.HashSet<>();
-            java.util.List<java.util.List<Shelf>> sources = new java.util.ArrayList<>();
-            if (in) try { sources.add(Sources.accountShorts()); } catch (Exception ignored) { }
-            try { sources.add(Sources.searchShorts("#shorts", "Shorts")); } catch (Exception ignored) { }
-            for (java.util.List<Shelf> l : sources) for (Shelf sh : l) for (Item it : sh.items)
-                if (it.videoId() != null && seen.add(it.videoId())) { it.isShort = true; all.add(it); }
+            for (Item it : Sources.shortsForYou(in, true)) if (it.videoId() != null && seen.add(it.videoId())) { it.isShort = true; all.add(it); }
             if (all.isEmpty()) throw new Exception("No Shorts right now");
             return all;
         }, (list, err) -> {
             if (list == null) { Toast.makeText(this, "Couldn't load Shorts: " + Bg.message(err), Toast.LENGTH_LONG).show(); show("shorts", true); return; }
             Nav.open(this, list.get(0), list);
+            // The rest of the mix arrives while you watch: added to the end of the Shorts line-up.
+            final java.util.Set<String> have = new java.util.HashSet<>();
+            for (Item it : list) have.add(it.videoId());
+            Bg.run(() -> Sources.shortsForYou(in, false), (more, e2) -> {
+                if (more == null) return;
+                for (Item it : more) if (it.videoId() != null && have.add(it.videoId())) { it.isShort = true; Nav.queue.add(it); }
+            });
         });
     }
 
@@ -416,7 +419,7 @@ public class MainActivity extends FragmentActivity {
                     rows.add(() -> Sources.accountRow(Yti.HISTORY, "History"));
                     rows.add(() -> Sources.accountRow(Yti.WATCH_LATER, "Watch later"));
                     rows.add(() -> Sources.accountRow(Yti.LIKED, "Liked videos"));
-                    rows.add(() -> Sources.accountRow(Yti.PLAYLISTS, "Playlists"));
+                    rows.add(Sources::accountPlaylists);
                 } else {
                     rows.add(Sources::localHistory);
                     rows.addNow(signInShelf());
