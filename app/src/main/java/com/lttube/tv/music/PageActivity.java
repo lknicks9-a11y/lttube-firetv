@@ -2,6 +2,7 @@ package com.lttube.tv.music;
 
 import android.app.Activity;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -13,213 +14,206 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.bumptech.glide.Glide;
 import com.lttube.tv.Bg;
 import com.lttube.tv.R;
 
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.List;
 
-/** An album or playlist (art on the left, songs on the right), or an artist / mood page (rows). */
+/**
+ * An album, playlist, artist or mood: a big header (name, "Album • Artist • 2016", a line about it) over its
+ * picture, Play / Shuffle (and Follow for artists), then the songs as a list and anything else as rows.
+ */
 public class PageActivity extends Activity {
     public static final String ITEM = "item";
 
     private MItem item;
-    private FrameLayout root;
-    private Backdrop backdrop;
+    private FrameLayout root, hero;
+    private ImageView heroImage;
+    private ScrollView scroll;
+    private LinearLayout content;
     private ProgressBar spinner;
+    private int W, H;
+    private boolean followingNow;
 
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         try { item = MItem.fromJson(new JSONObject(getIntent().getStringExtra(ITEM))); } catch (Exception e) { finish(); return; }
+        float d = getResources().getDisplayMetrics().density;
+        W = Math.round(getResources().getDisplayMetrics().widthPixels / d);
+        H = Math.round(getResources().getDisplayMetrics().heightPixels / d);
         root = new FrameLayout(this);
+        root.setBackground(MusicUi.background());
         setContentView(root);
-        backdrop = new Backdrop(this);
-        root.addView(backdrop, MusicUi.match());
-        backdrop.setArt(item.thumb);
+
+        hero = new FrameLayout(this);
+        heroImage = new ImageView(this);
+        heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        hero.addView(heroImage, MusicUi.match());
+        View shade = new View(this);
+        shade.setBackgroundColor(0x33000000);
+        hero.addView(shade, MusicUi.match());
+        View fl = new View(this);
+        fl.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{MusicUi.BG_TOP, 0xB334363A, 0x0034363A}));
+        hero.addView(fl, new FrameLayout.LayoutParams(dp(Math.round(W * 0.32f)), -1, Gravity.START));
+        View fb = new View(this);
+        fb.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0xFF2E3033, 0x002E3033}));
+        hero.addView(fb, new FrameLayout.LayoutParams(-1, dp(Math.round(H * 0.34f)), Gravity.BOTTOM));
+        root.addView(hero, new FrameLayout.LayoutParams(dp(Math.round(W * 0.64f)), dp(Math.round(H * 0.74f)), Gravity.TOP | Gravity.END));
+        if (!item.thumb.isEmpty()) Glide.with(this).load(MItem.art(item.thumb, 1080)).into(heroImage);
+
+        scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.setClipChildren(false);
+        content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setClipChildren(false);
+        content.setPadding(0, 0, 0, dp(50));
+        scroll.addView(content);
+        root.addView(scroll, MusicUi.match());
+        scroll.getViewTreeObserver().addOnScrollChangedListener(() ->
+                hero.setAlpha(1f - Math.min(1f, scroll.getScrollY() / (float) dp(H * 0.4f))));
+
         spinner = new ProgressBar(this);
-        root.addView(spinner, new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER));
+        root.addView(spinner, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER));
         Bg.run(() -> Ytm.browse(item.browseId, item.params), (pg, e) -> {
             spinner.setVisibility(View.GONE);
             if (pg == null) {
                 TextView t = MusicUi.text(this, 18, MusicUi.TEXT2, false);
                 t.setText("Couldn't open this: " + Bg.message(e));
-                root.addView(t, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+                t.setPadding(dp(MusicUi.PAD), dp(H * 0.4f), dp(MusicUi.PAD), 0);
+                content.addView(t);
                 return;
             }
-            if (pg.thumb.isEmpty()) pg.thumb = item.thumb;
-            if (pg.title.isEmpty()) pg.title = item.title;
-            backdrop.setArt(pg.thumb);
-            boolean list = !MItem.ARTIST.equals(item.type) && !MItem.CATEGORY.equals(item.type) && !pg.songs().isEmpty();
-            if (list) album(pg); else rows(pg);
+            show(pg);
         });
     }
 
     private int dp(float v) { return MusicUi.dp(this, v); }
 
-    /** Album / playlist: the cover, Play and Shuffle on the left; the songs on the right. */
-    private void album(Ytm.Page pg) {
+    private void show(Ytm.Page pg) {
+        boolean artist = MItem.ARTIST.equals(item.type) || item.browseId.startsWith("UC");
+        String pic = !pg.banner.isEmpty() ? pg.banner : !pg.thumb.isEmpty() ? MItem.art(pg.thumb, 1080) : "";
+        if (!pic.isEmpty()) Glide.with(this).load(pic).into(heroImage);
         final List<MItem> songs = pg.songs();
-        String pl = !pg.playlistId.isEmpty() ? pg.playlistId : item.playlistId;
-        LinearLayout row = new LinearLayout(this);
-        row.setPadding(dp(70), dp(56), dp(56), 0);
+        final String pl = !pg.playlistId.isEmpty() ? pg.playlistId : item.playlistId;
 
-        LinearLayout left = new LinearLayout(this);
-        left.setOrientation(LinearLayout.VERTICAL);
-        ImageView art = new ImageView(this);
-        MusicUi.art(art, pg.thumb, dp(16));
-        art.setElevation(dp(16));
-        left.addView(art, new LinearLayout.LayoutParams(dp(290), dp(290)));
-        TextView title = MusicUi.text(this, 28, Color.WHITE, true);
-        title.setText(pg.title);
-        title.setMaxLines(2);
-        title.setEllipsize(TextUtils.TruncateAt.END);
-        title.setPadding(0, dp(22), 0, 0);
-        left.addView(title, new LinearLayout.LayoutParams(dp(290), -2));
-        // Like Apple's album pages: the artist in the accent colour, then the kind and year in grey.
-        TextView sub = MusicUi.text(this, 17, MusicUi.TEXT2, false);
-        String[] parts = pg.subtitle.split("\\s+•\\s+", 2);
-        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder(pg.subtitle);
-        if (parts.length > 0 && !parts[0].isEmpty()) {
-            sb.setSpan(new android.text.style.ForegroundColorSpan(MusicUi.PINK), 0, parts[0].length(), 0);
-            sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, parts[0].length(), 0);
-        }
-        sub.setText(sb);
-        sub.setMaxLines(2);
-        sub.setEllipsize(TextUtils.TruncateAt.END);
-        sub.setPadding(0, dp(8), 0, 0);
-        left.addView(sub, new LinearLayout.LayoutParams(dp(290), -2));
-        LinearLayout btns = new LinearLayout(this);
-        btns.setPadding(0, dp(22), 0, 0);
-        TextView play = pill("▶  Play", true);
-        play.setOnClickListener(v -> { MusicPlayer.get(this).setShuffle(false); MusicPlayer.get(this).playList(songs, 0, pl); startActivity(MusicPlayer.nowPlaying(this)); });
-        btns.addView(play);
-        TextView shuf = pill("Shuffle", false);
-        shuf.setOnClickListener(v -> { MusicPlayer.get(this).shuffleList(songs, pl); startActivity(MusicPlayer.nowPlaying(this)); });
-        LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(-2, -2);
-        sl.leftMargin = dp(14);
-        btns.addView(shuf, sl);
-        left.addView(btns);
-        row.addView(left, new LinearLayout.LayoutParams(dp(290), -1));
-
-        ScrollView sv = new ScrollView(this);
-        sv.setVerticalScrollBarEnabled(false);
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(0, 0, 0, dp(60));
-        boolean numbered = MItem.ALBUM.equals(item.type) || pg.subtitle.toLowerCase(java.util.Locale.US).contains("album") || pg.subtitle.toLowerCase(java.util.Locale.US).contains("single") || pg.subtitle.toLowerCase(java.util.Locale.US).contains("ep");
-        for (int i = 0; i < songs.size(); i++) {
-            final int at = i;
-            final MItem m = songs.get(i);
-            View r = MusicUi.songRow(this, m, numbered ? i + 1 : -1, true);
-            r.setOnClickListener(v -> { MusicPlayer.get(this).playList(songs, at, pl); startActivity(MusicPlayer.nowPlaying(this)); });
-            r.setOnKeyListener((v, k, e) -> {
-                if (k == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP) { MusicUi.options(this, m); return true; }
-                return false;
-            });
-            list.addView(r, new LinearLayout.LayoutParams(-1, dp(70)));
-        }
-        // Anything else on the page (more by the artist, other versions) underneath.
-        for (Ytm.Shelf s : pg.shelves) if (!s.list && !s.items.isEmpty()) {
-            LinearLayout extra = new LinearLayout(this);
-            extra.setOrientation(LinearLayout.VERTICAL);
-            java.util.List<Ytm.Shelf> one = new java.util.ArrayList<>();
-            one.add(s);
-            MusicUi.addShelves(this, extra, one, false, (m, ctx) -> MusicUi.open(this, m, ctx));
-            list.addView(extra);
-        }
-        sv.addView(list);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, 1);
-        lp.leftMargin = dp(48);
-        row.addView(sv, lp);
-        root.addView(row, MusicUi.match());
-        play.requestFocus();
-    }
-
-    /** Artist / mood: a header, then rows. */
-    private void rows(Ytm.Page pg) {
-        ScrollView sv = new ScrollView(this);
-        sv.setVerticalScrollBarEnabled(false);
-        sv.setClipChildren(false);
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        col.setClipChildren(false);
-        col.setPadding(0, dp(40), 0, dp(60));
+        // ---- header
         LinearLayout head = new LinearLayout(this);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        head.setPadding(dp(58), 0, dp(58), dp(10));
-        boolean artist = MItem.ARTIST.equals(item.type);
-        if (artist && !pg.thumb.isEmpty()) {
-            ImageView iv = new ImageView(this);
-            MusicUi.circle(iv, pg.thumb);
-            head.addView(iv, new LinearLayout.LayoutParams(dp(150), dp(150)));
-        }
-        LinearLayout txt = new LinearLayout(this);
-        txt.setOrientation(LinearLayout.VERTICAL);
-        txt.setPadding(artist ? dp(30) : 0, 0, 0, 0);
-        TextView t = MusicUi.text(this, 40, Color.WHITE, true);
+        head.setOrientation(LinearLayout.VERTICAL);
+        head.setGravity(Gravity.BOTTOM);
+        head.setPadding(dp(MusicUi.PAD), dp(40), dp(MusicUi.PAD), dp(10));
+        int tw = Math.round(W * 0.55f);
+        TextView t = MusicUi.text(this, 36, Color.WHITE, true);
         t.setText(pg.title.isEmpty() ? item.title : pg.title);
-        txt.addView(t);
-        if (!pg.subtitle.isEmpty()) {
-            TextView s = MusicUi.text(this, 17, MusicUi.TEXT2, false);
-            s.setText(pg.subtitle);
+        t.setMaxLines(2);
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        head.addView(t, new LinearLayout.LayoutParams(dp(tw), -2));
+        String sub = pg.subtitle;
+        if (artist) sub = (pg.subscribers + (pg.monthly.isEmpty() ? "" : (pg.subscribers.isEmpty() ? "" : "  ·  ") + pg.monthly)).trim();
+        if (!sub.isEmpty()) {
+            TextView s = MusicUi.line(this, 15, 0xE6FFFFFF, true);
+            s.setText(sub);
             s.setPadding(0, dp(8), 0, 0);
-            txt.addView(s);
+            head.addView(s, new LinearLayout.LayoutParams(dp(tw), -2));
         }
-        View first = null;
-        if (artist) {
-            LinearLayout btns = new LinearLayout(this);
-            btns.setPadding(0, dp(18), 0, 0);
-            final List<MItem> top = pg.songs();
-            final String radio = pg.playlistId;
-            TextView play = pill("▶  Play", true);
-            play.setOnClickListener(v -> {
-                if (!top.isEmpty()) MusicPlayer.get(this).playList(top, 0, null);
-                else if (!radio.isEmpty()) MusicPlayer.get(this).playId(null, radio);
-                startActivity(MusicPlayer.nowPlaying(this));
-            });
-            btns.addView(play);
-            if (!radio.isEmpty()) {
-                TextView r = pill("Radio", false);
-                r.setOnClickListener(v -> { MusicPlayer.get(this).playId(null, radio); startActivity(MusicPlayer.nowPlaying(this)); });
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-                lp.leftMargin = dp(14);
-                btns.addView(r, lp);
-            }
-            txt.addView(btns);
-            first = play;
+        if (!pg.description.isEmpty()) {
+            TextView ds = MusicUi.text(this, 14, 0xCCFFFFFF, false);
+            ds.setText(pg.description);
+            ds.setMaxLines(2);
+            ds.setEllipsize(TextUtils.TruncateAt.END);
+            ds.setPadding(0, dp(8), 0, 0);
+            head.addView(ds, new LinearLayout.LayoutParams(dp(tw), -2));
         }
-        head.addView(txt);
-        col.addView(head);
-        MusicUi.addShelves(this, col, pg.shelves, false, (m, ctx) -> MusicUi.open(this, m, ctx));
-        sv.addView(col);
-        root.addView(sv, MusicUi.match());
-        if (first != null) first.requestFocus();
-        else col.post(() -> { for (int i = 1; i < col.getChildCount(); i++) if (col.getChildAt(i).requestFocus()) return; });
-    }
-
-    private TextView pill(String label, boolean primary) {
-        TextView b = MusicUi.text(this, 17, primary ? 0xFF111111 : Color.WHITE, true);
-        b.setText(label);
-        b.setFocusable(true);
-        b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(28), dp(12), dp(28), dp(12));
-        final int base = primary ? 0xEEFFFFFF : 0x33FFFFFF;
-        b.setBackground(MusicUi.round(base, dp(24)));
-        b.setOnFocusChangeListener((v, has) -> {
-            v.setBackground(MusicUi.round(has ? Color.WHITE : base, dp(24)));
-            ((TextView) v).setTextColor(has || primary ? 0xFF111111 : Color.WHITE);
-            v.animate().scaleX(has ? 1.06f : 1f).scaleY(has ? 1.06f : 1f).setDuration(140).start();
+        LinearLayout btns = new LinearLayout(this);
+        btns.setPadding(0, dp(16), 0, 0);
+        btns.setClipChildren(false);
+        TextView play = MusicUi.pill(this, R.drawable.ic_m_play, "Play");
+        play.setOnClickListener(v -> {
+            MusicPlayer mp = MusicPlayer.get(this);
+            mp.setShuffle(false);
+            if (!songs.isEmpty()) mp.playList(songs, 0, pl);
+            else if (!pl.isEmpty()) mp.playId(null, pl);
+            else return;
+            startActivity(MusicPlayer.nowPlaying(this));
         });
-        return b;
+        btns.addView(play, new LinearLayout.LayoutParams(-2, dp(44)));
+        if (!songs.isEmpty()) {
+            TextView shuf = MusicUi.pill(this, R.drawable.ic_m_shuffle, artist ? "Shuffle" : "Shuffle");
+            shuf.setOnClickListener(v -> { MusicPlayer.get(this).shuffleList(songs, pl); startActivity(MusicPlayer.nowPlaying(this)); });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(44));
+            lp.leftMargin = dp(14);
+            btns.addView(shuf, lp);
+        }
+        if (artist) {
+            final TextView fol = MusicUi.pill(this, 0, "Follow");
+            final String cid = pg.channelId.isEmpty() ? item.browseId : pg.channelId;
+            fol.setOnClickListener(v -> {
+                if (!Ytm.signedIn()) { Toast.makeText(this, "Sign in (Your Library) to follow artists", Toast.LENGTH_SHORT).show(); return; }
+                followingNow = !followingNow;
+                fol.setText(followingNow ? "Following" : "Follow");
+                final boolean on = followingNow;
+                Bg.run(() -> { Ytm.follow(cid, on); return true; }, (ok, e) -> { if (e != null) { followingNow = !on; fol.setText(!on ? "Following" : "Follow"); } });
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(44));
+            lp.leftMargin = dp(14);
+            btns.addView(fol, lp);
+        }
+        head.addView(btns);
+        content.addView(head, new LinearLayout.LayoutParams(-1, dp(Math.round(H * 0.70f))));
+
+        // ---- songs (album / playlist): a full-width list
+        boolean list = !artist && !MItem.CATEGORY.equals(item.type) && !songs.isEmpty();
+        MusicUi.Opener open = (m, ctx) -> MusicUi.open(this, m, ctx);
+        if (list) {
+            boolean numbered = MItem.ALBUM.equals(item.type) || item.browseId.startsWith("MPRE");
+            LinearLayout l = new LinearLayout(this);
+            l.setOrientation(LinearLayout.VERTICAL);
+            l.setPadding(dp(MusicUi.PAD - 12), dp(6), dp(MusicUi.PAD - 12), 0);
+            for (int i = 0; i < songs.size(); i++) {
+                final int at = i;
+                final MItem m = songs.get(i);
+                View r = MusicUi.songRow(this, m, numbered ? i + 1 : -1, true);
+                r.setOnClickListener(v -> { MusicPlayer.get(this).playList(songs, at, pl); startActivity(MusicPlayer.nowPlaying(this)); });
+                r.setOnKeyListener((v, k, e) -> {
+                    if (k == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP) { MusicUi.options(this, m); return true; }
+                    return false;
+                });
+                l.addView(r, new LinearLayout.LayoutParams(-1, dp(62)));
+            }
+            content.addView(l);
+            List<Ytm.Shelf> rest = new ArrayList<>();
+            for (Ytm.Shelf s : pg.shelves) if (!s.list) rest.add(s);
+            MusicUi.addShelves(this, content, rest, open, null);
+        } else {
+            MusicUi.addShelves(this, content, pg.shelves, open, null);
+        }
+        play.requestFocus();
     }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
         int k = e.getKeyCode();
         if (k == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) { if (e.getAction() == KeyEvent.ACTION_DOWN) MusicPlayer.get(this).toggle(); return true; }
+        if (k == KeyEvent.KEYCODE_BACK && e.getAction() == KeyEvent.ACTION_UP && scroll.getScrollY() > 10) {
+            scroll.smoothScrollTo(0, 0);
+            View first = content.getChildCount() > 0 ? content.getChildAt(0).findFocus() : null;
+            View play = content.getChildCount() > 0 ? firstFocusable(content.getChildAt(0)) : null;
+            if (play != null) play.requestFocus();
+            return true;
+        }
         return super.dispatchKeyEvent(e);
+    }
+
+    private static View firstFocusable(View v) {
+        if (v.isFocusable()) return v;
+        if (v instanceof android.view.ViewGroup) for (int i = 0; i < ((android.view.ViewGroup) v).getChildCount(); i++) { View r = firstFocusable(((android.view.ViewGroup) v).getChildAt(i)); if (r != null) return r; }
+        return null;
     }
 }

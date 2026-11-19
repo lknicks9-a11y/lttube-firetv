@@ -12,6 +12,8 @@ public class MItem {
     public String subtitle = "";
     public String artist = "";
     public String album = "";
+    /** The artist's channel id (UC…), for their picture and "About the artist". */
+    public String artistId = "";
     public String thumb = "";
     public String videoId = "";
     /** For playing an album / playlist / mix. */
@@ -42,7 +44,7 @@ public class MItem {
         try {
             o.put("type", type).put("title", title).put("subtitle", subtitle).put("artist", artist).put("album", album)
                     .put("thumb", thumb).put("videoId", videoId).put("playlistId", playlistId).put("browseId", browseId)
-                    .put("params", params).put("seconds", seconds).put("color", color);
+                    .put("params", params).put("seconds", seconds).put("color", color).put("artistId", artistId).put("video", video);
         } catch (Exception ignored) { }
         return o;
     }
@@ -62,6 +64,8 @@ public class MItem {
         m.params = o.optString("params");
         m.seconds = o.optInt("seconds");
         m.color = o.optInt("color");
+        m.artistId = o.optString("artistId");
+        m.video = o.optBoolean("video");
         return m;
     }
 

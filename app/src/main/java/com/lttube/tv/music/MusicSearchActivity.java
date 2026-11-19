@@ -35,19 +35,27 @@ public class MusicSearchActivity extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         FrameLayout root = new FrameLayout(this);
-        root.setBackground(MusicUi.background(0));
+        root.setBackground(MusicUi.background());
         setContentView(root);
         LinearLayout row = new LinearLayout(this);
-        row.setPadding(dp(48), dp(36), dp(20), 0);
+        row.setPadding(dp(MusicUi.PAD), dp(MusicUi.TOP + 6), 0, 0);
 
         // ---- left: what you typed, the keyboard, suggestions
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
         field = MusicUi.line(this, 22, Color.WHITE, true);
-        field.setHint("Artists, songs, albums");
-        field.setHintTextColor(MusicUi.TEXT3);
-        field.setPadding(dp(18), dp(12), dp(18), dp(12));
-        field.setBackground(MusicUi.round(0x26FFFFFF, dp(14)));
+        field.setHint("What do you want to play?");
+        field.setHintTextColor(MusicUi.TEXT2);
+        field.setTextSize(18);
+        field.setPadding(dp(18), dp(13), dp(18), dp(13));
+        android.graphics.drawable.Drawable si = getDrawable(com.lttube.tv.R.drawable.ic_search).mutate();
+        si.setBounds(0, 0, dp(18), dp(18));
+        si.setTint(Color.WHITE);
+        field.setCompoundDrawables(si, null, null, null);
+        field.setCompoundDrawablePadding(dp(10));
+        GradientDrawable fb = MusicUi.round(0x26FFFFFF, dp(24));
+        fb.setStroke(dp(2), Color.WHITE);
+        field.setBackground(fb);
         left.addView(field, new LinearLayout.LayoutParams(-1, -2));
         keys = new LinearLayout(this);
         keys.setOrientation(LinearLayout.VERTICAL);
@@ -164,7 +172,7 @@ public class MusicSearchActivity extends Activity {
             results.removeAllViews();
             resultsScroll.scrollTo(0, 0);
             if (l == null || l.isEmpty()) { hint(e != null ? "Couldn't search: " + Bg.message(e) : "No results for “" + text + "”"); return; }
-            MusicUi.addShelves(this, results, l, false, (m, ctx) -> MusicUi.open(this, m, ctx));
+            MusicUi.addShelves(this, results, l, (m, ctx) -> MusicUi.open(this, m, ctx), null);
         });
     }
 

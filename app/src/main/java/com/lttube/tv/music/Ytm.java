@@ -43,6 +43,9 @@ public final class Ytm {
 
     public static class Page {
         public String title = "", subtitle = "", thumb = "", description = "";
+        /** An artist's wide header picture (full size), "1.2M subscribers", "2.3M monthly audience". */
+        public String banner = "", subscribers = "", monthly = "";
+        public String channelId = "";
         public String playlistId = "";
         public final List<Shelf> shelves = new ArrayList<>();
         public String continuation;
@@ -177,6 +180,11 @@ public final class Ytm {
         return null;
     }
 
+    /** Follow / unfollow an artist on your account. */
+    public static void follow(String channelId, boolean on) throws Exception {
+        call(on ? "subscription/subscribe" : "subscription/unsubscribe", new JSONObject().put("channelIds", new JSONArray().put(channelId)), null);
+    }
+
     /** Like / unlike a song on your account. */
     public static void like(String videoId, boolean on) throws Exception {
         call(on ? "like/like" : "like/removelike", new JSONObject().put("target", new JSONObject().put("videoId", videoId)), null);
@@ -233,6 +241,10 @@ public final class Ytm {
         }
         if (cur.length() > 0) parts.add(cur.toString().trim());
         if (!parts.isEmpty()) m.artist = parts.get(0);
+        if (by != null) for (int i = 0; i < by.length(); i++) {
+            JSONObject be = findObj(by.optJSONObject(i).optJSONObject("navigationEndpoint"), "browseEndpoint");
+            if (be != null && be.optString("browseId").startsWith("UC")) { m.artistId = be.optString("browseId"); break; }
+        }
         if (parts.size() > 1 && !parts.get(1).matches(".*\\d.*(views|plays).*")) m.album = parts.get(1);
         m.subtitle = m.artist + (m.album.isEmpty() ? "" : " • " + m.album);
         m.seconds = secs(runs(v.optJSONObject("lengthText")));
@@ -307,6 +319,13 @@ public final class Ytm {
                 p.description = t;
             }
             p.thumb = bestThumb(h.optJSONObject("thumbnail"));
+            if (k.equals("musicImmersiveHeaderRenderer") || k.equals("musicVisualHeaderRenderer")) p.banner = widest(h.optJSONObject("thumbnail"));
+            JSONObject subs = findObj(h, "subscriberCountText");
+            if (subs != null) p.subscribers = runs(subs);
+            JSONObject sb = findObj(h, "subscribeButtonRenderer");
+            if (sb != null) { p.channelId = sb.optString("channelId"); if (p.subscribers.isEmpty()) p.subscribers = runs(sb.optJSONObject("subscriberCountText")); }
+            JSONObject mon = h.optJSONObject("monthlyListenerCount");
+            if (mon != null) p.monthly = runs(mon);
             if (p.thumb.isEmpty()) p.thumb = bestThumb(h.optJSONObject("foregroundThumbnail"));
             JSONObject wp = findObj(h, "watchPlaylistEndpoint");
             if (wp != null) p.playlistId = wp.optString("playlistId");
@@ -425,8 +444,13 @@ public final class Ytm {
             JSONObject play = findObj(r.optJSONObject("thumbnailOverlay"), "watchPlaylistEndpoint");
             if (play != null) m.playlistId = play.optString("playlistId");
         }
+        JSONArray sr = runArray(r.optJSONObject("subtitle"));
+        if (sr != null) for (int i = 0; i < sr.length(); i++) {
+            JSONObject be = findObj(sr.optJSONObject(i).optJSONObject("navigationEndpoint"), "browseEndpoint");
+            if (be != null && be.optString("browseId").startsWith("UC")) { m.artistId = be.optString("browseId"); if (m.artist.isEmpty()) m.artist = sr.optJSONObject(i).optString("text"); break; }
+        }
         String[] sub = m.subtitle.split(" • ");
-        if (MItem.SONG.equals(m.type) && sub.length > 0) m.artist = sub[sub.length > 1 && sub[0].equalsIgnoreCase("Song") ? 1 : 0];
+        if (MItem.SONG.equals(m.type) && sub.length > 0 && m.artist.isEmpty()) m.artist = sub[sub.length > 1 && sub[0].equalsIgnoreCase("Song") ? 1 : 0];
         return m.title.isEmpty() ? null : m;
     }
 
@@ -479,7 +503,7 @@ public final class Ytm {
                 JSONObject be = findObj(run.optJSONObject("navigationEndpoint"), "browseEndpoint");
                 if (be == null) continue;
                 String pt = pageType(be);
-                if (pt.endsWith("ARTIST") && m.artist.isEmpty()) m.artist = run.optString("text");
+                if (pt.endsWith("ARTIST") && m.artist.isEmpty()) { m.artist = run.optString("text"); m.artistId = be.optString("browseId"); }
                 if (pt.endsWith("ALBUM") && m.album.isEmpty()) m.album = run.optString("text");
             }
         }
@@ -538,6 +562,24 @@ public final class Ytm {
     }
 
     private static JSONArray runArray(JSONObject t) { return t == null ? null : t.optJSONArray("runs"); }
+
+    /** The biggest picture as YouTube gives it (wide pictures stay wide). */
+    static String widest(JSONObject o) {
+        if (o == null) return "";
+        List<JSONObject> l = new ArrayList<>();
+        holders(o, "thumbnails", l);
+        String best = "";
+        int bw = -1;
+        for (JSONObject holder : l) {
+            JSONArray a = holder.optJSONArray("thumbnails");
+            if (a != null) for (int i = 0; i < a.length(); i++) {
+                JSONObject t = a.optJSONObject(i);
+                if (t != null && t.optInt("width") > bw) { bw = t.optInt("width"); best = t.optString("url"); }
+            }
+        }
+        if (best.startsWith("//")) best = "https:" + best;
+        return best;
+    }
 
     static String bestThumb(JSONObject o) {
         if (o == null) return "";
