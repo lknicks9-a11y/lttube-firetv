@@ -66,6 +66,28 @@ public class MusicApiTest {
             java.util.regex.Matcher mm = java.util.regex.Pattern.compile("\"(\\w+(Renderer|ViewModel))\"").matcher(text);
             while (mm.find()) keys.merge(mm.group(1), 1, Integer::sum);
             System.out.println("MUS SEARCHKEYS " + keys);
+            java.lang.reflect.Method pg = Ytm.class.getDeclaredMethod("page", org.json.JSONObject.class);
+            pg.setAccessible(true);
+            dump("SEARCH REPARSE", (Ytm.Page) pg.invoke(null, r));
+            org.json.JSONArray secs = r.getJSONObject("contents").getJSONObject("tabbedSearchResultsRenderer").getJSONArray("tabs").getJSONObject(0)
+                    .getJSONObject("tabRenderer").getJSONObject("content").getJSONObject("sectionListRenderer").getJSONArray("contents");
+            for (int i = 0; i < secs.length(); i++) {
+                org.json.JSONObject o = secs.getJSONObject(i);
+                String k0 = o.keys().next();
+                org.json.JSONObject in = o.getJSONObject(k0);
+                java.util.List<String> ks = new java.util.ArrayList<>();
+                java.util.Iterator<String> it = in.keys(); while (it.hasNext()) ks.add(it.next());
+                System.out.println("MUS SEC " + i + " " + k0 + " keys=" + ks + " " + in.toString().substring(0, Math.min(500, in.toString().length())));
+            }
+            if (home != null && home.continuation != null) {
+                String c = java.net.URLEncoder.encode(home.continuation, "UTF-8");
+                org.json.JSONObject h2 = (org.json.JSONObject) m.invoke(null, "browse", new org.json.JSONObject().put("browseId", "FEmusic_home"), "&ctoken=" + c + "&continuation=" + c + "&type=next");
+                String t2 = h2.toString();
+                System.out.println("MUS HOMECONT " + t2.length() + " " + t2.substring(0, Math.min(1200, t2.length())));
+                org.json.JSONObject h3 = (org.json.JSONObject) m.invoke(null, "browse", new org.json.JSONObject().put("continuation", home.continuation), null);
+                String t3 = h3.toString();
+                System.out.println("MUS HOMECONT2 " + t3.length() + " " + t3.substring(0, Math.min(1200, t3.length())));
+            }
             int at = text.indexOf("\"musicShelfRenderer\"");
             System.out.println("MUS SEARCHRAW " + (at < 0 ? "none" : text.substring(Math.max(0, at - 300), Math.min(text.length(), at + 400))));
         } catch (Throwable e) { System.out.println("MUS SEARCHKEYS FAILED " + e); }
