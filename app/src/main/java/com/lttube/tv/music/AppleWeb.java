@@ -886,6 +886,14 @@ public final class AppleWeb {
         return d;
     }
 
+    /** The year written under an item ("2009", "Album • 2021"), or "". */
+    static String shownYear(MItem m) {
+        java.util.regex.Matcher y = java.util.regex.Pattern.compile("\\b(19|20)\\d{2}\\b").matcher(m.subtitle);
+        String last = "";
+        while (y.find()) last = y.group();
+        return last;
+    }
+
     /** Fills in dates it knows and puts the list newest first (anything without a date keeps its place at the end). */
     static void byYear(List<MItem> items, java.util.Map<String, String> dates) {
         for (MItem m : items) {
@@ -897,8 +905,14 @@ public final class AppleWeb {
             if (d != null) m.date = d;
         }
         List<MItem> dated = new ArrayList<>(), rest = new ArrayList<>();
-        for (MItem m : items) (m.date.isEmpty() ? rest : dated).add(m);
-        dated.sort((x, y) -> y.date.compareTo(x.date));
+        for (MItem m : items) (m.date.isEmpty() && shownYear(m).isEmpty() ? rest : dated).add(m);
+        // By the year shown under it (its original year: "So Far Gone" says 2009 even though it reached streaming
+        // in 2019), then the exact date within a year.
+        dated.sort((x, y) -> {
+            String kx = (shownYear(x).isEmpty() ? (x.date.length() >= 4 ? x.date.substring(0, 4) : "") : shownYear(x)) + "|" + x.date;
+            String ky = (shownYear(y).isEmpty() ? (y.date.length() >= 4 ? y.date.substring(0, 4) : "") : shownYear(y)) + "|" + y.date;
+            return ky.compareTo(kx);
+        });
         items.clear();
         items.addAll(dated);
         items.addAll(rest);

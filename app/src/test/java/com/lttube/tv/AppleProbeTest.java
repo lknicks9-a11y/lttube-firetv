@@ -108,6 +108,7 @@ public class AppleProbeTest {
                 StringBuilder b = new StringBuilder();
                 for (int i = 0; i < Math.min(5, l.size()); i++) b.append(l.get(i).date.length() >= 10 ? l.get(i).date.substring(0, 10) : "-").append(' ');
                 b.append("... ").append(l.isEmpty() ? "" : l.get(l.size() - 1).date);
+                if (k.equals("albums")) { StringBuilder t = new StringBuilder(); for (com.lttube.tv.music.MItem m : l) t.append(m.title).append(" (").append(m.subtitle).append("), "); System.out.println("APL ORDER " + t); }
                 System.out.println("APL YEARS all-" + k + " n=" + l.size() + " " + b);
             }
         } catch (Throwable e) { System.out.println("APL YEARS FAILED " + e); }
