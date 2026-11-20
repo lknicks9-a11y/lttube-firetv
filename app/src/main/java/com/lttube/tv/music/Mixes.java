@@ -233,6 +233,17 @@ public final class Mixes {
         return p;
     }
 
+    /** An artist's station (their songs, shuffled), for Recently Played. */
+    public static MItem artistStation(String appleId, String name, String thumb) {
+        MItem st = new MItem();
+        st.type = MItem.PLAYLIST;
+        st.title = name;
+        st.subtitle = "Station";
+        st.browseId = "AMS:" + appleId + ":" + name;
+        st.thumb = thumb;
+        return st;
+    }
+
     /** A station started from a song ("<Song> Station"), for Recently Played. */
     public static MItem station(MItem song) {
         MItem st = new MItem();

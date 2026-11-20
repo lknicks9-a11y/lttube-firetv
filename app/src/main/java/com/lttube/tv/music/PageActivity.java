@@ -138,6 +138,10 @@ public class PageActivity extends Activity {
         if (seen.thumb.isEmpty()) seen.thumb = pg.thumb;
         if (seen.title.isEmpty()) seen.title = pg.title;
         if (seen.subtitle.isEmpty()) seen.subtitle = pg.subtitle;
+        // Under its name in Recently Played: just who it's by (the artist, or who made the playlist), like Apple's.
+        String[] parts = pg.subtitle.split("\\s*[\u2022\u00B7]\\s*");
+        if (MItem.ALBUM.equals(seen.type) || seen.browseId.startsWith("AM:")) seen.subtitle = !item.artist.isEmpty() ? item.artist : parts[0];
+        else if (MItem.PLAYLIST.equals(seen.type) && parts.length > 1) seen.subtitle = parts[parts.length - 1];
         // It goes in Recently Played only once you play something from it (opening it isn't enough).
         place = seen;
         boolean artist = MItem.ARTIST.equals(item.type) || item.browseId.startsWith("UC");
@@ -470,17 +474,8 @@ public class PageActivity extends Activity {
 
     /** Play on an artist: every official song of theirs (Top Songs and all the rest), shuffled. */
     private void shuffleArtist(String appleId, List<MItem> fallback) {
-        Toast.makeText(this, "Shuffling their songs\u2026", Toast.LENGTH_SHORT).show();
-        Bg.run(() -> {
-            List<MItem> all = new ArrayList<>();
-            if (appleId != null) for (Ytm.Shelf s : AppleWeb.seeAll(appleId, "songs").shelves) for (MItem m : s.items) if (m.playable() && m.official()) all.add(m);
-            if (all.isEmpty()) all.addAll(fallback);
-            return all;
-        }, (all, e) -> {
-            if (all == null || all.isEmpty() || isFinishing()) return;
-            MusicPlayer.get(this).shuffleList(all, null);
-            startActivity(MusicPlayer.nowPlaying(this));
-        });
+        String name = item.title.replace(" & Similar Artists", "");
+        MusicPlayer.playArtist(this, appleId, name, item.thumb, fallback);
     }
 
     private void startPlay(List<MItem> songs, String pl) {

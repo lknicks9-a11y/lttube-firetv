@@ -176,6 +176,25 @@ public final class MusicPlayer {
     }
 
     /** One song, then YouTube Music's radio for it. */
+    /**
+     * An artist's station: every official song of theirs (Top Songs and the rest), shuffled. It goes in Recently
+     * Played as their station, like Apple's.
+     */
+    public static void playArtist(android.app.Activity a, String appleId, String name, String thumb, List<MItem> fallback) {
+        android.widget.Toast.makeText(a, "Shuffling " + name + "\u2026", android.widget.Toast.LENGTH_SHORT).show();
+        Bg.run(() -> {
+            List<MItem> all = new ArrayList<>();
+            if (appleId != null) for (Ytm.Shelf s : AppleWeb.seeAll(appleId, "songs").shelves) for (MItem m : s.items) if (m.playable() && m.official()) all.add(m);
+            if (all.isEmpty() && fallback != null) all.addAll(fallback);
+            return all;
+        }, (all, e) -> {
+            if (all == null || all.isEmpty() || a.isFinishing()) return;
+            get(a).shuffleList(all, null);
+            if (appleId != null) Mixes.visited(a, Mixes.artistStation(appleId, name, thumb));
+            a.startActivity(nowPlaying(a));
+        });
+    }
+
     /** "Go to song radio": a station from this song, which goes in Recently Played like Apple's stations. */
     public void startStation(MItem song) {
         playRadio(song);

@@ -419,25 +419,66 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
     private void browse() {
         content.addView(spacer(80));
         final int my = seq;
+        // From last time at once (a fresh copy loads quietly for next time); the first time, fetched side by side.
+        Object[] cached = browseFromCache();
+        if (cached != null) {
+            renderBrowse(cached);
+            Bg.run(this::loadBrowse, (r, e) -> { if (r != null) saveBrowse(r); });
+            return;
+        }
         spinner.setVisibility(View.VISIBLE);
-        Bg.run(() -> {
-            List<Ytm.Shelf> l = new ArrayList<>(AppleWeb.browse());
-            try { l.addAll(AppleWeb.charts()); } catch (Exception ignored) { }
-            return l;
-        }, (l, e) -> {
+        Bg.run(this::loadBrowse, (r, e) -> {
             if (my != seq) return;
             spinner.setVisibility(View.GONE);
-            if (l == null) { content.addView(note("Couldn't load this: " + Bg.message(e))); return; }
-            MusicUi.addShelves(this, content, l, opener(), this::hover);
-            Ytm.Shelf g = new Ytm.Shelf();
-            g.title = "Genres";
-            g.items.addAll(AppleWeb.genres());
-            List<Ytm.Shelf> gl = new ArrayList<>();
-            gl.add(g);
-            MusicUi.addShelves(this, content, gl, opener(), this::hover);
-            tilePictures(g.items);
-            content.addView(spacer(40));
+            if (r == null) { content.addView(note("Couldn't load this" + (e == null ? "" : ": " + Bg.message(e)))); return; }
+            saveBrowse(r);
+            renderBrowse(r);
         });
+    }
+
+    /** {Apple's browse rows + charts, Apple's category tiles} */
+    private Object[] loadBrowse() throws Exception {
+        java.util.concurrent.ExecutorService ex = java.util.concurrent.Executors.newFixedThreadPool(3);
+        try {
+            java.util.concurrent.Future<List<Ytm.Shelf>> fb = ex.submit(AppleWeb::browse);
+            java.util.concurrent.Future<List<Ytm.Shelf>> fc = ex.submit(AppleWeb::charts);
+            java.util.concurrent.Future<List<MItem>> ft = ex.submit(AppleWeb::categories);
+            List<Ytm.Shelf> l = new ArrayList<>();
+            try { l.addAll(fb.get(15, java.util.concurrent.TimeUnit.SECONDS)); } catch (Exception ignored) { }
+            try { l.addAll(fc.get(10, java.util.concurrent.TimeUnit.SECONDS)); } catch (Exception ignored) { }
+            List<MItem> tiles = new ArrayList<>();
+            try { tiles.addAll(ft.get(10, java.util.concurrent.TimeUnit.SECONDS)); } catch (Exception ignored) { }
+            if (l.isEmpty() && tiles.isEmpty()) throw new Exception("No connection");
+            return new Object[]{l, tiles};
+        } finally { ex.shutdownNow(); }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void renderBrowse(Object[] r) {
+        List<Ytm.Shelf> l = (List<Ytm.Shelf>) r[0];
+        List<MItem> tiles = (List<MItem>) r[1];
+        for (Ytm.Shelf c : l) if (c.list) { while (c.items.size() > 20) c.items.remove(c.items.size() - 1); }
+        MusicUi.addShelves(this, content, l, opener(), this::hover);
+        if (tiles.isEmpty()) tiles = AppleWeb.genres();
+        MusicUi.addTiles(this, content, "Browse Categories", tiles, opener());
+        content.addView(spacer(40));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void saveBrowse(Object[] r) {
+        try {
+            org.json.JSONObject o = new org.json.JSONObject().put("at", System.currentTimeMillis())
+                    .put("rows", shelvesJson((List<Ytm.Shelf>) r[0])).put("tiles", itemsJson((List<MItem>) r[1]));
+            getSharedPreferences("music", MODE_PRIVATE).edit().putString("browse", o.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
+    private Object[] browseFromCache() {
+        try {
+            org.json.JSONObject o = new org.json.JSONObject(getSharedPreferences("music", MODE_PRIVATE).getString("browse", "{}"));
+            if (System.currentTimeMillis() - o.optLong("at") > 2 * 24 * 3600_000L) return null;
+            return new Object[]{shelvesOf(o.optJSONArray("rows")), itemsOf(o.optJSONArray("tiles"))};
+        } catch (Exception e) { return null; }
     }
 
     // ---------------------------------------------------------------- Videos

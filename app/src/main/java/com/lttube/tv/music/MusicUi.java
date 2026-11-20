@@ -729,7 +729,10 @@ public final class MusicUi {
     /** more: a "See all" card at the end of the row, opening everything in it. */
     public static void addRow(Activity a, LinearLayout into, String title, List<MItem> items, int size, Opener open, Hover hover, MItem more) {
         if (items.isEmpty()) return;
-        if (title != null && !title.isEmpty()) into.addView(heading(a, title));
+        if (title != null && !title.isEmpty()) {
+            if (more != null) into.addView(headingLink(a, title, () -> open.open(more, null)));
+            else into.addView(heading(a, title));
+        }
         LinearLayout row = new LinearLayout(a);
         row.setClipChildren(false);
         for (MItem m : items) {
@@ -852,6 +855,20 @@ public final class MusicUi {
         h.setMaxLines(1);
         h.setEllipsize(TextUtils.TruncateAt.END);
         return h;
+    }
+
+    /** A row's name with "›" after it that opens everything in the row (Apple's "Recently Played ›"). */
+    public static View headingLink(Context a, String title, Runnable go) {
+        LinearLayout wrap = new LinearLayout(a);
+        wrap.setPadding(dp(a, PAD - 10), dp(a, 16), dp(a, PAD), 0);
+        TextView h = text(a, 19, TEXT, true);
+        h.setText(title + "  \u203A");
+        h.setFocusable(true);
+        h.setPadding(dp(a, 10), dp(a, 4), dp(a, 12), dp(a, 4));
+        h.setOnFocusChangeListener((v, has) -> { v.setBackground(round(has ? Color.WHITE : 0, dp(a, 16))); ((TextView) v).setTextColor(has ? 0xFF1C1C1E : TEXT); });
+        h.setOnClickListener(v -> go.run());
+        wrap.addView(h);
+        return wrap;
     }
 
     static HorizontalScrollView hscroll(Context c, LinearLayout row) {
@@ -990,6 +1007,12 @@ public final class MusicUi {
             Mixes.visited(a, m);
             mp.playId(null, m.playlistId);
             a.startActivity(MusicPlayer.nowPlaying(a));
+            return;
+        }
+        if (m.browseId.startsWith("AMS:")) {
+            // An artist's station (from Recently Played): their songs, shuffled.
+            String[] p = m.browseId.split(":", 3);
+            MusicPlayer.playArtist(a, p[1], p.length > 2 ? p[2] : m.title, m.thumb, null);
             return;
         }
         Intent i = new Intent(a, PageActivity.class);
