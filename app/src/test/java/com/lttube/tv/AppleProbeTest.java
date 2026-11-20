@@ -67,6 +67,19 @@ public class AppleProbeTest {
         try { java.util.List<com.lttube.tv.music.MItem> cats = com.lttube.tv.music.AppleWeb.categories(); System.out.println("APL CATS n=" + cats.size() + (cats.isEmpty() ? "" : " first=" + cats.get(0).title + " " + cats.get(0).browseId + " " + cats.get(0).thumb));
             if (!cats.isEmpty()) dump("CATPAGE", com.lttube.tv.music.AppleWeb.anyPage(cats.get(2).browseId.substring(4)).shelves); } catch (Throwable e) { System.out.println("APL CATS FAILED " + e); }
         try { for (com.lttube.tv.music.Ytm.Shelf s : com.lttube.tv.music.AppleWeb.artist("271256").shelves) if (s.title.contains("Video")) { System.out.println("APL DRAKEVIDEOS n=" + s.items.size() + " first=" + s.items.get(0).title + " | " + s.items.get(0).subtitle + " | " + s.items.get(0).thumb); com.lttube.tv.music.MItem v = s.items.get(0); try { java.lang.reflect.Method rv = com.lttube.tv.music.MusicPlayer.class.getDeclaredMethod("resolveVideo", com.lttube.tv.music.MItem.class); rv.setAccessible(true); rv.invoke(null, v); System.out.println("APL VIDEO -> " + v.videoId); } catch (Throwable e) { System.out.println("APL VIDEO FAILED " + e.getCause()); } } } catch (Throwable e) { System.out.println("APL DRAKEVIDEOS FAILED " + e); }
+        try {
+            java.lang.reflect.Method it = com.lttube.tv.music.AppleWeb.class.getDeclaredMethod("itunes", String.class, String.class, int.class); it.setAccessible(true);
+            java.lang.reflect.Method rs = com.lttube.tv.music.MusicPlayer.class.getDeclaredMethod("resolve", com.lttube.tv.music.MItem.class); rs.setAccessible(true);
+            java.lang.reflect.Method sg = com.lttube.tv.music.AppleWeb.class.getDeclaredMethod("song", org.json.JSONObject.class); sg.setAccessible(true);
+            int n = 0;
+            for (Object o : (java.util.List<?>) it.invoke(null, "Drake God's Plan Started From the Bottom Hotline Bling", "song", 50)) {
+                org.json.JSONObject j = (org.json.JSONObject) o;
+                if (!"cleaned".equals(j.optString("trackExplicitness")) || n++ >= 3) continue;
+                com.lttube.tv.music.MItem m = (com.lttube.tv.music.MItem) sg.invoke(null, j);
+                try { rs.invoke(null, m); System.out.println("APL CLEAN " + m.title + " -> " + m.videoId); } catch (Throwable e) { System.out.println("APL CLEAN " + m.title + " FAILED " + e.getCause()); }
+            }
+            System.out.println("APL CLEAN tried=" + n);
+        } catch (Throwable e) { System.out.println("APL CLEAN FAILED " + e); }
         try { dump("HABIBTI", com.lttube.tv.music.AppleMusic.album("AM:6818209777").shelves); } catch (Throwable e) { System.out.println("APL HABIBTI FAILED " + e); }
         try { dump("EXTRAS", com.lttube.tv.music.AppleWeb.albumExtras("1440824484")); } catch (Throwable e) { System.out.println("APL EXTRAS FAILED " + e); }
         try { for (com.lttube.tv.music.Ytm.Shelf s : com.lttube.tv.music.AppleWeb.anyPage("https://music.apple.com/us/curator/apple-music-sports/1555172867").shelves) System.out.println("APL SPORTS [" + s.title + "] " + s.moreId + " " + (s.items.isEmpty() ? "" : s.items.get(0).thumb)); } catch (Throwable e) { System.out.println("APL SPORTS FAILED " + e); }

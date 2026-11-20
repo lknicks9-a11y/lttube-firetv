@@ -25,7 +25,9 @@ import okhttp3.Response;
  * you're signed in, otherwise on this TV).
  */
 public final class Imports {
-    public static class Track { public String title = "", artist = "", album = ""; public int seconds; public Boolean explicit; }
+    public static class Track { public String title = "", artist = "", album = ""; public int seconds; public Boolean explicit;
+        /** Apple's clean version of a song: only a recording without the "E" will do. */
+        public boolean cleaned; }
 
     public static class Source {
         public String name = "", cover = "", service = "";
@@ -215,7 +217,8 @@ public final class Imports {
             MItem best = null;
             int bestScore = Integer.MIN_VALUE;
             String main = t.artist.split(",|&| feat\\.| ft\\.| x ")[0].trim();
-            String[] queries = {t.title + " " + main, plainTitle(t.title) + " " + main};
+            String[] queries = t.cleaned ? new String[]{plainTitle(t.title) + " " + main + " clean", t.title + " " + main, plainTitle(t.title) + " " + main}
+                    : new String[]{t.title + " " + main, plainTitle(t.title) + " " + main};
             java.util.Set<String> tried = new java.util.HashSet<>();
             for (String q : queries) {
                 if (!tried.add(q)) continue;
@@ -258,12 +261,16 @@ public final class Imports {
         }
         if (!t.album.isEmpty() && !m.album.isEmpty() && norm(plainTitle(t.album)).equals(norm(plainTitle(m.album)))) score += 2;
         // A different version of the song (remix, live, sped up…) is wrong unless the song is that version.
-        java.util.regex.Matcher vy = VERSION.matcher(m.title + " " + m.album), va = VERSION.matcher(t.title);
+        // ("Clean" in a YouTube title is the right version when Apple's song is the clean one.)
+        String ytText = m.title + " " + m.album;
+        if (t.cleaned) ytText = ytText.replaceAll("(?i)\\bclean(ed)?\\b", "");
+        java.util.regex.Matcher vy = VERSION.matcher(ytText), va = VERSION.matcher(t.title);
         boolean ytVersion = vy.find(), appleVersion = va.find();
         if (ytVersion && !appleVersion) score -= 5;
         if (m.mvType.endsWith("ATV")) score += 1;
         // The explicit song plays the explicit recording, the clean one the clean recording.
-        if (t.explicit != null) score += t.explicit == m.explicit ? 2 : -4;
+        if (t.cleaned) score += m.explicit ? -20 : 3;
+        else if (t.explicit != null) score += t.explicit == m.explicit ? 2 : -4;
         return score;
     }
 

@@ -484,8 +484,10 @@ public final class MusicPlayer {
     /** A song from Apple Music: find its official release on YouTube Music (keeping Apple's name and cover). */
     static void resolve(MItem m) throws Exception {
         if (!m.videoId.isEmpty()) return;
+        boolean cleaned = false;
         // A song matched before always plays the same recording.
-        String saved = matchPrefs == null ? null : matchPrefs.getString("am" + m.appleId, null);
+        // ("am2": matches made since explicit / clean are told apart; the older ones are made again once.)
+        String saved = matchPrefs == null ? null : matchPrefs.getString("am2" + m.appleId, null);
         if (saved != null && !m.appleId.isEmpty()) { m.videoId = saved; return; }
         // The song's own details from Apple (its real artist, title, album and length) — a page's list can
         // show something else in those places (an artist page puts the album there; featured songs belong to others).
@@ -497,18 +499,20 @@ public final class MusicPlayer {
                 m.artist = o.optString("artistName", m.artist);
                 if (!o.optString("trackName").isEmpty()) m.title = o.optString("trackName");
                 m.explicit = "explicit".equals(o.optString("trackExplicitness"));
+                cleaned = "cleaned".equals(o.optString("trackExplicitness"));
                 if (m.thumb.isEmpty()) m.thumb = o.optString("artworkUrl100").replace("100x100bb", "600x600bb");
             }
         }
         Imports.Track t = new Imports.Track();
         if (!m.appleId.isEmpty()) t.explicit = m.explicit;
+        t.cleaned = cleaned;
         t.title = m.title;
         t.artist = m.artist;
         t.album = m.album;
         t.seconds = m.seconds;
         MItem yt = Imports.find(t);
-        if (yt == null) throw new Exception("couldn't find " + m.title + " to play");
-        if (!m.appleId.isEmpty() && matchPrefs != null) matchPrefs.edit().putString("am" + m.appleId, yt.videoId).apply();
+        if (yt == null) throw new Exception(cleaned ? "couldn't find a clean version of " + m.title : "couldn't find " + m.title + " to play");
+        if (!m.appleId.isEmpty() && matchPrefs != null) matchPrefs.edit().putString("am2" + m.appleId, yt.videoId).apply();
         m.videoId = yt.videoId;
         m.mvType = yt.mvType;
         m.artistId = yt.artistId;
