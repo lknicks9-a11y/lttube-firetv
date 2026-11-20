@@ -140,9 +140,9 @@ public class PageActivity extends Activity {
         place = seen;
         boolean artist = MItem.ARTIST.equals(item.type) || item.browseId.startsWith("UC");
         if (!pg.banner.isEmpty()) hero.set(pg.banner, true);
+        else if (!pg.thumb.isEmpty()) hero.set(MItem.art(pg.thumb, 1080), false);
         if (artist) hero.setMotion(pg.motion);
         exact(pg.bgColor);
-        else if (!pg.thumb.isEmpty()) hero.set(MItem.art(pg.thumb, 1080), false);
         // Only official releases (the songs on Spotify / Apple Music) — no uploads or clips.
         final List<MItem> songs = new ArrayList<>();
         for (MItem m : pg.songs()) if (m.official()) songs.add(m);
