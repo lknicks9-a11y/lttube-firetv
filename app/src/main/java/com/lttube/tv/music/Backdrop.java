@@ -41,7 +41,7 @@ public class Backdrop extends FrameLayout {
         m.setSaturation(vivid ? 1.7f : 1.15f);
         img.setColorFilter(new ColorMatrixColorFilter(m));
         shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                vivid ? new int[]{0x26000000, 0x33000000, 0x8C000000} : new int[]{0x66000000, 0x80000000, 0xCC000000}));
+                vivid ? new int[]{0x0D000000, 0x14000000, 0x40000000} : new int[]{0x66000000, 0x80000000, 0xCC000000}));
     }
 
     public void setArt(String u) {

@@ -302,78 +302,150 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         if (playBtn.hasFocus()) g.setStroke(dp(3), 0xFF888888);
         playBtn.setBackground(g);
         playBtn.setColorFilter(0xFF121212);
+        paintLyCtls();
     }
 
     // ================================================================== lyrics
+    private ImageView lyPlay, lyShuffle, lyRepeat;
+    private LinearLayout lyInfoRow, lyCtlRow;
+
+    /**
+     * The lyrics screen, laid out like Apple Music's full-screen player: the cover in the left half with the song,
+     * "Artist — Album", a star and "…", a thin progress line with times, and shuffle / back / play / forward / repeat
+     * under it; the lyrics in a narrow column of big bold lines in the right half, the sung line just above the
+     * middle; the artwork, blurred and bright, filling the screen behind.
+     */
     private void buildLyrics() {
         lyricsBox = new FrameLayout(this);
         lyricsBox.setVisibility(View.GONE);
         lyricsBox.setClipChildren(false);
         root.addView(lyricsBox, MusicUi.match());
-        int a = Math.round(H * 0.44f);
-        int ax = Math.round(W * 0.10f), ay = Math.round(H * 0.17f);
+        int a = Math.round(H * 0.46f);
+        int ax = Math.round(W * 0.29f) - a / 2;
+        int block = a + 128;
+        int ay = Math.max(MusicUi.TOP, (H - block) / 2);
         lyArt = new ImageView(this);
-        lyArt.setElevation(dp(16));
+        lyArt.setElevation(dp(18));
         lyricsBox.addView(lyArt, at(ax, ay, a, a));
+
+        // Song, "Artist — Album", star and "…".
+        lyInfoRow = new LinearLayout(this);
+        lyInfoRow.setGravity(Gravity.CENTER_VERTICAL);
+        lyInfoRow.setClipChildren(false);
         LinearLayout tt = new LinearLayout(this);
         tt.setOrientation(LinearLayout.VERTICAL);
-        lyTitle = MusicUi.line(this, 19, Color.WHITE, true);
-        lyArtist = MusicUi.line(this, 16, 0xB3FFFFFF, true);
-        lyArtist.setPadding(0, dp(4), 0, 0);
+        lyTitle = MusicUi.line(this, 15, Color.WHITE, false);
+        lyTitle.setTypeface(MusicUi.font(600));
+        lyArtist = MusicUi.line(this, 14, 0xE6FFFFFF, false);
+        lyArtist.setTypeface(MusicUi.font(600));
+        lyArtist.setPadding(0, dp(2), 0, 0);
         tt.addView(lyTitle);
         tt.addView(lyArtist);
-        lyricsBox.addView(tt, at(ax, ay + a + 14, a + 40, -2));
+        lySource = MusicUi.text(this, 11, 0x99FFFFFF, false);
+        lySource.setVisibility(View.GONE);
+        tt.addView(lySource);
+        lyInfoRow.addView(tt, new LinearLayout.LayoutParams(0, -2, 1));
+        lyClose = roundGlyph("\u2606");
+        lyClose.setOnClickListener(v -> save());
+        lyInfoRow.addView(lyClose, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        lyQueue = roundGlyph("\u2022\u2022\u2022");
+        lyQueue.setTextSize(9);
+        lyQueue.setOnClickListener(v -> MusicUi.choose(this, mp.current() == null ? "" : mp.current().title,
+                new String[]{"Up Next", "Go to Artist"}, new Runnable[]{() -> showQueue(true), this::openArtist}));
+        LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(dp(30), dp(30));
+        ql.leftMargin = dp(10);
+        lyInfoRow.addView(lyQueue, ql);
+        lyricsBox.addView(lyInfoRow, at(ax, ay + a + 12, a, -2));
 
-        // The bar sits low; the lyrics get the space above it and never reach it.
-        int by = Math.round(H * 0.82f);
-        // The window starts well left of the words, so a line's first letters (and their blur, and any letter
-        // that leans left) always have room inside it.
-        int lx = Math.round(W * 0.46f) - 44, ly = Math.round(H * 0.04f);
-        // Soft, long fades at the top and bottom; the lines have room on the right so nothing is cut.
-        lyWindow = new FadeFrame(this, dp(96), dp(84));
+        // A thin line of progress, the times under it.
+        lyBar = new Bar(this);
+        lyBar.setFocusable(true);
+        lyricsBox.addView(lyBar, at(ax, ay + a + 52, a, 16));
+        lyElapsed = MusicUi.text(this, 11, 0xCCFFFFFF, false);
+        lyElapsed.setTypeface(MusicUi.font(500));
+        lyricsBox.addView(lyElapsed, at(ax, ay + a + 70, -2, -2));
+        lyLeft = MusicUi.text(this, 11, 0xCCFFFFFF, false);
+        lyLeft.setTypeface(MusicUi.font(500));
+        lyLeft.setGravity(Gravity.END);
+        lyricsBox.addView(lyLeft, at(ax, ay + a + 70, a, -2));
+
+        // Shuffle, back, play / pause, forward, repeat.
+        lyCtlRow = new LinearLayout(this);
+        lyCtlRow.setGravity(Gravity.CENTER);
+        lyCtlRow.setClipChildren(false);
+        lyShuffle = ctl(R.drawable.ic_m_shuffle, 30, () -> { mp.setShuffle(!mp.shuffle); paintLyCtls(); });
+        ImageView back = ctl(R.drawable.ic_m_prev, 40, () -> mp.prev());
+        lyPlay = ctl(R.drawable.ic_m_pause, 50, () -> { mp.toggle(); paintPlay(); });
+        ImageView fwd = ctl(R.drawable.ic_m_next, 40, () -> mp.next());
+        lyRepeat = ctl(R.drawable.ic_m_repeat, 30, () -> { mp.cycleRepeat(); paintLyCtls(); });
+        for (ImageView v : new ImageView[]{lyShuffle, back, lyPlay, fwd, lyRepeat}) {
+            int sz = v == lyPlay ? 50 : v == lyShuffle || v == lyRepeat ? 30 : 40;
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(sz), dp(sz));
+            lp.setMargins(dp(9), 0, dp(9), 0);
+            lyCtlRow.addView(v, lp);
+        }
+        lyricsBox.addView(lyCtlRow, at(ax, ay + a + 88, a, 54));
+
+        // The lyrics: a narrow column in the right half; the sung line rests a little above the middle.
+        int lx = Math.round(W * 0.505f) - 44;
+        lyWindow = new FadeFrame(this, dp(110), dp(110));
         lyLines = new LinearLayout(this);
         lyLines.setOrientation(LinearLayout.VERTICAL);
-        // Every line can be drawn wherever it slides to (the window around them does the cutting, softly).
         lyLines.setClipChildren(false);
         lyLines.setClipToPadding(false);
         lyWindow.addView(lyLines, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
-        lyricsBox.addView(lyWindow, at(lx, ly, W - lx - 16, by - ly - 18));
-        lySource = MusicUi.text(this, 12, 0x99FFFFFF, false);
-        lySource.setVisibility(View.GONE);
-        lySource.setPadding(0, dp(8), 0, 0);
-        tt.addView(lySource);
+        lyricsBox.addView(lyWindow, at(lx, 0, Math.round(W * 0.37f) + 44, H));
 
-        // progress along the bottom; Lyrics / Queue under it on the right
-        lyBar = new Bar(this);
-        lyBar.setFocusable(true);
-        lyricsBox.addView(lyBar, at(ax, by, W - ax - MusicUi.PAD, 22));
-        lyElapsed = MusicUi.text(this, 14, 0xE6FFFFFF, true);
-        lyricsBox.addView(lyElapsed, at(ax, by + 24, -2, -2));
-        lyLeft = MusicUi.text(this, 14, 0xE6FFFFFF, true);
-        FrameLayout.LayoutParams ll = new FrameLayout.LayoutParams(-2, -2, Gravity.END | Gravity.TOP);
-        ll.setMargins(0, dp(by + 24), dp(MusicUi.PAD), 0);
-        lyricsBox.addView(lyLeft, ll);
-        LinearLayout lb = new LinearLayout(this);
-        lyClose = MusicUi.pill(this, R.drawable.ic_m_add, "Save");
-        lyClose.setOnClickListener(v -> save());
-        lb.addView(lyClose, new LinearLayout.LayoutParams(-2, dp(40)));
-        TextView lyArtistBtn = MusicUi.pill(this, 0, "Artist");
-        lyArtistBtn.setOnClickListener(v -> openArtist());
-        LinearLayout.LayoutParams lal = new LinearLayout.LayoutParams(-2, dp(40));
-        lal.leftMargin = dp(12);
-        lb.addView(lyArtistBtn, lal);
-        lyQueue = MusicUi.pill(this, R.drawable.ic_m_queue, "Queue");
-        lyQueue.setOnClickListener(v -> showQueue(true));
-        LinearLayout.LayoutParams lql = new LinearLayout.LayoutParams(-2, dp(40));
-        lql.leftMargin = dp(12);
-        lb.addView(lyQueue, lql);
-        FrameLayout.LayoutParams lbl = new FrameLayout.LayoutParams(-2, -2, Gravity.END | Gravity.BOTTOM);
-        lbl.setMargins(0, 0, dp(MusicUi.PAD), dp(10));
-        lyricsBox.addView(lb, lbl);
         lyControls.add(lyBar);
         lyControls.add(lyElapsed);
         lyControls.add(lyLeft);
-        lyControls.add(lb);
+        lyControls.add(lyCtlRow);
+        lyControls.add(lyClose);
+        lyControls.add(lyQueue);
+        paintLyCtls();
+    }
+
+    /** A small round button holding a symbol (☆ / ★, •••). */
+    private TextView roundGlyph(String g) {
+        TextView t = MusicUi.text(this, 15, Color.WHITE, true);
+        t.setText(g);
+        t.setGravity(Gravity.CENTER);
+        t.setFocusable(true);
+        t.setIncludeFontPadding(false);
+        t.setBackground(MusicUi.round(0x33FFFFFF, dp(15)));
+        t.setOnFocusChangeListener((v, has) -> { v.setBackground(MusicUi.round(has ? Color.WHITE : 0x33FFFFFF, dp(15))); ((TextView) v).setTextColor(has ? 0xFF1C1C1E : Color.WHITE); });
+        return t;
+    }
+
+    /** A player control: just the white symbol; on it, a white disc with the symbol dark. */
+    private ImageView ctl(int icon, int sizeDp, Runnable r) {
+        ImageView v = new ImageView(this);
+        v.setImageResource(icon);
+        v.setFocusable(true);
+        int p = dp(sizeDp * 0.22f);
+        v.setPadding(p, p, p, p);
+        v.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        v.setColorFilter(Color.WHITE);
+        v.setOnFocusChangeListener((x, has) -> paintCtl((ImageView) x));
+        v.setOnClickListener(x -> r.run());
+        return v;
+    }
+
+    private void paintCtl(ImageView v) {
+        boolean f = v.hasFocus();
+        GradientDrawable g = new GradientDrawable();
+        g.setShape(GradientDrawable.OVAL);
+        g.setColor(f ? Color.WHITE : 0);
+        v.setBackground(g);
+        boolean on = (v == lyShuffle && mp.shuffle) || (v == lyRepeat && mp.repeat != MusicPlayer.REPEAT_OFF);
+        v.setColorFilter(f ? 0xFF1C1C1E : on ? MusicUi.PINK : (v == lyShuffle || v == lyRepeat) ? 0xB3FFFFFF : Color.WHITE);
+    }
+
+    private void paintLyCtls() {
+        if (lyShuffle == null) return;
+        lyRepeat.setImageResource(mp.repeat == MusicPlayer.REPEAT_ONE ? R.drawable.ic_m_repeat_one : R.drawable.ic_m_repeat);
+        lyPlay.setImageResource(mp.playing() ? R.drawable.ic_m_pause : R.drawable.ic_m_play);
+        for (int i = 0; i < lyCtlRow.getChildCount(); i++) paintCtl((ImageView) lyCtlRow.getChildAt(i));
     }
 
     private FrameLayout.LayoutParams at(int x, int y, int w, int hh) {
@@ -401,7 +473,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
     private void showQueue(boolean on) {
         queuePanel.setVisibility(on ? View.VISIBLE : View.GONE);
         if (on) fillQueue();
-        else (lyricsOn ? lyQueue : queuePill).requestFocus();
+        else (lyricsOn ? lyPlay : queuePill).requestFocus();
     }
 
     private void fillQueue() {
@@ -579,7 +651,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         bgShade.animate().alpha(on ? 1f : 0.55f).setDuration(600).start();
     }
 
-    @Override public void changed() { refresh(false); }
+    @Override public void changed() { refresh(false); paintLyCtls(); }
     @Override protected void onResume() { super.onResume(); mp.addListener(this); refresh(true); h.post(tick); poke(); }
     @Override protected void onPause() { mp.removeListener(this); h.removeCallbacks(tick); h.removeCallbacks(hide); super.onPause(); }
 
@@ -587,7 +659,8 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
 
     // ================================================================== save / follow / artist
     private void paintSave(boolean on) {
-        for (TextView b : new TextView[]{saveBtn, lyClose}) {
+        if (lyClose != null) { lyClose.setText(on ? "\u2605" : "\u2606"); if (!lyClose.hasFocus()) lyClose.setTextColor(on ? MusicUi.PINK : Color.WHITE); }
+        for (TextView b : new TextView[]{saveBtn}) {
             if (b == null) continue;
             b.setText(on ? "Saved" : "Save");
             android.graphics.drawable.Drawable d = getDrawable(on ? R.drawable.ic_check : R.drawable.ic_m_add).mutate();
@@ -655,7 +728,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         backdrop.setMood(true);
         bgImage.setVisibility(on ? View.GONE : View.VISIBLE);
         bgShade.setVisibility(on ? View.GONE : View.VISIBLE);
-        if (on) { lyAt = -2; lyClose.requestFocus(); } else { showChrome(true); lyricsPill.requestFocus(); poke(); }
+        if (on) { lyAt = -2; lyPlay.requestFocus(); } else { showChrome(true); lyricsPill.requestFocus(); poke(); }
         h.removeCallbacks(tick);
         h.post(tick);
     }
@@ -695,7 +768,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
 
     private void addLine(String s, boolean timed) {
         LyricLine t = new LyricLine(this);
-        t.setTextSize(32);
+        t.setTextSize(34);
         t.setTypeface(MusicUi.font(700));
         t.setIncludeFontPadding(false);
         t.setTextColor(Color.WHITE);
@@ -703,7 +776,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         t.setText(Lyrics.censor(s));
         t.setLineSpacing(0, 1.08f);
         // Room on both sides: the first letters (and their soft blur) never touch the edge.
-        t.setPadding(dp(48), dp(10), dp(MusicUi.PAD + 14), dp(10));
+        t.setPadding(dp(48), dp(12), dp(14), dp(12));
         t.setPivotX(0);
         t.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         lyLines.addView(t, new LinearLayout.LayoutParams(-1, -2));
@@ -725,8 +798,8 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
     private void place(int at, boolean animate) {
         int n = lyLines.getChildCount();
         if (n == 0) return;
-        int anchor = Math.round(lyWindow.getHeight() * 0.14f);
-        int ref = at >= 0 && at < n ? lyLines.getChildAt(at).getTop() : lyLines.getChildAt(0).getTop() - Math.round(lyWindow.getHeight() * 0.20f);
+        int anchor = Math.round(lyWindow.getHeight() * 0.36f);
+        int ref = at >= 0 && at < n ? lyLines.getChildAt(at).getTop() : lyLines.getChildAt(0).getTop() - Math.round(lyWindow.getHeight() * 0.10f);
         float shift = anchor - ref;
         boolean timed = lyrics != null && lyrics.timed;
         for (int i = 0; i < n; i++) {
@@ -822,8 +895,13 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
                 glideTo(Math.max(-max, Math.min(0, y)));
                 return true;
             }
-            if (k == KeyEvent.KEYCODE_DPAD_DOWN && f == lyBar) { lyClose.requestFocus(); return true; }
-            if (k == KeyEvent.KEYCODE_DPAD_UP && (f == lyClose || f == lyQueue)) { lyBar.requestFocus(); return true; }
+            // Apple's order, top to bottom: star / "…", the progress line, the controls.
+            boolean inCtl = f != null && f.getParent() == lyCtlRow;
+            if (k == KeyEvent.KEYCODE_DPAD_DOWN && (f == lyClose || f == lyQueue)) { lyBar.requestFocus(); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_DOWN && f == lyBar) { lyPlay.requestFocus(); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_UP && inCtl) { lyBar.requestFocus(); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_UP && f == lyBar) { lyClose.requestFocus(); return true; }
+            if (k == KeyEvent.KEYCODE_DPAD_DOWN && inCtl) return true;
         }
         return super.dispatchKeyEvent(e);
     }
