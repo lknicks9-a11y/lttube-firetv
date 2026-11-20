@@ -241,7 +241,7 @@ public final class MusicUi {
         int w = wide ? Math.round(size * 1.54f) : size, h = wide ? Math.round(size * 1.54f * 9f / 16f) : size;
         if (round) circle(iv, m.thumb); else art(iv, m.thumb, dp(a, 5));
         if (round && !m.thumb.contains("mzstatic.com")) artistPhoto(iv, m);
-        iv.setOnFocusChangeListener((x, has) -> { markFocus(x, has, dp(a, 5), round, 1.05f); if (has && hover != null) hover.on(m); });
+        iv.setOnFocusChangeListener((x, has) -> { markFocus(x, has, dp(a, 5), round, 1.05f); if (has) { AppleWeb.prefetch(m); if (hover != null) hover.on(m); } });
         iv.setOnClickListener(v -> open.open(m, ctx));
         iv.setOnKeyListener((v, k, e) -> {
             if (k == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP) { options(a, m); return true; }
@@ -334,7 +334,7 @@ public final class MusicUi {
                 bg.setColor(chin);
                 melt.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{chin & 0x00FFFFFF, chin}));
             });
-            card.setOnFocusChangeListener((x, has) -> { markFocus(x, has, dp(a, 8), false, 1f); if (has && hover != null) hover.on(m); });
+            card.setOnFocusChangeListener((x, has) -> { markFocus(x, has, dp(a, 8), false, 1f); if (has) { AppleWeb.prefetch(m); if (hover != null) hover.on(m); } });
             card.setOnClickListener(v -> open.open(m, ctx));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(a, w), dp(a, h));
             lp.rightMargin = dp(a, gap);
@@ -388,6 +388,7 @@ public final class MusicUi {
             tx.addView(sb);
             t.addView(tx, new LinearLayout.LayoutParams(0, -2, 1));
             t.setOnFocusChangeListener((v, has) -> {
+                if (has) AppleWeb.prefetch(m);
                 GradientDrawable g = round(has ? 0x40FFFFFF : 0x1AFFFFFF, dp(a, 8));
                 if (has) g.setStroke(dp(a, 2), Color.WHITE);
                 v.setBackground(g);

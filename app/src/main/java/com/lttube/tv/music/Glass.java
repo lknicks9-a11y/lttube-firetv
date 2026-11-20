@@ -56,7 +56,7 @@ public class Glass extends FrameLayout {
         fill.setColor(0x1FFFFFFF);
         rim.setStyle(Paint.Style.STROKE);
         rim.setStrokeWidth(Math.max(1f, radiusPx / 18f));
-        setElevation(radiusPx * 0.45f);
+        // No drop shadow: glass floats; a shadow only showed as a dark smudge beside it.
     }
 
     @Override protected void onAttachedToWindow() {

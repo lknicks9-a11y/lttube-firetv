@@ -34,11 +34,47 @@ public final class AppleWeb {
     }
 
     /** A music.apple.com page's data, cached for 20 minutes. */
+    private static final java.util.concurrent.ConcurrentHashMap<String, Object> locks = new java.util.concurrent.ConcurrentHashMap<>();
+
     static Object[] page(String url) throws Exception {
         synchronized (cache) {
             Object[] hit = cache.get(url);
             if (hit != null && System.currentTimeMillis() - (Long) hit[0] < 20 * 60_000L) return hit;
         }
+        Object lock = locks.computeIfAbsent(url, k -> new Object());
+        synchronized (lock) {
+            synchronized (cache) {
+                Object[] hit = cache.get(url);
+                if (hit != null && System.currentTimeMillis() - (Long) hit[0] < 20 * 60_000L) return hit;
+            }
+            return fetchPage(url);
+        }
+    }
+
+    // ------------------------------------------------------------------ getting ahead
+    private static final java.util.concurrent.ExecutorService ahead = java.util.concurrent.Executors.newFixedThreadPool(2);
+    private static final android.os.Handler later = new android.os.Handler(android.os.Looper.getMainLooper());
+    private static Runnable pendingAhead;
+
+    /**
+     * You've rested on an album / playlist / artist: start loading its page now, so it's ready (or nearly) when
+     * you open it. Only the one you stay on for a moment, not everything you pass over.
+     */
+    public static void prefetch(MItem m) {
+        if (m == null) return;
+        final String id = m.browseId;
+        if (pendingAhead != null) later.removeCallbacks(pendingAhead);
+        pendingAhead = () -> ahead.submit(() -> {
+            try {
+                if (id.startsWith("AMA:")) artist(id.substring(4));
+                else if (id.startsWith("AMP:")) page(id.substring(4));
+                else if (id.startsWith("AM:")) { AppleMusic.album(id); page("https://music.apple.com/us/album/x/" + id.substring(3)); }
+            } catch (Throwable ignored) { }
+        });
+        later.postDelayed(pendingAhead, 350);
+    }
+
+    private static Object[] fetchPage(String url) throws Exception {
         String html = get(url);
         Matcher d = Pattern.compile("<script[^>]*id=\"serialized-server-data\"[^>]*>(.*?)</script>", Pattern.DOTALL).matcher(html);
         if (!d.find()) throw new Exception("Couldn't read that page");
@@ -211,7 +247,12 @@ public final class AppleWeb {
         if (a == null) a = Ytm.findObj(holder, "artwork");
         if (a == null) return "";
         JSONObject dict = a.optJSONObject("dictionary");
-        String u = (dict != null ? dict : a).optString("url");
+        JSONObject d = dict != null ? dict : a;
+        String u = d.optString("url");
+        // Artwork that isn't square, asked to "fit in a square", comes back as a thin strip that then gets
+        // blown up (blurry) and cut off. Those get Apple's own smart crop to a full-size square instead.
+        int w = d.optInt("width"), h = d.optInt("height");
+        if (w > 0 && h > 0 && Math.abs(w - h) > Math.max(w, h) / 50) return u.replace("{w}", String.valueOf(px)).replace("{h}", String.valueOf(px)).replace("{c}", "sr").replace("{f}", "jpg");
         return tpl(u, px);
     }
 

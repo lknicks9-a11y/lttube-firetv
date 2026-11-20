@@ -109,7 +109,18 @@ public final class AppleMusic {
     }
 
     /** An album's page: Apple's full track list, each matched to the official song on YouTube Music. */
+    private static final java.util.Map<String, Object[]> albums = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** An album (kept for 20 minutes, so going back and forth is instant). */
     public static Ytm.Page album(String id) throws Exception {
+        Object[] hit = albums.get(id);
+        if (hit != null && System.currentTimeMillis() - (Long) hit[0] < 20 * 60_000L) return (Ytm.Page) hit[1];
+        Ytm.Page p = albumFetch(id);
+        albums.put(id, new Object[]{System.currentTimeMillis(), p});
+        return p;
+    }
+
+    private static Ytm.Page albumFetch(String id) throws Exception {
         String appleId = id.startsWith("AM:") ? id.substring(3) : id;
         JSONArray a = get(HttpUrl.parse("https://itunes.apple.com/lookup").newBuilder().addQueryParameter("id", appleId)
                 .addQueryParameter("entity", "song").addQueryParameter("limit", "200").addQueryParameter("country", COUNTRY).build());

@@ -78,6 +78,8 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         root.addView(spinner, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER));
         show("listen");
         tabViews.get(0).requestFocus();
+        // Update Center: looks for a newer LT Music in the background (asks before installing anything).
+        com.lttube.tv.Updater.check(this, false, null);
     }
 
     private int dp(float v) { return MusicUi.dp(this, v); }
@@ -89,7 +91,8 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x59000000, 0x00000000}));
         root.addView(scrim, new FrameLayout.LayoutParams(-1, dp(70), Gravity.TOP));
         bar = new FrameLayout(this);
-        bar.setPadding(dp(MusicUi.PAD - 16), dp(MusicUi.TOP), dp(MusicUi.PAD), 0);
+        // Even on both sides, so the tab pill sits exactly in the middle of the screen.
+        bar.setPadding(dp(MusicUi.PAD - 16), dp(MusicUi.TOP), dp(MusicUi.PAD - 16), 0);
 
         // You (your picture; settings and accounts behind it).
         ImageView me = new ImageView(this);
@@ -181,8 +184,10 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         String who = "";
         try { who = in ? Account.name() : ""; } catch (Throwable ignored) { }
         MusicUi.choose(this, in ? "Signed in as " + who : "Settings",
-                new String[]{in ? "Switch account" : "Sign in with YouTube", "Import a playlist from Spotify or Apple Music", mp.autoplay ? "Autoplay: on" : "Autoplay: off"},
-                new Runnable[]{this::signIn, () -> startActivity(new Intent(this, ImportActivity.class)), () -> mp.setAutoplay(!mp.autoplay)});
+                new String[]{in ? "Switch account" : "Sign in with YouTube", "Import a playlist from Spotify or Apple Music", mp.autoplay ? "Autoplay: on" : "Autoplay: off",
+                        "Update Center \u2014 " + (com.lttube.tv.Updater.updateReady(this) ? "install build " + com.lttube.tv.Updater.latest.build : "you have build " + com.lttube.tv.Updater.currentBuild(this))},
+                new Runnable[]{this::signIn, () -> startActivity(new Intent(this, ImportActivity.class)), () -> mp.setAutoplay(!mp.autoplay),
+                        () -> { if (com.lttube.tv.Updater.updateReady(this)) com.lttube.tv.Updater.install(this, com.lttube.tv.Updater.latest); else com.lttube.tv.Updater.check(this, true, null); }});
     }
 
     private void signIn() {
@@ -653,7 +658,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         return super.dispatchKeyEvent(e);
     }
 
-    @Override protected void onResume() { super.onResume(); mp.addListener(this); }
+    @Override protected void onResume() { super.onResume(); com.lttube.tv.Updater.resumePending(this); mp.addListener(this); }
     @Override protected void onPause() { mp.removeListener(this); super.onPause(); }
     @Override public void changed() { }
 }

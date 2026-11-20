@@ -36,6 +36,10 @@ public final class Updater {
 
     // what the Update Center shows
     public static Release latest;
+    /** LT Music (the music app) checks its own release ("music"), not LTTube's. */
+    static boolean music;
+
+    static String app() { return music ? "LT Music" : "LTTube"; }
     public static String lastStatus = "Not checked yet";
     public static long lastCheck;
     private static boolean downloading;
@@ -78,7 +82,7 @@ public final class Updater {
     /** Blocks. Returns the newest release, or null if it can't tell. */
     public static Release fetchLatest() throws Exception {
         Request r = new Request.Builder()
-                .url("https://api.github.com/repos/" + REPO + "/releases/latest")
+                .url("https://api.github.com/repos/" + REPO + (music ? "/releases/tags/music" : "/releases/latest"))
                 .header("Accept", "application/vnd.github+json")
                 .header("User-Agent", "LTTube-TV")
                 .build();
@@ -88,7 +92,11 @@ public final class Updater {
             Release rel = new Release();
             String tag = o.optString("tag_name");
             // New releases are tagged "b<build>" and titled "LTTube 1.0.0 (build N)".
-            if (tag.matches("b\\d+")) {
+            java.util.regex.Matcher bm = java.util.regex.Pattern.compile("\\(build (\\d+)\\)").matcher(o.optString("name", ""));
+            if (music && bm.find()) {
+                rel.build = Integer.parseInt(bm.group(1));
+                rel.version = "build " + rel.build;
+            } else if (tag.matches("b\\d+")) {
                 rel.build = Integer.parseInt(tag.substring(1));
                 rel.version = o.optString("name", "").replaceFirst("^LTTube\\s*", "").replaceFirst("\\s*\\(build \\d+\\)$", "");
                 if (rel.version.isEmpty()) rel.version = "1.0.0";
@@ -104,13 +112,15 @@ public final class Updater {
                     rel.size = a.optLong("size");
                 }
             }
-            if (rel.apkUrl.isEmpty()) rel.apkUrl = "https://github.com/" + REPO + "/releases/latest/download/LTTube-TV.apk";
+            if (rel.apkUrl.isEmpty()) rel.apkUrl = music ? "https://github.com/" + REPO + "/releases/download/music/LTMusic.apk"
+                    : "https://github.com/" + REPO + "/releases/latest/download/LTTube-TV.apk";
             return rel;
         }
     }
 
     /** Checks in the background. If there's a newer build, asks once whether to install it. */
     public static void check(final Activity act, final boolean userAsked, final Runnable changed) {
+        try { music = act.getResources().getBoolean(R.bool.is_music); } catch (Throwable ignored) { }
         lastStatus = "Checking…";
         if (changed != null) changed.run();
         Bg.run(Updater::fetchLatest, (rel, err) -> {
@@ -141,7 +151,7 @@ public final class Updater {
                     offer(act, rel);
                 }
             } else if (!newer && userAsked) {
-                Toast.makeText(act, "LTTube is up to date (" + currentVersion(act) + ")", Toast.LENGTH_SHORT).show();
+                Toast.makeText(act, app() + " is up to date (build " + currentBuild(act) + ")", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -160,7 +170,7 @@ public final class Updater {
         if (notes.length() > 900) notes = notes.substring(0, 900) + "…";
         new LtDialog.Builder(act)
                 .setTitle("Update available")
-                .setMessage("LTTube " + rel.version + (rel.build > 0 ? " (build " + rel.build + ")" : "") + " — you have build " + currentBuild(act) + "."
+                .setMessage(app() + " " + rel.version + (rel.build > 0 ? " (build " + rel.build + ")" : "") + " — you have build " + currentBuild(act) + "."
                         + (notes.isEmpty() ? "" : "\n\nWhat's new\n" + notes))
                 .setPositiveButton("Install now", (d, w) -> install(act, rel))
                 .setNegativeButton("Later", null)
@@ -181,6 +191,7 @@ public final class Updater {
     }
 
     public static void install(final Activity act, final Release rel) {
+        try { music = act.getResources().getBoolean(R.bool.is_music); } catch (Throwable ignored) { }
         if (downloading) { Toast.makeText(act, "Already downloading the update…", Toast.LENGTH_SHORT).show(); return; }
         if (Build.VERSION.SDK_INT >= 26 && !act.getPackageManager().canRequestPackageInstalls()) {
             pending = rel;
@@ -188,7 +199,7 @@ public final class Updater {
                 act.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + act.getPackageName())));
                 Toast.makeText(act, "Turn on \"Allow from this source\", then press Back — the update continues by itself", Toast.LENGTH_LONG).show();
             } catch (Exception e) {
-                Toast.makeText(act, "Open Settings → My Fire TV → Developer options → Install unknown apps → LTTube", Toast.LENGTH_LONG).show();
+                Toast.makeText(act, "Open Settings → My Fire TV → Developer options → Install unknown apps → " + app(), Toast.LENGTH_LONG).show();
             }
             return;
         }
@@ -199,7 +210,7 @@ public final class Updater {
         int pad = Math.round(24 * act.getResources().getDisplayMetrics().density);
         bar.setPadding(pad, pad, pad, pad);
         final LtDialog dlg = new LtDialog.Builder(act)
-                .setTitle("Downloading LTTube " + rel.version + "…")
+                .setTitle("Downloading " + app() + " " + rel.version + "…")
                 .setView(bar)
                 .setCancelable(false)
                 .show();
@@ -223,7 +234,7 @@ public final class Updater {
         if (!dir.exists() && !dir.mkdirs()) throw new Exception("No space for the update");
         File[] old = dir.listFiles();
         if (old != null) for (File f : old) f.delete();
-        File out = new File(dir, "LTTube-" + rel.version + ".apk");
+        File out = new File(dir, (music ? "LTMusic-" : "LTTube-") + rel.version.replace(" ", "") + ".apk");
         Request r = new Request.Builder().url(rel.apkUrl).header("User-Agent", "LTTube-TV").build();
         try (Response res = NpDownloader.get().client.newBuilder()
                 .readTimeout(2, java.util.concurrent.TimeUnit.MINUTES).build()

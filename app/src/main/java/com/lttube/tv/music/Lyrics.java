@@ -183,4 +183,33 @@ public final class Lyrics {
     private static JSONArray getArr(HttpUrl u) throws Exception { String b = body(u); return b == null ? null : new JSONArray(b); }
 
     private Lyrics() { }
+
+    /** Swear words shown with stars after the first letter ("f***", "s***"), the rest of the word kept. */
+    public static String clean(String line) {
+        if (line == null || line.isEmpty()) return line;
+        String out = line;
+        // Anywhere in a word (motherf***er, bulls***).
+        out = star(out, "(?i)(f)(uck)", false);
+        out = star(out, "(?i)(s)(hit)", false);
+        // Whole words only (so "Dickens" or "class" stay as they are).
+        out = star(out, "(?i)(?<![a-z])(n)(igga|igger)(?=s?|z?)", false);
+        out = star(out, "(?i)(?<![a-z])(b)(itch)", false);
+        out = star(out, "(?i)(?<![a-z])(p)(ussy)(?![a-z])", false);
+        out = star(out, "(?i)(?<![a-z])(c)(unt)", false);
+        out = star(out, "(?i)(?<![a-z])(d)(ick)(?![a-z])", false);
+        out = star(out, "(?i)(?<![a-z])(a)(sshole)", false);
+        return out;
+    }
+
+    private static String star(String s, String regex, boolean unused) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(regex).matcher(s);
+        StringBuffer b = new StringBuffer();
+        while (m.find()) {
+            StringBuilder stars = new StringBuilder();
+            for (int i = 0; i < m.group(2).length(); i++) stars.append('*');
+            m.appendReplacement(b, java.util.regex.Matcher.quoteReplacement(m.group(1) + stars));
+        }
+        m.appendTail(b);
+        return b.toString();
+    }
 }
