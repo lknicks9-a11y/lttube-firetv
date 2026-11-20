@@ -586,7 +586,14 @@ public final class AppleWeb {
                 sh.title = s.title;
                 sh.items.addAll(s.items);
                 sh.list = t.equals("songs");
-                if (t.contains("top")) sh.moreId = "TOP";
+                if (t.contains("top")) {
+                    sh.moreId = "TOP";
+                    // Apple writes the kind into the line under the name ("Song · SoFaygo", "Artist"): keep just who.
+                    for (MItem m : sh.items) {
+                        m.artist = m.artist.replaceAll("^(Song|Album|Single|EP|Playlist|Artist|Music Video|Station)\\s*(\u00B7|-)?\\s*", "").trim();
+                        if (MItem.ARTIST.equals(m.type)) m.artist = "";
+                    }
+                }
                 p.shelves.add(sh);
             }
             if (!p.shelves.isEmpty()) return p;
