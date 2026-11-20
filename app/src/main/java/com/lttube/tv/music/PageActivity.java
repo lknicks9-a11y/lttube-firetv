@@ -384,11 +384,23 @@ public class PageActivity extends Activity {
                 });
                 l.addView(r, new LinearLayout.LayoutParams(-1, dp(numbered ? 54 : 58)));
             }
+            // The album's music videos follow its songs in the list, marked with a video symbol (as on Apple
+            // Music), and play as video.
+            final List<MItem> vids = new ArrayList<>();
+            for (Ytm.Shelf s : pg.shelves) for (MItem m : s.items) if (m.video && m.playable()) vids.add(m);
+            for (int i = 0; i < vids.size(); i++) {
+                final MItem m = vids.get(i);
+                View r = MusicUi.songRow(this, m, numbered ? songs.size() + i + 1 : -1, true, !numbered);
+                r.setOnClickListener(v -> MusicUi.open(this, m, vids));
+                l.addView(r, new LinearLayout.LayoutParams(-1, dp(numbered ? 54 : 58)));
+            }
             if (numbered || songs.size() > 1) {
                 int secs = 0;
                 for (MItem m : songs) secs += m.seconds;
+                for (MItem m : vids) secs += m.seconds;
+                int n = songs.size() + vids.size();
                 TextView foot = MusicUi.text(this, 14, MusicUi.TEXT2, false);
-                foot.setText(songs.size() + (songs.size() == 1 ? " song" : " songs") + (secs > 0 ? ", " + Math.max(1, secs / 60) + " minutes" : ""));
+                foot.setText(n + (n == 1 ? " song" : " songs") + (secs > 0 ? ", " + Math.max(1, secs / 60) + " minutes" : ""));
                 foot.setPadding(dp(12), dp(16), 0, 0);
                 l.addView(foot);
             }
@@ -439,7 +451,7 @@ public class PageActivity extends Activity {
                     }
                 } else {
                     if (st.matches(".*\\b(albums?|singles?|eps?)\\b.*")) rest.add(s);
-                    if (!s.list && !st.contains("video")) restAll.add(s);
+                    if (!s.list) restAll.add(s);
                 }
             }
             // Albums and Singles & EPs: Apple Music's complete discography (YouTube Music's rows if Apple has none).

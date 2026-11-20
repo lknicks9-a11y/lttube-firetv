@@ -706,6 +706,13 @@ public final class MusicUi {
         txt.setPadding(dp(a, withArt || number > 0 ? 14 : 4), 0, dp(a, 12), 0);
         TextView t = line(a, 16, TEXT, false);
         t.setText(named(m));
+        if (m.video) {
+            Drawable vd = a.getDrawable(R.drawable.ic_m_video).mutate();
+            vd.setBounds(0, 0, dp(a, 17), dp(a, 17));
+            vd.setTint(TEXT2);
+            t.setCompoundDrawables(vd, null, null, null);
+            t.setCompoundDrawablePadding(dp(a, 8));
+        }
         txt.addView(t);
         String who = m.artist.isEmpty() ? m.subtitle : m.artist;
         boolean columns = withTime && withArt;

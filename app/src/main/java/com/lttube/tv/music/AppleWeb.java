@@ -230,6 +230,17 @@ public final class AppleWeb {
                 m.browseId = "AMP:" + url;
                 m.subtitle = m.artist.isEmpty() ? "Playlist" : m.artist;
                 break;
+            case "musicVideo":
+                m.type = MItem.SONG;
+                m.video = true;
+                m.appleId = id;
+                m.mvType = "";
+                JSONObject va = o.optJSONObject("artwork");
+                JSONObject vd = va == null ? null : (va.optJSONObject("dictionary") != null ? va.optJSONObject("dictionary") : va);
+                if (vd != null) m.thumb = vd.optString("url").replace("{w}", "640").replace("{h}", "360").replace("{c}", "sr").replace("{f}", "jpg");
+                if (m.artist.isEmpty()) m.artist = o.optString("subtitle", "");
+                m.subtitle = m.artist;
+                return id.isEmpty() || m.title.isEmpty() ? null : m;
             case "song":
                 m.type = MItem.SONG;
                 m.appleId = id;
@@ -473,6 +484,12 @@ public final class AppleWeb {
             p.title = "";
         }
         if (p.thumb.isEmpty()) p.thumb = p.banner.replace("/1920x1080sr.jpg", "/600x600cc.jpg");
+        // Their music videos show the year under the name (the video is found by the artist's name).
+        for (Ytm.Shelf s : p.shelves) for (MItem m : s.items) if (m.video) {
+            String year = m.artist.matches("\\d{4}") ? m.artist : m.subtitle.matches("\\d{4}") ? m.subtitle : "";
+            m.artist = p.title;
+            m.subtitle = year.isEmpty() ? p.title : year;
+        }
         // An artist's top songs list the album ("Angelic 7 · 2019") where the artist would go: it's their song.
         for (Ytm.Shelf s : p.shelves) for (MItem m : s.items) if (m.playable() && s.list) {
             String sub = m.artist;
