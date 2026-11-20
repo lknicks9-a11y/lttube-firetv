@@ -178,6 +178,7 @@ public final class AppleWeb {
         switch (kind) {
             case "album":
                 m.type = MItem.ALBUM;
+                m.title = m.title.replaceAll(" - (Single|EP)$", "");
                 m.browseId = "AM:" + id;
                 m.subtitle = m.artist;
                 break;
