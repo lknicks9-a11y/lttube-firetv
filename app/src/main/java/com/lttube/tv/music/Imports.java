@@ -25,7 +25,7 @@ import okhttp3.Response;
  * you're signed in, otherwise on this TV).
  */
 public final class Imports {
-    public static class Track { public String title = "", artist = "", album = ""; public int seconds; }
+    public static class Track { public String title = "", artist = "", album = ""; public int seconds; public Boolean explicit; }
 
     public static class Source {
         public String name = "", cover = "", service = "";
@@ -262,6 +262,8 @@ public final class Imports {
         boolean ytVersion = vy.find(), appleVersion = va.find();
         if (ytVersion && !appleVersion) score -= 5;
         if (m.mvType.endsWith("ATV")) score += 1;
+        // The explicit song plays the explicit recording, the clean one the clean recording.
+        if (t.explicit != null) score += t.explicit == m.explicit ? 2 : -4;
         return score;
     }
 

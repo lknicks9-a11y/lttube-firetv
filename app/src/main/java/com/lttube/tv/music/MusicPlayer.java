@@ -496,10 +496,12 @@ public final class MusicPlayer {
                 m.album = o.optString("collectionName").replaceAll(" - (Single|EP)$", "");
                 m.artist = o.optString("artistName", m.artist);
                 if (!o.optString("trackName").isEmpty()) m.title = o.optString("trackName");
+                m.explicit = "explicit".equals(o.optString("trackExplicitness"));
                 if (m.thumb.isEmpty()) m.thumb = o.optString("artworkUrl100").replace("100x100bb", "600x600bb");
             }
         }
         Imports.Track t = new Imports.Track();
+        if (!m.appleId.isEmpty()) t.explicit = m.explicit;
         t.title = m.title;
         t.artist = m.artist;
         t.album = m.album;

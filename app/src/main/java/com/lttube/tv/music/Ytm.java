@@ -279,6 +279,7 @@ public final class Ytm {
 
     private static MItem panelSong(JSONObject v) {
         MItem m = new MItem();
+        m.explicit = v.toString().contains("MUSIC_EXPLICIT_BADGE");
         m.type = MItem.SONG;
         m.videoId = v.optString("videoId");
         m.title = runs(v.optJSONObject("title"));
@@ -492,6 +493,7 @@ public final class Ytm {
     private static MItem twoRow(JSONObject r) {
         if (r == null) return null;
         MItem m = new MItem();
+        m.explicit = r.toString().contains("MUSIC_EXPLICIT_BADGE");
         m.title = runs(r.optJSONObject("title"));
         m.subtitle = runs(r.optJSONObject("subtitle"));
         m.thumb = bestThumb(r.optJSONObject("thumbnailRenderer"));
@@ -518,6 +520,7 @@ public final class Ytm {
     private static MItem listItem(JSONObject r) {
         if (r == null) return null;
         MItem m = new MItem();
+        m.explicit = r.toString().contains("MUSIC_EXPLICIT_BADGE");
         JSONArray cols = r.optJSONArray("flexColumns");
         List<String> texts = new ArrayList<>();
         List<JSONArray> runsList = new ArrayList<>();

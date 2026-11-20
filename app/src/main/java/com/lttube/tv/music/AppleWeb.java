@@ -201,6 +201,7 @@ public final class AppleWeb {
             if (tl != null && tl.length() > 0) m.title = tl.optJSONObject(0).optString("title");
         }
         m.thumb = art(o, 600);
+        m.explicit = o.optBoolean("showExplicitBadge");
         JSONArray sl = o.optJSONArray("subtitleLinks");
         if (sl != null && sl.length() > 0) {
             StringBuilder b = new StringBuilder();
@@ -795,6 +796,7 @@ public final class AppleWeb {
         m.subtitle = m.artist;
         m.seconds = (int) (o.optLong("trackTimeMillis") / 1000);
         m.thumb = o.optString("artworkUrl100").replace("100x100bb", "600x600bb");
+        m.explicit = "explicit".equals(o.optString("trackExplicitness"));
         return m;
     }
 

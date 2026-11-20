@@ -41,8 +41,13 @@ public class Motion extends FrameLayout {
         try {
             androidx.media3.exoplayer.trackselection.DefaultTrackSelector ts = new androidx.media3.exoplayer.trackselection.DefaultTrackSelector(getContext());
             // The best version that fits, straight away (not the blurry smallest one first).
-            ts.setParameters(ts.buildUponParameters().setMaxVideoSize(maxW, maxH).setForceHighestSupportedBitrate(true));
+            // At most 720p (plenty for a header), and no sound track at all, so it never competes with the music.
+            ts.setParameters(ts.buildUponParameters().setMaxVideoSize(Math.min(maxW, 1280), Math.min(maxH, 720)).setMaxVideoBitrate(3_000_000)
+                    .setForceHighestSupportedBitrate(true).setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_AUDIO, true));
             player = new ExoPlayer.Builder(getContext()).setTrackSelector(ts).build();
+            // Never ask the TV to switch its screen's refresh rate for this video: on Fire TV that blips the picture
+            // and the sound (the music glitched when an artist's motion started).
+            player.setVideoChangeFrameRateStrategy(androidx.media3.common.C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF);
             player.setVolume(0f);
             player.setRepeatMode(Player.REPEAT_MODE_ALL);
             player.setVideoTextureView(tv);

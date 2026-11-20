@@ -571,9 +571,9 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
             if (cur != null) {
                 MusicUi.art(art, cur.thumb, dp(4));
                 MusicUi.art(lyArt, cur.thumb, dp(10));
-                title.setText(cur.title);
+                title.setText(MusicUi.named(cur));
                 artist.setText(cur.artist.isEmpty() ? cur.subtitle : cur.artist);
-                lyTitle.setText(cur.title);
+                lyTitle.setText(MusicUi.named(cur));
                 lyArtist.setText(cur.artist + (cur.album.isEmpty() ? "" : " \u2014 " + cur.album));
                 albumMotion(cur);
                 backdrop.setArt(cur.thumb);

@@ -26,6 +26,8 @@ public class MItem {
     public String videoId = "";
     /** The song's Apple Music id: its details and cover come from Apple; its audio is found on YouTube Music when it plays. */
     public String appleId = "";
+    /** Explicit (Apple / YouTube Music's "E"); clean and non-explicit versions are false. */
+    public boolean explicit;
     /** For playing an album / playlist / mix. */
     public String playlistId = "";
     /** For opening an album / playlist / artist page. */
@@ -81,14 +83,15 @@ public class MItem {
         try {
             o.put("type", type).put("title", title).put("subtitle", subtitle).put("artist", artist).put("album", album)
                     .put("thumb", thumb).put("videoId", videoId).put("playlistId", playlistId).put("browseId", browseId)
-                    .put("params", params).put("seconds", seconds).put("color", color).put("artistId", artistId).put("video", video).put("mvType", mvType).put("appleId", appleId);
+                    .put("params", params).put("seconds", seconds).put("color", color).put("artistId", artistId).put("video", video).put("mvType", mvType).put("appleId", appleId).put("explicit", explicit);
         } catch (Exception ignored) { }
         return o;
     }
 
     public static MItem fromJson(JSONObject o) {
         MItem m = new MItem();
-        if (o == null) return m;
+        if (o == null) m.explicit = o.optBoolean("explicit");
+        return m;
         m.type = o.optString("type", SONG);
         m.title = o.optString("title");
         m.subtitle = o.optString("subtitle");

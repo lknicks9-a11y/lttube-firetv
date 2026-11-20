@@ -167,6 +167,40 @@ public final class MusicUi {
 
     public static ViewGroup.LayoutParams match() { return new ViewGroup.LayoutParams(-1, -1); }
 
+    // ------------------------------------------------------------------ the explicit "E"
+    /** A small rounded "E" after an explicit song's or album's name, like Apple Music's. */
+    static final class ExplicitBadge extends android.text.style.ReplacementSpan {
+        @Override public int getSize(android.graphics.Paint p, CharSequence t, int s, int e, android.graphics.Paint.FontMetricsInt fm) {
+            return Math.round(p.getTextSize() * 1.15f);
+        }
+        @Override public void draw(android.graphics.Canvas c, CharSequence t, int s, int e, float x, int top, int y, int bottom, android.graphics.Paint p) {
+            float h = p.getTextSize() * 0.78f, w = h, pad = p.getTextSize() * 0.22f;
+            float cy = (top + bottom) / 2f;
+            int keep = p.getColor();
+            p.setColor(keep & 0x99FFFFFF);
+            c.drawRoundRect(x + pad, cy - h / 2, x + pad + w, cy + h / 2, h * 0.2f, h * 0.2f, p);
+            p.setColor(0xFF1F1F1F);
+            float ts = p.getTextSize();
+            p.setTextSize(ts * 0.58f);
+            android.graphics.Typeface tf = p.getTypeface();
+            p.setTypeface(font(700));
+            float tw = p.measureText("E");
+            android.graphics.Paint.FontMetrics f = p.getFontMetrics();
+            c.drawText("E", x + pad + (w - tw) / 2, cy - (f.ascent + f.descent) / 2, p);
+            p.setTextSize(ts);
+            p.setTypeface(tf);
+            p.setColor(keep);
+        }
+    }
+
+    /** The name, with the "E" after it when it's explicit. */
+    public static CharSequence named(MItem m) {
+        if (!m.explicit) return m.title;
+        android.text.SpannableString s = new android.text.SpannableString(m.title + " E");
+        s.setSpan(new ExplicitBadge(), s.length() - 1, s.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return s;
+    }
+
     // ------------------------------------------------------------------ focus
     /** Selected = a white outline around it and a small lift. */
     public static void outline(View v, float radiusPx, boolean circle, float scale) {
@@ -267,7 +301,7 @@ public final class MusicUi {
         });
         col.addView(iv, new LinearLayout.LayoutParams(w, h));
         TextView t = line(a, 14, TEXT, false);
-        t.setText(m.title);
+        t.setText(named(m));
         t.setGravity(round ? Gravity.CENTER : Gravity.START);
         t.setPadding(0, dp(a, 8), 0, 0);
         col.addView(t, new LinearLayout.LayoutParams(w, -2));
@@ -398,7 +432,7 @@ public final class MusicUi {
             tx.setOrientation(LinearLayout.VERTICAL);
             tx.setPadding(dp(a, 12), 0, 0, 0);
             TextView nm = line(a, 15, TEXT, false);
-            nm.setText(m.title);
+            nm.setText(named(m));
             tx.addView(nm);
             TextView sb = line(a, 12, TEXT2, false);
             sb.setText(person ? "Artist" : (m.playable() ? "Song" : MItem.PLAYLIST.equals(m.type) ? "Playlist" : "Album") + (m.artist.isEmpty() ? "" : " \u00B7 " + m.artist));
@@ -671,7 +705,7 @@ public final class MusicUi {
         txt.setOrientation(LinearLayout.VERTICAL);
         txt.setPadding(dp(a, withArt || number > 0 ? 14 : 4), 0, dp(a, 12), 0);
         TextView t = line(a, 16, TEXT, false);
-        t.setText(m.title);
+        t.setText(named(m));
         txt.addView(t);
         String who = m.artist.isEmpty() ? m.subtitle : m.artist;
         boolean columns = withTime && withArt;
