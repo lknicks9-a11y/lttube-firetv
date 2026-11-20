@@ -22,4 +22,4 @@ jobs:
           gradle :app:assembleMusicRelease :app:assembleTubeRelease --no-daemon 2>&1 | grep -E "error|warning: \[|FAILED|BUILD|e: " | head -120
       - name: API check
         run: |
-          gradle :app:testMusicReleaseUnitTest --tests com.lttube.tv.MusicApiTest --no-daemon 2>&1 | grep -E "MUS|FAILED|error:|BUILD" | head -400
+          gradle :app:testMusicReleaseUnitTest --tests com.lttube.tv.MusicApiTest --tests com.lttube.tv.AppleProbeTest --no-daemon 2>&1 | grep -E "MUS|APL|FAILED|error:|BUILD" | head -400
