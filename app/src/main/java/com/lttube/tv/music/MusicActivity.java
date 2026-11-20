@@ -222,6 +222,10 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
                 final MItem m = l.get(i);
                 LinearLayout r = navRow(m.title, "VLLM".equals(m.browseId) ? R.drawable.ic_m_heart : R.drawable.ic_m_queue);
                 r.setOnClickListener(v -> MusicUi.open(this, m, null));
+                r.setOnKeyListener((v, k, ev) -> {
+                    if (k == KeyEvent.KEYCODE_MENU && ev.getAction() == KeyEvent.ACTION_UP) { MusicUi.options(this, m); return true; }
+                    return false;
+                });
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(38));
                 lp.bottomMargin = dp(2);
                 playlistsBox.addView(r, lp);

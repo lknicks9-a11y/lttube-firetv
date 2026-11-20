@@ -214,6 +214,36 @@ public final class AppleWeb {
         return u.replace("{w}", String.valueOf(px)).replace("{h}", String.valueOf(px)).replace("{c}", "bb").replace("{f}", "jpg");
     }
 
+    /** The looping video inside a motion-artwork block (Apple's "…VideoArtwork"), or "". */
+    static String motion(Object holder) {
+        if (holder == null) return "";
+        List<Object> stack = new ArrayList<>();
+        stack.add(holder);
+        while (!stack.isEmpty()) {
+            Object o = stack.remove(stack.size() - 1);
+            if (o instanceof JSONObject) {
+                JSONObject j = (JSONObject) o;
+                String v = j.optString("video", "");
+                if (v.startsWith("https://") && v.contains(".m3u8")) return v;
+                for (java.util.Iterator<String> it = j.keys(); it.hasNext(); ) stack.add(j.opt(it.next()));
+            } else if (o instanceof JSONArray) for (int i = 0; i < ((JSONArray) o).length(); i++) stack.add(((JSONArray) o).opt(i));
+        }
+        return "";
+    }
+
+    /** An album's motion artwork, if Apple has one for it. */
+    public static String albumMotion(String albumId) {
+        try {
+            Object[] pg = page("https://music.apple.com/us/album/x/" + albumId);
+            for (Section s : sections(pg[1])) if (s.kind.equals("containerDetailHeaderLockup")) {
+                JSONArray it = s.raw.optJSONArray("items");
+                JSONObject h = it == null ? null : it.optJSONObject(0);
+                if (h != null) return motion(h.opt("videoArtwork"));
+            }
+        } catch (Exception ignored) { }
+        return "";
+    }
+
     // ------------------------------------------------------------------ pages
     /** Apple Music's Browse page: its shelves of new albums, songs and playlists. */
     public static List<Ytm.Shelf> browse() throws Exception {
@@ -240,12 +270,22 @@ public final class AppleWeb {
     public static Ytm.Page artist(String appleId) throws Exception {
         Object[] pg = page("https://music.apple.com/us/artist/x/" + appleId);
         Ytm.Page p = new Ytm.Page();
-        p.banner = ((String) pg[2]).replaceAll("/\\d+x\\d+\\w*\\.(png|jpg)$", "/1920x1080cw.jpg");
+        // (Not the page's share picture: that's their photo cut into a circle on a coloured card.)
+        String og = (String) pg[2];
+        p.banner = og.replaceAll("/\\d+x\\d+\\w*\\.(png|jpg)$", "/1920x1080sr.jpg");
         for (Section s : sections(pg[1])) {
             if (s.kind.equals("artistDetailHeader")) {
                 JSONArray it = s.raw.optJSONArray("items");
                 JSONObject h = it == null ? null : it.optJSONObject(0);
                 if (h != null) {
+                    // Their real photo, cropped wide the way Apple crops it; and their motion video, if any.
+                    JSONObject art = h.optJSONObject("artwork");
+                    String u = art == null ? "" : (art.optJSONObject("dictionary") != null ? art.optJSONObject("dictionary") : art).optString("url");
+                    if (!u.isEmpty()) {
+                        p.banner = u.replace("{w}x{h}{c}.{f}", "1920x1080sr.jpg");
+                        p.thumb = u.replace("{w}x{h}{c}.{f}", "600x600cc.jpg");
+                    }
+                    p.motion = motion(h.opt("wideVideoArtwork"));
                     p.title = h.optString("title", h.optString("name", ""));
                     p.description = h.optString("bio", "").replaceAll("<[^>]+>", "");
                     if (p.description.isEmpty()) p.description = firstString(h.opt("bioAction"), "paragraphText", 0).replaceAll("<[^>]+>", "");
@@ -268,7 +308,7 @@ public final class AppleWeb {
             Matcher t = Pattern.compile("([^/]+)/" + appleId).matcher("");
             p.title = "";
         }
-        p.thumb = p.banner.replace("/1920x1080cw.jpg", "/600x600cc.jpg");
+        if (p.thumb.isEmpty()) p.thumb = p.banner.replace("/1920x1080sr.jpg", "/600x600cc.jpg");
         // An artist's top songs list the album ("Angelic 7 · 2019") where the artist would go: it's their song.
         for (Ytm.Shelf s : p.shelves) for (MItem m : s.items) if (m.playable() && s.list) {
             String sub = m.artist;
@@ -292,6 +332,7 @@ public final class AppleWeb {
                 if (h != null) {
                     p.title = h.optString("title");
                     p.thumb = art(h, 1000);
+                    p.motion = motion(h.opt("videoArtwork"));
                     JSONObject desc = h.optJSONObject("modalPresentationDescriptor");
                     if (desc != null) p.description = desc.optString("paragraphText").replaceAll("<[^>]+>", "");
                     JSONArray sl = h.optJSONArray("subtitleLinks");
@@ -563,7 +604,7 @@ public final class AppleWeb {
         return m;
     }
 
-    private static List<JSONObject> itunes(String q, String entity, int n) throws Exception {
+    static List<JSONObject> itunes(String q, String entity, int n) throws Exception {
         String body = get(HttpUrl.parse("https://itunes.apple.com/search").newBuilder().addQueryParameter("term", q).addQueryParameter("entity", entity)
                 .addQueryParameter("limit", String.valueOf(n)).addQueryParameter("country", "US").build().toString());
         JSONArray a = new JSONObject(body).optJSONArray("results");

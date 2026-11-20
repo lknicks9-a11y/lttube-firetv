@@ -195,6 +195,18 @@ public final class Mixes {
         } catch (Exception ignored) { }
     }
 
+    /** Takes a deleted playlist out of Recently Played. */
+    public static synchronized void forget(Context c, String key) {
+        try {
+            org.json.JSONArray old = new org.json.JSONArray(prefs(c).getString("places", "[]")), now = new org.json.JSONArray();
+            for (int i = 0; i < old.length(); i++) {
+                MItem o = MItem.fromJson(old.optJSONObject(i));
+                if (!key.equals(o.browseId) && !key.equals(o.playlistId)) now.put(old.optJSONObject(i));
+            }
+            prefs(c).edit().putString("places", now.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
     /** "Jump back in": the albums, playlists, artists and mixes you went to last, newest first. */
     public static List<MItem> places(Context c) {
         List<MItem> out = new ArrayList<>();

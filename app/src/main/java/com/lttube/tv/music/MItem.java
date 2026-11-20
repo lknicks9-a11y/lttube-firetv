@@ -60,7 +60,16 @@ public class MItem {
     public static String art(String url, int px) {
         if (url == null || url.isEmpty()) return "";
         if (url.startsWith("//")) url = "https:" + url;
-        if (url.contains("mzstatic.com")) return url.replaceAll("/\\d+x\\d+(bb|cc|cw)\\.(jpg|png|webp)$", "/" + px + "x" + px + "bb.jpg");
+        if (url.contains("mzstatic.com")) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("/(\\d+)x(\\d+)([a-z]{0,3}[-\\d]*)\\.(jpg|png|webp)$").matcher(url);
+            if (!m.find()) return url;
+            String code = m.group(3);
+            if (code.isEmpty() || code.equals("bb") || code.equals("cc") || code.equals("cw")) return url.substring(0, m.start()) + "/" + px + "x" + px + "bb.jpg";
+            // Another crop (wide pictures): bigger, same shape.
+            int w = Integer.parseInt(m.group(1)), h = Integer.parseInt(m.group(2));
+            if (w >= px) return url;
+            return url.substring(0, m.start()) + "/" + px + "x" + Math.round(px * h / (float) w) + code + ".jpg";
+        }
         if (url.contains("googleusercontent.com") || url.contains("ggpht.com")) {
             return url.replaceAll("=w\\d+-h\\d+[^&]*$", "=w" + px + "-h" + px + "-l90-rj").replaceAll("=s\\d+[^&]*$", "=s" + px);
         }

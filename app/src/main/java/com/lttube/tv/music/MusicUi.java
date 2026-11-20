@@ -156,6 +156,8 @@ public final class MusicUi {
     // ------------------------------------------------------------------ pictures
     public static void art(ImageView iv, String url, int radiusPx) {
         iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        // Always a sharp copy (lists hand out small ones).
+        if (url != null && !url.isEmpty() && !url.contains("/1080x1080") && !url.contains("1000x1000")) url = MItem.art(url, 600);
         if (url == null || url.isEmpty()) { iv.setImageDrawable(round(0xFF3A3C40, radiusPx)); return; }
         if (radiusPx <= 0) Glide.with(iv).load(url).centerCrop().placeholder(round(0xFF2E3033, 0)).into(iv);
         else Glide.with(iv).load(url).transform(new CenterCrop(), new RoundedCorners(radiusPx)).placeholder(round(0xFF2E3033, radiusPx)).into(iv);
@@ -163,6 +165,7 @@ public final class MusicUi {
 
     public static void circle(ImageView iv, String url) {
         iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        if (url != null && !url.isEmpty()) url = MItem.art(url, 600);
         GradientDrawable ph = new GradientDrawable();
         ph.setShape(GradientDrawable.OVAL);
         ph.setColor(0xFF3A3C40);
@@ -861,6 +864,10 @@ public final class MusicUi {
 
     /** Menu button on a song. */
     public static void options(Activity a, MItem m) {
+        if (canDelete(m)) {
+            choose(a, m.title, new String[]{"Delete playlist"}, new Runnable[]{() -> confirmDelete(a, m, null)});
+            return;
+        }
         if (!m.playable()) return;
         MusicPlayer mp = MusicPlayer.get(a);
         choose(a, m.title, new String[]{"Play next", "Add to queue", "Go to song radio"}, new Runnable[]{
@@ -870,6 +877,31 @@ public final class MusicUi {
     }
 
     /** The app's name with its note badge. */
+    /** Your own playlists can be deleted: ones imported onto this TV, and the ones in your YouTube library. */
+    public static boolean canDelete(MItem m) {
+        if (!MItem.PLAYLIST.equals(m.type) && !m.browseId.startsWith("LOCAL:")) return false;
+        if (m.browseId.startsWith("LOCAL:")) return true;
+        return Ytm.signedIn() && m.browseId.startsWith("VLPL");
+    }
+
+    /** Asks first, then deletes; `done` runs after (to close or refresh the page). */
+    public static void confirmDelete(Activity a, MItem m, Runnable done) {
+        choose(a, "Delete \u201c" + m.title + "\u201d?", new String[]{"Delete", "Cancel"}, new Runnable[]{() -> {
+            if (m.browseId.startsWith("LOCAL:")) {
+                Imports.delete(a, m.browseId);
+                Mixes.forget(a, m.browseId);
+                android.widget.Toast.makeText(a, "Deleted", android.widget.Toast.LENGTH_SHORT).show();
+                if (done != null) done.run();
+                return;
+            }
+            final String id = !m.playlistId.isEmpty() ? m.playlistId : m.browseId;
+            com.lttube.tv.Bg.run(() -> { Ytm.deletePlaylist(id); return true; }, (ok, e) -> {
+                android.widget.Toast.makeText(a, ok != null ? "Deleted" : "Couldn't delete it: " + com.lttube.tv.Bg.message(e), android.widget.Toast.LENGTH_SHORT).show();
+                if (ok != null) { Mixes.forget(a, m.browseId); if (done != null) done.run(); }
+            });
+        }, () -> { }});
+    }
+
     public static View wordmark(Context c) {
         LinearLayout l = new LinearLayout(c);
         l.setGravity(Gravity.CENTER_VERTICAL);

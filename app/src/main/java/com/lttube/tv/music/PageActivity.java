@@ -40,6 +40,17 @@ public class PageActivity extends Activity {
     private ProgressBar spinner;
     private int W, H;
     private boolean followingNow;
+    private MItem place;
+    private Motion motion;
+
+    @Override protected void onPause() { super.onPause(); hero.pauseMotion(); if (motion != null) motion.pause(); }
+    @Override protected void onResume() { super.onResume(); hero.resumeMotion(); if (motion != null) motion.resume(); }
+
+    /** You played something from this album / playlist: it goes in Recently Played. */
+    private void played() {
+        if (place == null || MItem.ARTIST.equals(item.type) || item.browseId.startsWith("AMA:") || item.browseId.startsWith("UC")) return;
+        Mixes.visited(this, place);
+    }
 
     @Override
     protected void onCreate(Bundle b) {
@@ -117,9 +128,11 @@ public class PageActivity extends Activity {
         if (seen.thumb.isEmpty()) seen.thumb = pg.thumb;
         if (seen.title.isEmpty()) seen.title = pg.title;
         if (seen.subtitle.isEmpty()) seen.subtitle = pg.subtitle;
-        if (!item.browseId.startsWith("LOCAL:") || !seen.thumb.isEmpty()) Mixes.visited(this, seen);
+        // It goes in Recently Played only once you play something from it (opening it isn't enough).
+        place = seen;
         boolean artist = MItem.ARTIST.equals(item.type) || item.browseId.startsWith("UC");
         if (!pg.banner.isEmpty()) hero.set(pg.banner, true);
+        if (artist) hero.setMotion(pg.motion);
         else if (!pg.thumb.isEmpty()) hero.set(MItem.art(pg.thumb, 1080), false);
         // Only official releases (the songs on Spotify / Apple Music) — no uploads or clips.
         final List<MItem> songs = new ArrayList<>();
@@ -147,7 +160,7 @@ public class PageActivity extends Activity {
             btns.setPadding(0, dp(14), 0, 0);
             btns.setClipChildren(false);
             ImageView shuf = MusicUi.iconButton(this, R.drawable.ic_m_shuffle, 40);
-            shuf.setOnClickListener(v -> { if (!songs.isEmpty()) { MusicPlayer.get(this).shuffleList(songs, pl); startActivity(MusicPlayer.nowPlaying(this)); } });
+            shuf.setOnClickListener(v -> { if (!songs.isEmpty()) { played(); MusicPlayer.get(this).shuffleList(songs, pl); startActivity(MusicPlayer.nowPlaying(this)); } });
             btns.addView(shuf, new LinearLayout.LayoutParams(dp(40), dp(40)));
             ImageView big = new ImageView(this);
             big.setImageResource(R.drawable.ic_m_play);
@@ -190,8 +203,21 @@ public class PageActivity extends Activity {
             ImageView cover = new ImageView(this);
             String th = !pg.thumb.isEmpty() ? pg.thumb : item.thumb;
             MusicUi.art(cover, MItem.art(th, 600), dp(8));
-            cover.setElevation(dp(6));
-            head.addView(cover, new LinearLayout.LayoutParams(dp(cs), dp(cs)));
+            // The cover, with its motion artwork playing over it if it has one.
+            FrameLayout coverBox = new FrameLayout(this);
+            coverBox.setElevation(dp(6));
+            coverBox.setClipToOutline(true);
+            coverBox.setBackground(MusicUi.round(MusicUi.EMPTY, dp(8)));
+            coverBox.addView(cover, new FrameLayout.LayoutParams(-1, -1));
+            final Motion mo = new Motion(this);
+            coverBox.addView(mo, new FrameLayout.LayoutParams(-1, -1));
+            motion = mo;
+            if (!pg.motion.isEmpty()) mo.play(pg.motion);
+            else if (item.browseId.startsWith("AM:")) {
+                final String aid = item.browseId.substring(3);
+                Bg.run(() -> AppleWeb.albumMotion(aid), (u, e) -> { if (u != null && !u.isEmpty() && !isFinishing()) mo.play(u); });
+            }
+            head.addView(coverBox, new LinearLayout.LayoutParams(dp(cs), dp(cs)));
             LinearLayout info = new LinearLayout(this);
             info.setOrientation(LinearLayout.VERTICAL);
             info.setGravity(Gravity.BOTTOM);
@@ -232,7 +258,7 @@ public class PageActivity extends Activity {
             btns.setPadding(0, dp(16), 0, 0);
             btns.setClipChildren(false);
             ImageView shuf = MusicUi.iconButton(this, R.drawable.ic_m_shuffle, 40);
-            shuf.setOnClickListener(v -> { if (!songs.isEmpty()) { MusicPlayer.get(this).shuffleList(songs, pl); startActivity(MusicPlayer.nowPlaying(this)); } });
+            shuf.setOnClickListener(v -> { if (!songs.isEmpty()) { played(); MusicPlayer.get(this).shuffleList(songs, pl); startActivity(MusicPlayer.nowPlaying(this)); } });
             btns.addView(shuf, new LinearLayout.LayoutParams(dp(40), dp(40)));
             TextView pp = MusicUi.playPill(this, "Play");
             pp.setOnClickListener(v -> startPlay(songs, pl));
@@ -240,6 +266,15 @@ public class PageActivity extends Activity {
             pl2.leftMargin = dp(12);
             btns.addView(pp, pl2);
             play = pp;
+            if (MusicUi.canDelete(item)) {
+                // Your own playlist: a Delete button (asks first).
+                ImageView del = MusicUi.iconButton(this, R.drawable.ic_more, 40);
+                del.setOnClickListener(v -> MusicUi.choose(this, title, new String[]{"Delete playlist"},
+                        new Runnable[]{() -> MusicUi.confirmDelete(this, item, this::finish)}));
+                LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(40), dp(40));
+                dl.leftMargin = dp(12);
+                btns.addView(del, dl);
+            }
             info.addView(btns);
             head.addView(info, new LinearLayout.LayoutParams(0, -2, 1));
             content.addView(head);
@@ -263,7 +298,7 @@ public class PageActivity extends Activity {
                 final int at = i;
                 final MItem m = songs.get(i);
                 View r = MusicUi.songRow(this, m, numbered ? i + 1 : -1, true, !numbered);
-                r.setOnClickListener(v -> { MusicPlayer.get(this).playList(songs, at, pl); startActivity(MusicPlayer.nowPlaying(this)); });
+                r.setOnClickListener(v -> { played(); MusicPlayer.get(this).playList(songs, at, pl); startActivity(MusicPlayer.nowPlaying(this)); });
                 r.setOnKeyListener((v, k, e) -> {
                     if (k == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP) { MusicUi.options(this, m); return true; }
                     return false;
@@ -359,6 +394,7 @@ public class PageActivity extends Activity {
     }
 
     private void startPlay(List<MItem> songs, String pl) {
+        played();
         MusicPlayer mp = MusicPlayer.get(this);
         mp.setShuffle(false);
         if (!songs.isEmpty()) mp.playList(songs, 0, pl);
@@ -407,7 +443,7 @@ public class PageActivity extends Activity {
             for (int i = 0; i < items.size(); i++) {
                 final int at = i;
                 View r = MusicUi.songRow(this, items.get(i), i + 1, true);
-                r.setOnClickListener(v -> { MusicPlayer.get(this).playList(items, at, null); startActivity(MusicPlayer.nowPlaying(this)); });
+                r.setOnClickListener(v -> { played(); MusicPlayer.get(this).playList(items, at, null); startActivity(MusicPlayer.nowPlaying(this)); });
                 l.addView(r, new LinearLayout.LayoutParams(-1, dp(62)));
             }
             content.addView(l);

@@ -19,6 +19,7 @@ public class Hero extends FrameLayout {
     private final ImageView img;
     private final View fadeLeft, fadeBottom, fadeTop;
     private String url;
+    private Motion motion;
     private int bg;
 
     public Hero(Context c) {
@@ -57,7 +58,8 @@ public class Hero extends FrameLayout {
         if (w == 0 || h == 0) { post(() -> { url = null; set(u, wide); }); return; }
         int iw = wide ? w : Math.min(w, Math.round(h * 1.0f));
         img.setLayoutParams(new LayoutParams(iw, h, Gravity.END | Gravity.TOP));
-        int fl = Math.round(iw * (wide ? 0.55f : 0.45f));
+        // An artist's photo runs edge to edge and only melts away at the bottom; a cover melts in from the left.
+        int fl = wide ? 0 : Math.round(iw * 0.45f);
         LayoutParams lp = new LayoutParams(fl, h, Gravity.TOP | Gravity.START);
         lp.leftMargin = w - iw;
         fadeLeft.setLayoutParams(lp);
@@ -65,4 +67,15 @@ public class Hero extends FrameLayout {
         fadeTop.setLayoutParams(new LayoutParams(-1, Math.round(h * 0.22f), Gravity.TOP));
         Glide.with(this).load(u).transition(DrawableTransitionOptions.withCrossFade(350)).into(img);
     }
+
+    /** Plays the artist's motion artwork over their photo (muted, looping). */
+    public void setMotion(String m3u8) {
+        if (m3u8 == null || m3u8.isEmpty() || motion != null) return;
+        motion = new Motion(getContext());
+        addView(motion, indexOfChild(img) + 1, new LayoutParams(-1, -1));
+        motion.play(m3u8);
+    }
+
+    public void pauseMotion() { if (motion != null) motion.pause(); }
+    public void resumeMotion() { if (motion != null) motion.resume(); }
 }

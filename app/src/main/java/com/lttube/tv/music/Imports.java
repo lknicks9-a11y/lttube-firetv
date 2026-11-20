@@ -150,17 +150,45 @@ public final class Imports {
     public static List<MItem> match(Source src, Progress p) {
         ExecutorService ex = Executors.newFixedThreadPool(4);
         List<Future<MItem>> fs = new ArrayList<>();
-        for (Track t : src.tracks) fs.add(ex.submit(() -> find(t)));
+        for (Track t : src.tracks) fs.add(ex.submit(() -> transfer(t)));
         List<MItem> out = new ArrayList<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (int i = 0; i < fs.size(); i++) {
             MItem m = null;
             try { m = fs.get(i).get(40, java.util.concurrent.TimeUnit.SECONDS); } catch (Exception ignored) { }
-            if (m != null && seen.add(m.videoId)) out.add(m);
+            if (m != null && seen.add(m.appleId.isEmpty() ? m.videoId : m.appleId)) out.add(m);
             if (p != null) p.at(i + 1, fs.size(), src.tracks.get(i).title);
         }
         ex.shutdownNow();
         return out;
+    }
+
+    /**
+     * One song of a transferred playlist, matched the way LT Music plays songs: first the exact song in Apple
+     * Music's catalogue (same title, artist, length, album), then that song's own recording on YouTube Music
+     * (the same match playing it uses, saved so it always plays the same one). Only if Apple doesn't have it,
+     * a direct YouTube Music match.
+     */
+    static MItem transfer(Track t) {
+        try {
+            String main = t.artist.split(",|&| feat\\.| ft\\.| x ")[0].trim();
+            MItem best = null;
+            int bestScore = Integer.MIN_VALUE;
+            for (String q : new String[]{t.title + " " + main, plainTitle(t.title) + " " + main}) {
+                for (JSONObject o : AppleWeb.itunes(q, "song", 15)) {
+                    MItem m = AppleWeb.song(o);
+                    m.mvType = "";
+                    int sc = score(t, m);
+                    if (sc > bestScore) { bestScore = sc; best = m; }
+                }
+                if (bestScore >= 12) break;
+            }
+            if (best != null && bestScore >= 10) {
+                try { MusicPlayer.resolve(best); } catch (Exception ignored) { }
+                if (!best.videoId.isEmpty()) return best;
+            }
+        } catch (Exception ignored) { }
+        return find(t);
     }
 
     private static final java.util.regex.Pattern VERSION = java.util.regex.Pattern.compile(
@@ -257,6 +285,16 @@ public final class Imports {
             p.edit().putString("imports", all.toString()).apply();
         } catch (Exception ignored) { }
         return "tv";
+    }
+
+    /** Takes an imported playlist off this TV. */
+    public static void delete(Context c, String id) {
+        try {
+            SharedPreferences p = c.getSharedPreferences("music", Context.MODE_PRIVATE);
+            JSONArray all = new JSONArray(p.getString("imports", "[]")), keep = new JSONArray();
+            for (int i = 0; i < all.length(); i++) if (!id.equals("LOCAL:" + all.optJSONObject(i).optString("id"))) keep.put(all.optJSONObject(i));
+            p.edit().putString("imports", keep.toString()).apply();
+        } catch (Exception ignored) { }
     }
 
     /** Playlists imported onto this TV, as cards for Your Library. */

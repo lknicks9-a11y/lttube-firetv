@@ -47,6 +47,8 @@ public final class Ytm {
         public String title = "", subtitle = "", thumb = "", description = "";
         /** An artist's wide header picture (full size), "1.2M subscribers", "2.3M monthly audience". */
         public String banner = "", subscribers = "", monthly = "";
+        /** Apple Music motion artwork (a short silent looping video), if it has one. */
+        public String motion = "";
         public String channelId = "";
         public String playlistId = "";
         public final List<Shelf> shelves = new ArrayList<>();
@@ -606,6 +608,18 @@ public final class Ytm {
     private static String mvType(Object holder) {
         JSONObject c = findObj(holder, "watchEndpointMusicConfig");
         return c == null ? "" : c.optString("musicVideoType");
+    }
+
+    /**
+     * Deletes one of your playlists; if it's someone else's that you saved, takes it out of your library instead.
+     */
+    public static void deletePlaylist(String id) throws Exception {
+        String pl = id.startsWith("VL") ? id.substring(2) : id;
+        try {
+            call("playlist/delete", new JSONObject().put("playlistId", pl), null);
+        } catch (Exception e) {
+            call("like/removelike", new JSONObject().put("target", new JSONObject().put("playlistId", pl)), null);
+        }
     }
 
     /** Makes a playlist on your YouTube account from these songs; returns its id. */

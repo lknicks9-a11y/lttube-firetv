@@ -324,7 +324,9 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
 
         // The bar sits low; the lyrics get the space above it and never reach it.
         int by = Math.round(H * 0.82f);
-        int lx = Math.round(W * 0.46f) - 14, ly = Math.round(H * 0.04f);
+        // The window starts well left of the words, so a line's first letters (and their blur, and any letter
+        // that leans left) always have room inside it.
+        int lx = Math.round(W * 0.46f) - 44, ly = Math.round(H * 0.04f);
         // Soft, long fades at the top and bottom; the lines have room on the right so nothing is cut.
         lyWindow = new FadeFrame(this, dp(96), dp(84));
         lyLines = new LinearLayout(this);
@@ -651,7 +653,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         t.setText(s);
         t.setLineSpacing(0, 1.08f);
         // Room on both sides: the first letters (and their soft blur) never touch the edge.
-        t.setPadding(dp(18), dp(10), dp(MusicUi.PAD + 14), dp(10));
+        t.setPadding(dp(48), dp(10), dp(MusicUi.PAD + 14), dp(10));
         t.setPivotX(0);
         t.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         lyLines.addView(t, new LinearLayout.LayoutParams(-1, -2));
