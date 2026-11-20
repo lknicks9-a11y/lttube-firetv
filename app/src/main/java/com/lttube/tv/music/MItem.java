@@ -90,8 +90,7 @@ public class MItem {
 
     public static MItem fromJson(JSONObject o) {
         MItem m = new MItem();
-        if (o == null) m.explicit = o.optBoolean("explicit");
-        return m;
+        if (o == null) return m;
         m.type = o.optString("type", SONG);
         m.title = o.optString("title");
         m.subtitle = o.optString("subtitle");
@@ -108,6 +107,7 @@ public class MItem {
         m.video = o.optBoolean("video");
         m.mvType = o.optString("mvType");
         m.appleId = o.optString("appleId");
+        m.explicit = o.optBoolean("explicit");
         return m;
     }
 
