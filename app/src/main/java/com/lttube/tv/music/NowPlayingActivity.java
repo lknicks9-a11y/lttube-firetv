@@ -650,7 +650,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         t.setIncludeFontPadding(false);
         t.setTextColor(Color.WHITE);
         t.setAlpha(timed ? 0.45f : 0.9f);
-        t.setText(Lyrics.clean(s));
+        t.setText(Lyrics.censor(s));
         t.setLineSpacing(0, 1.08f);
         // Room on both sides: the first letters (and their soft blur) never touch the edge.
         t.setPadding(dp(48), dp(10), dp(MusicUi.PAD + 14), dp(10));

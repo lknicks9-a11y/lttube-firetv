@@ -185,7 +185,7 @@ public final class Lyrics {
     private Lyrics() { }
 
     /** Swear words shown with stars after the first letter ("f***", "s***"), the rest of the word kept. */
-    public static String clean(String line) {
+    public static String censor(String line) {
         if (line == null || line.isEmpty()) return line;
         String out = line;
         // Anywhere in a word (motherf***er, bulls***).
