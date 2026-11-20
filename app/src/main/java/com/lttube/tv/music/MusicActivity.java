@@ -392,14 +392,9 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
                 if (o instanceof List) {
                     @SuppressWarnings("unchecked") List<MItem> quick = (List<MItem>) o;
                     if (!quick.isEmpty()) homeRows.addView(quickGrid(quick, open));
-                    if (mp.current() != null) {
-                        List<MItem> recent = new ArrayList<>();
-                        for (int i = Math.max(0, mp.index); i < Math.min(mp.queue.size(), mp.index + 10); i++) recent.add(mp.queue.get(i));
-                        MusicUi.addRow(this, homeRows, "Jump back in", recent, 136, (m, ctx) -> {
-                            int i = mp.queue.indexOf(m);
-                            if (i >= 0) { mp.jump(i); startActivity(MusicPlayer.nowPlaying(this)); } else MusicUi.open(this, m, ctx);
-                        }, this::hover);
-                    }
+                    // Jump back in: the albums, playlists, artists and mixes you were last in.
+                    List<MItem> places = Mixes.places(this);
+                    if (!places.isEmpty()) MusicUi.addRow(this, homeRows, "Jump back in", places.subList(0, Math.min(14, places.size())), 136, open, this::hover);
                 } else MusicUi.addShelves(this, homeRows, ((Ytm.Page) o).shelves, open, this::hover);
             }
         });

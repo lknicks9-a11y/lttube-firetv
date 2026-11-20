@@ -177,6 +177,34 @@ public final class Mixes {
         }
     }
 
+    /** You opened or played an album, playlist, artist or mix: it goes to the front of "Jump back in". */
+    public static synchronized void visited(Context c, MItem m) {
+        if (m == null || m.playable() || MItem.MORE.equals(m.type) || MItem.CATEGORY.equals(m.type)) return;
+        String key = !m.browseId.isEmpty() ? m.browseId : m.playlistId;
+        if (key.isEmpty() || m.title.isEmpty()) return;
+        try {
+            org.json.JSONArray old = new org.json.JSONArray(prefs(c).getString("places", "[]"));
+            org.json.JSONArray now = new org.json.JSONArray();
+            now.put(m.toJson());
+            for (int i = 0; i < old.length() && now.length() < 24; i++) {
+                MItem o = MItem.fromJson(old.optJSONObject(i));
+                String k = !o.browseId.isEmpty() ? o.browseId : o.playlistId;
+                if (!k.equals(key)) now.put(old.optJSONObject(i));
+            }
+            prefs(c).edit().putString("places", now.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
+    /** "Jump back in": the albums, playlists, artists and mixes you went to last, newest first. */
+    public static List<MItem> places(Context c) {
+        List<MItem> out = new ArrayList<>();
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(prefs(c).getString("places", "[]"));
+            for (int i = 0; i < a.length(); i++) out.add(MItem.fromJson(a.optJSONObject(i)));
+        } catch (Exception ignored) { }
+        return out;
+    }
+
     /** Artists you play most (for Home's "More from" rows). */
     public static List<MItem> topArtists(Context c, int n) {
         Map<String, Integer> plays = new LinkedHashMap<>();

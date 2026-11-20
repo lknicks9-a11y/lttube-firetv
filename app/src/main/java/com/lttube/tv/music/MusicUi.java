@@ -633,6 +633,7 @@ public final class MusicUi {
         }
         boolean mix = m.playlistId.startsWith("RD") && !m.playlistId.startsWith("RDCLAK");
         if (MItem.PLAYLIST.equals(m.type) && !m.playlistId.isEmpty() && (m.browseId.isEmpty() || mix)) {
+            Mixes.visited(a, m);
             mp.playId(null, m.playlistId);
             a.startActivity(MusicPlayer.nowPlaying(a));
             return;

@@ -90,6 +90,12 @@ public class PageActivity extends Activity {
 
     private void show(Ytm.Page pg) {
         if (MItem.MORE.equals(item.type)) { all(pg); return; }
+        // Remembered for Home's "Jump back in" (with its picture and name as the page has them).
+        MItem seen = MItem.fromJson(item.toJson());
+        if (seen.thumb.isEmpty()) seen.thumb = pg.thumb;
+        if (seen.title.isEmpty()) seen.title = pg.title;
+        if (seen.subtitle.isEmpty()) seen.subtitle = pg.subtitle;
+        if (!item.browseId.startsWith("LOCAL:") || !seen.thumb.isEmpty()) Mixes.visited(this, seen);
         boolean artist = MItem.ARTIST.equals(item.type) || item.browseId.startsWith("UC");
         if (!pg.banner.isEmpty()) hero.set(pg.banner, true);
         else if (!pg.thumb.isEmpty()) hero.set(MItem.art(pg.thumb, 1080), false);
