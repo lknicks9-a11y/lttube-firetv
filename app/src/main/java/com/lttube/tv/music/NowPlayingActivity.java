@@ -351,7 +351,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         lyQueue = roundGlyph("\u2022\u2022\u2022");
         lyQueue.setTextSize(9);
         lyQueue.setOnClickListener(v -> MusicUi.choose(this, mp.current() == null ? "" : mp.current().title,
-                new String[]{"Up Next", "Go to Artist"}, new Runnable[]{() -> showQueue(true), this::openArtist}));
+                new String[]{"Up Next", "Go to Album", "Go to Artist"}, new Runnable[]{() -> showQueue(true), this::openAlbum, this::openArtist}));
         LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(dp(30), dp(30));
         ql.leftMargin = dp(10);
         lyInfoRow.addView(lyQueue, ql);
@@ -637,10 +637,10 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
     }
 
     private void showChrome(boolean on) {
-        if (lyricsOn && queuePanel.getVisibility() != View.VISIBLE) {
-            // Lyrics on their own: just the words (and the cover) once you leave the remote alone.
-            chromeShown = on;
-            for (View v : lyControls) v.animate().alpha(on ? 1f : 0f).setDuration(on ? 200 : 700).start();
+        if (lyricsOn) {
+            // The lyrics screen keeps everything showing (times, progress, controls), like Apple Music's.
+            chromeShown = true;
+            for (View v : lyControls) v.setAlpha(1f);
             return;
         }
         if (lyricsOn || queuePanel.getVisibility() == View.VISIBLE || scroll.getScrollY() > 10) { chromeShown = true; return; }
@@ -708,6 +708,29 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         a.title = cur.artist.split(",|&| feat\\.")[0].trim();
         a.browseId = "AMN:" + a.title;
         MusicUi.open(this, a, null);
+    }
+
+    /** The album this song is on (Apple Music's page for it). */
+    private void openAlbum() {
+        MItem cur = mp.current();
+        if (cur == null) return;
+        final String title = cur.album, artist = cur.artist.split(",|&| feat\\.")[0].trim(), appleId = cur.appleId;
+        Bg.run(() -> {
+            if (!appleId.isEmpty()) {
+                org.json.JSONObject o = AppleWeb.lookupTrack(appleId);
+                if (o != null && o.optLong("collectionId") > 0) return String.valueOf(o.optLong("collectionId"));
+            }
+            return title.isEmpty() ? null : AppleWeb.albumIdFor(title, artist);
+        }, (id, e) -> {
+            if (id == null) { toast("Couldn't find this song's album"); return; }
+            MItem a = new MItem();
+            a.type = MItem.ALBUM;
+            a.title = title;
+            a.artist = artist;
+            a.browseId = "AM:" + id;
+            a.thumb = cur.thumb;
+            MusicUi.open(this, a, null);
+        });
     }
 
     private void openArtistOld() {
