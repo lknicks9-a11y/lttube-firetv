@@ -111,7 +111,8 @@ public final class AppleMusic {
         for (JSONObject t : tracks) {
             Imports.Track tr = new Imports.Track();
             tr.title = t.optString("trackName");
-            tr.artist = t.optString("artistName").split(",|&| feat\\.")[0].trim();
+            tr.artist = t.optString("artistName");
+            tr.album = t.optString("collectionName").replaceAll(" - (Single|EP)$", "");
             tr.seconds = (int) (t.optLong("trackTimeMillis") / 1000);
             fs.add(ex.submit(() -> Imports.find(tr)));
         }

@@ -340,6 +340,14 @@ public final class AppleWeb {
         return p;
     }
 
+    /** One song's details (length, album) by its Apple id. */
+    public static JSONObject lookupTrack(String appleId) {
+        try {
+            JSONArray a = new JSONObject(get("https://itunes.apple.com/lookup?id=" + appleId + "&country=US")).optJSONArray("results");
+            return a == null || a.length() == 0 ? null : a.optJSONObject(0);
+        } catch (Exception e) { return null; }
+    }
+
     private static List<JSONObject> lookupSongs(String appleId) throws Exception {
         JSONObject o = new JSONObject(get("https://itunes.apple.com/lookup?id=" + appleId + "&entity=song&limit=200&country=US"));
         JSONArray a = o.optJSONArray("results");

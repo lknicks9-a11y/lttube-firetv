@@ -77,6 +77,7 @@ public final class MusicPlayer {
     private MusicPlayer(Context c) {
         app = c;
         prefs = c.getSharedPreferences("music", Context.MODE_PRIVATE);
+        matchPrefs = c.getSharedPreferences("music_matches", Context.MODE_PRIVATE);
         shuffle = prefs.getBoolean("shuffle", false);
         repeat = prefs.getInt("repeat", REPEAT_OFF);
         autoplay = prefs.getBoolean("autoplay", true);
@@ -409,12 +410,26 @@ public final class MusicPlayer {
     /** A song from Apple Music: find its official release on YouTube Music (keeping Apple's name and cover). */
     static void resolve(MItem m) throws Exception {
         if (!m.videoId.isEmpty()) return;
+        // A song matched before always plays the same recording.
+        String saved = matchPrefs == null ? null : matchPrefs.getString("am" + m.appleId, null);
+        if (saved != null && !m.appleId.isEmpty()) { m.videoId = saved; return; }
+        // Its exact length and album from Apple first (chart and browse songs come without them).
+        if (!m.appleId.isEmpty() && (m.seconds == 0 || m.album.isEmpty())) {
+            org.json.JSONObject o = AppleWeb.lookupTrack(m.appleId);
+            if (o != null) {
+                if (m.seconds == 0) m.seconds = (int) (o.optLong("trackTimeMillis") / 1000);
+                if (m.album.isEmpty()) m.album = o.optString("collectionName").replaceAll(" - (Single|EP)$", "");
+                if (m.artist.isEmpty()) m.artist = o.optString("artistName");
+            }
+        }
         Imports.Track t = new Imports.Track();
         t.title = m.title;
-        t.artist = m.artist.split(",|&| feat\\.")[0].trim();
+        t.artist = m.artist;
+        t.album = m.album;
         t.seconds = m.seconds;
         MItem yt = Imports.find(t);
         if (yt == null) throw new Exception("couldn't find " + m.title + " to play");
+        if (!m.appleId.isEmpty() && matchPrefs != null) matchPrefs.edit().putString("am" + m.appleId, yt.videoId).apply();
         m.videoId = yt.videoId;
         m.mvType = yt.mvType;
         m.artistId = yt.artistId;
@@ -422,6 +437,9 @@ public final class MusicPlayer {
         if (m.seconds == 0) m.seconds = yt.seconds;
         if (m.thumb.isEmpty()) m.thumb = yt.thumb;
     }
+
+    private static android.content.SharedPreferences matchPrefs;
+    private static android.content.SharedPreferences matches() { return matchPrefs; }
 
     private String audioUrl(MItem m) throws Exception {
         resolve(m);

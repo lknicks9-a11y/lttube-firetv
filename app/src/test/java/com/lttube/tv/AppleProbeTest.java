@@ -77,6 +77,21 @@ public class AppleProbeTest {
             catch (Throwable e) { System.out.println("APL ALL " + k + " FAILED " + e); }
         }
         try { System.out.println("APL BIO " + AppleWeb.artist("1456793166").description.length()); } catch (Throwable e) { System.out.println("APL BIO FAILED " + e); }
+        // Matching: the top 25 chart songs, each with what it matched on YouTube Music.
+        try {
+            java.lang.reflect.Method r = com.lttube.tv.music.MusicPlayer.class.getDeclaredMethod("resolve", MItem.class);
+            r.setAccessible(true);
+            int ok = 0, n = 0;
+            for (MItem s : AppleWeb.charts().get(0).items.subList(0, 25)) {
+                n++;
+                try {
+                    r.invoke(null, s);
+                    ok++;
+                    System.out.println("APL MATCH " + s.title + " / " + s.artist + " (" + s.seconds + "s, " + s.album + ") -> " + s.videoId + " " + s.mvType);
+                } catch (Throwable e) { System.out.println("APL NOMATCH " + s.title + " / " + s.artist + " " + e.getCause()); }
+            }
+            System.out.println("APL MATCHED " + ok + "/" + n);
+        } catch (Throwable e) { System.out.println("APL MATCH FAILED " + e); }
         MItem y = new MItem(); y.title = "Hell Yeah"; y.artist = "SoFaygo";
         System.out.println("APL COVER " + AppleWeb.cover(y));
     }

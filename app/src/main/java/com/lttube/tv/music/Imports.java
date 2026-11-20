@@ -25,7 +25,7 @@ import okhttp3.Response;
  * you're signed in, otherwise on this TV).
  */
 public final class Imports {
-    public static class Track { public String title = "", artist = ""; public int seconds; }
+    public static class Track { public String title = "", artist = "", album = ""; public int seconds; }
 
     public static class Source {
         public String name = "", cover = "", service = "";
@@ -163,33 +163,71 @@ public final class Imports {
         return out;
     }
 
+    private static final java.util.regex.Pattern VERSION = java.util.regex.Pattern.compile(
+            "(?i)\\b(remix|live|acoustic|sped|slowed|instrumental|karaoke|version|edit|demo|mix|cover|remaster(ed)?|mono|session|a cappella|acapella|clean|reprise|extended|radio)\\b");
+
+    /**
+     * The same song on YouTube Music: its official release, same title, same artist, same length (and album when we
+     * know it). Other versions (remixes, live, sped up, edits) only match when the song itself is one.
+     */
     static MItem find(Track t) {
         try {
-            Ytm.Page pg = Ytm.search(t.title + " " + t.artist, true);
             MItem best = null;
-            int bestScore = -1;
-            for (Ytm.Shelf s : pg.shelves) for (MItem m : s.items) {
-                if (!m.playable() || !m.official()) continue;
-                int score = 0;
-                if (norm(m.title).equals(norm(t.title))) score += 4; else if (norm(m.title).contains(norm(t.title)) || norm(t.title).contains(norm(m.title))) score += 2;
-                if (norm(m.artist).contains(norm(t.artist)) || norm(t.artist).contains(norm(m.artist))) score += 3;
-                if (t.seconds > 0 && m.seconds > 0 && Math.abs(t.seconds - m.seconds) <= 3) score += 2;
-                if (score > bestScore) { bestScore = score; best = m; }
+            int bestScore = Integer.MIN_VALUE;
+            String main = t.artist.split(",|&| feat\\.| ft\\.| x ")[0].trim();
+            String[] queries = {t.title + " " + main, plainTitle(t.title) + " " + main};
+            java.util.Set<String> tried = new java.util.HashSet<>();
+            for (String q : queries) {
+                if (!tried.add(q)) continue;
+                for (Ytm.Shelf s : Ytm.search(q, true).shelves) for (MItem m : s.items) {
+                    if (!m.playable() || !m.official()) continue;
+                    int score = score(t, m);
+                    if (score > bestScore) { bestScore = score; best = m; }
+                }
+                if (bestScore >= 12) break;
             }
-            if (bestScore >= 3) return best;
-            // Not in the songs search: try everything, still official releases only, and only a close match.
-            Ytm.Page all = Ytm.search(t.title + " " + t.artist, false);
-            for (Ytm.Shelf s : all.shelves) for (MItem m : s.items) {
+            if (bestScore >= 8) return best;
+            // Not among the songs: everything else, still official (never uploads), and only a close match.
+            for (Ytm.Shelf s : Ytm.search(t.title + " " + main, false).shelves) for (MItem m : s.items) {
                 if (!m.playable() || m.slop() || m.mvType.endsWith("UGC")) continue;
-                int score = 0;
-                if (norm(m.title).equals(norm(t.title)) || norm(m.title).contains(norm(t.title))) score += 3;
-                if (norm(m.artist).contains(norm(t.artist)) || norm(t.artist).contains(norm(m.artist))) score += 3;
+                int score = score(t, m) - 1;
                 if (score > bestScore) { bestScore = score; best = m; }
             }
-            return bestScore >= 5 ? best : null;
+            return bestScore >= 8 ? best : null;
         } catch (Exception e) {
             return null;
         }
+    }
+
+    static int score(Track t, MItem m) {
+        int score = 0;
+        String a = norm(plainTitle(t.title)), b = norm(plainTitle(m.title));
+        if (a.equals(b)) score += 6;
+        else if (!a.isEmpty() && !b.isEmpty() && (a.contains(b) || b.contains(a))) score += 3;
+        else return -100;
+        // Artist: any of the song's artists on the YouTube one counts.
+        boolean artist = false;
+        for (String part : t.artist.split(",|&| feat\\.| ft\\.| x | and ")) {
+            String p = norm(part);
+            if (p.length() > 1 && (norm(m.artist).contains(p) || p.contains(norm(m.artist)) && norm(m.artist).length() > 1)) artist = true;
+        }
+        score += artist ? 4 : -5;
+        if (t.seconds > 0 && m.seconds > 0) {
+            int d = Math.abs(t.seconds - m.seconds);
+            score += d <= 2 ? 4 : d <= 5 ? 2 : d <= 12 ? -1 : -5;
+        }
+        if (!t.album.isEmpty() && !m.album.isEmpty() && norm(plainTitle(t.album)).equals(norm(plainTitle(m.album)))) score += 2;
+        // A different version of the song (remix, live, sped up…) is wrong unless the song is that version.
+        java.util.regex.Matcher vy = VERSION.matcher(m.title + " " + m.album), va = VERSION.matcher(t.title);
+        boolean ytVersion = vy.find(), appleVersion = va.find();
+        if (ytVersion && !appleVersion) score -= 5;
+        if (m.mvType.endsWith("ATV")) score += 1;
+        return score;
+    }
+
+    /** "Song (feat. X) [Remastered 2011]" → "Song" for comparing. */
+    static String plainTitle(String s) {
+        return s == null ? "" : s.replaceAll("(?i)\\s*[(\\[](feat|ft|with|prod)[^)\\]]*[)\\]]", "").replaceAll("(?i)\\s+-\\s+(single|ep)$", "").trim();
     }
 
     private static String norm(String s) {
