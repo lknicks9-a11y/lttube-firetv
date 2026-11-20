@@ -255,29 +255,32 @@ public final class MusicPlayer {
             fetchingMore = true;
             Bg.run(() -> { resolve(last); return Ytm.queue(last.videoId, null, true); }, (q, e) -> {
                 fetchingMore = false;
-                if (q == null) return;
+                if (q == null) { fallbackMore(); return; }
                 java.util.Set<String> have = new java.util.HashSet<>();
                 for (MItem m : queue) have.add(m.videoId);
-                for (MItem m : q.items) if (m.official() && have.add(m.videoId)) queue.add(m);
+                int added = 0;
+                for (MItem m : q.items) if (m.official() && have.add(m.videoId)) { queue.add(m); added++; }
                 contToken = q.continuation;
                 contVideo = last.videoId;
                 contPlaylist = "RDAMVM" + last.videoId;
-                save();
-                fire();
+                if (added == 0) { contToken = null; fallbackMore(); return; }
+                addedMore(added);
             });
             return;
         }
         fetchingMore = true;
         Bg.run(() -> Ytm.queueMore(token, contVideo, contPlaylist), (q, e) -> {
             fetchingMore = false;
-            if (q == null) { contToken = null; return; }
             java.util.Set<String> have = new java.util.HashSet<>();
-            for (MItem m : queue) have.add(m.videoId);
             int added = 0;
-            for (MItem m : q.items) if (m.official() && have.add(m.videoId)) { queue.add(m); added++; }
-            contToken = added == 0 ? null : q.continuation;
-            save();
-            fire();
+            if (q != null) {
+                for (MItem m : queue) have.add(m.videoId);
+                for (MItem m : q.items) if (m.official() && have.add(m.videoId)) { queue.add(m); added++; }
+            }
+            // That list is done: carry on with music like the last song instead.
+            contToken = added == 0 || q == null ? null : q.continuation;
+            if (added == 0) { moreIfNeeded(); return; }
+            addedMore(added);
         });
     }
 
@@ -297,11 +300,39 @@ public final class MusicPlayer {
         player.setPlayWhenReady(!player.getPlayWhenReady());
     }
 
+    /** The queue ran out while more music was still on its way: play it the moment it arrives. */
+    private boolean waitingForMore;
+
     public void next() {
         if (queue.isEmpty()) return;
         if (index + 1 < queue.size()) playAt(index + 1, 0);
         else if (repeat == REPEAT_ALL) playAt(0, 0);
-        else { player.pause(); fire(); }
+        else if (autoplay) {
+            // End of the queue: never just stop — load more music like it and carry straight on.
+            waitingForMore = true;
+            moreIfNeeded();
+        } else { player.pause(); fire(); }
+    }
+
+    /** New songs were added to the end: if we ran out waiting for them, go on. */
+    private void addedMore(int added) {
+        save();
+        fire();
+        if (waitingForMore && added > 0 && index + 1 < queue.size()) { waitingForMore = false; playAt(index + 1, 0); }
+    }
+
+    /** Last resort when nothing like the last song can be found: songs from your Discover mix. */
+    private void fallbackMore() {
+        fetchingMore = true;
+        Bg.run(() -> Mixes.page(app, Mixes.DISCOVER), (pg, e) -> {
+            fetchingMore = false;
+            if (pg == null) { waitingForMore = false; return; }
+            java.util.Set<String> have = new java.util.HashSet<>();
+            for (MItem m : queue) have.add(m.key());
+            int added = 0;
+            for (MItem m : pg.songs()) if (have.add(m.key()) && added < 25) { queue.add(m); added++; }
+            addedMore(added);
+        });
     }
 
     public void prev() {

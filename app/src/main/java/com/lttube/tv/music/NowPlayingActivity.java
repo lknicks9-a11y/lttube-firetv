@@ -400,25 +400,63 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
 
     private void showQueue(boolean on) {
         queuePanel.setVisibility(on ? View.VISIBLE : View.GONE);
-        if (on) { fillQueue(); queueList.post(() -> { if (queueList.getChildCount() > 2) queueList.getChildAt(2).requestFocus(); }); }
+        if (on) fillQueue();
         else (lyricsOn ? lyQueue : queuePill).requestFocus();
     }
 
     private void fillQueue() {
         queueList.removeAllViews();
+        // Scroll up: what you listened to before (this session's earlier songs, then your history).
+        java.util.List<MItem> before = new java.util.ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        MItem cur = mp.current();
+        if (cur != null) seen.add(cur.key());
+        for (int i = mp.index - 1; i >= 0 && before.size() < 40; i--) if (seen.add(mp.queue.get(i).key())) before.add(mp.queue.get(i));
+        java.util.List<Mixes.Entry> hist = Mixes.history(this);
+        hist.sort((x, y) -> Long.compare(y.last, x.last));
+        for (Mixes.Entry e : hist) { if (before.size() >= 40) break; if (seen.add(e.item.key())) before.add(e.item); }
+        if (!before.isEmpty()) {
+            TextView rp = MusicUi.text(this, 24, Color.WHITE, true);
+            rp.setText("Recently Played");
+            queueList.addView(rp);
+            View gap = new View(this);
+            queueList.addView(gap, new LinearLayout.LayoutParams(1, dp(10)));
+            // Oldest at the top, the one just before this song right above it.
+            for (int i = before.size() - 1; i >= 0; i--) {
+                final MItem m = before.get(i);
+                final int at = mp.queue.indexOf(m);
+                View r = MusicUi.songRow(this, m, -1, false);
+                r.setAlpha(0.75f);
+                r.setOnClickListener(v -> {
+                    if (at >= 0) mp.jump(at); else { mp.playNext(m); mp.next(); }
+                    showQueue(false);
+                });
+                queueList.addView(r, new LinearLayout.LayoutParams(-1, dp(62)));
+            }
+        }
         TextView t = MusicUi.text(this, 24, Color.WHITE, true);
         t.setText("Queue");
+        t.setPadding(0, before.isEmpty() ? 0 : dp(22), 0, 0);
         queueList.addView(t);
+        final View queueTitle = t;
         TextView s = MusicUi.text(this, 14, 0x99FFFFFF, false);
-        s.setText(mp.autoplay ? "Next up — then similar music keeps playing" : "Next up");
+        s.setText(mp.autoplay ? "Next up \u2014 then more music like it keeps playing" : "Next up");
         s.setPadding(0, dp(6), 0, dp(12));
         queueList.addView(s);
+        View firstNext = null;
         for (int i = mp.index + 1; i < Math.min(mp.queue.size(), mp.index + 60); i++) {
             final int k = i;
             View r = MusicUi.songRow(this, mp.queue.get(i), -1, false);
             r.setOnClickListener(v -> { mp.jump(k); showQueue(false); });
             queueList.addView(r, new LinearLayout.LayoutParams(-1, dp(62)));
+            if (firstNext == null) firstNext = r;
         }
+        // Opens at what's next; history is just above.
+        final View focus = firstNext;
+        queueList.post(() -> {
+            if (queueList.getParent() instanceof ScrollView) ((ScrollView) queueList.getParent()).scrollTo(0, Math.max(0, queueTitle.getTop() - dp(30)));
+            if (focus != null) focus.requestFocus();
+        });
     }
 
     // ================================================================== state
