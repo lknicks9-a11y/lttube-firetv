@@ -38,6 +38,8 @@ public class ImportActivity extends Activity {
     private ServerSocket server;
     private volatile String state = "waiting", message = "", now = "";
     private volatile int done, total;
+    /** The songs that didn't come over, and why. */
+    private volatile List<String> missed = new java.util.ArrayList<>();
     private TextView status, sub;
     private ProgressBar bar;
     private TextView openBtn;
@@ -122,7 +124,8 @@ public class ImportActivity extends Activity {
                     break;
                 case "done":
                     status.setText(message);
-                    sub.setText("Send another link to import more.");
+                    sub.setText(missed.isEmpty() ? "Send another link to import more."
+                            : missed.size() + (missed.size() == 1 ? " song" : " songs") + " didn't come over \u2014 your phone lists which, and why.");
                     bar.setVisibility(View.GONE);
                     if (result != null) { openBtn.setVisibility(View.VISIBLE); openBtn.requestFocus(); }
                     break;
@@ -144,16 +147,31 @@ public class ImportActivity extends Activity {
         state = "reading";
         done = 0;
         total = 0;
+        missed = new java.util.ArrayList<>();
         paint();
         Bg.run(() -> {
             Imports.Source src = Imports.read(link);
             state = "matching";
             total = src.tracks.size();
             paint();
-            List<MItem> songs = Imports.match(src, (d, t, n) -> { done = d; total = t; now = n; paint(); });
+            List<String> miss = new java.util.ArrayList<>();
+            List<MItem> songs = Imports.match(src, (d, t, n) -> { done = d; total = t; now = n; paint(); }, miss);
             if (songs.isEmpty()) throw new Exception("None of the songs could be found on YouTube Music");
             String where = Imports.save(this, src, songs);
-            message = "Added “" + src.name + "” — " + songs.size() + " of " + src.tracks.size() + " songs"
+            int count = songs.size();
+            if (where.equals("account") && !Imports.lastPlaylistId.isEmpty()) {
+                // Count what YouTube really kept (it can turn down a song it won't play in a playlist).
+                java.util.Set<String> in = Imports.landed(Imports.lastPlaylistId);
+                if (!in.isEmpty()) {
+                    count = 0;
+                    for (MItem m : songs) {
+                        if (in.contains(m.videoId)) count++;
+                        else miss.add(m.title + (m.artist.isEmpty() ? "" : " \u2014 " + m.artist) + ": YouTube Music wouldn't add it to a playlist");
+                    }
+                }
+            }
+            missed = miss;
+            message = "Added “" + src.name + "” — " + count + " of " + src.tracks.size() + " songs"
                     + (where.equals("account") ? " (in your YouTube Music library)" : "");
             if (where.equals("tv")) {
                 List<MItem> mine = Imports.local(this);
@@ -224,7 +242,8 @@ public class ImportActivity extends Activity {
                 runOnUiThread(() -> begin(l));
                 reply(out, "application/json", "{\"ok\":true}");
             } else if (path.startsWith("/status")) {
-                JSONObject o = new JSONObject().put("state", state).put("done", done).put("total", total).put("now", now).put("message", message);
+                JSONObject o = new JSONObject().put("state", state).put("done", done).put("total", total).put("now", now).put("message", message)
+                        .put("missed", new org.json.JSONArray(missed));
                 reply(out, "application/json", o.toString());
             } else {
                 reply(out, "text/html; charset=utf-8", PAGE);
@@ -263,16 +282,23 @@ public class ImportActivity extends Activity {
             + "input{width:100%;box-sizing:border-box;font-size:17px;padding:14px 16px;border-radius:26px;border:2px solid #fff;background:#3a3c40;color:#fff}"
             + "button{margin-top:14px;width:100%;font-size:18px;font-weight:700;padding:14px;border:0;border-radius:26px;background:#ff4f7b;color:#fff}"
             + "#s{margin-top:22px;font-size:16px;color:#ddd}.bar{height:8px;background:#444;border-radius:4px;margin-top:10px;overflow:hidden}"
-            + ".bar i{display:block;height:100%;width:0;background:#fff}</style></head><body>"
+            + ".bar i{display:block;height:100%;width:0;background:#fff}"
+            + "h2{font-size:17px;margin:26px 0 10px}.miss{padding:10px 0;border-top:1px solid #444}.miss b{display:block;font-weight:600}"
+            + ".miss span{display:block;color:#aaa;font-size:14px;margin-top:3px}</style></head><body>"
             + "<h1>Import a playlist</h1><p>Paste a Spotify or Apple Music playlist link (Share → Copy link). It has to be a public / shared playlist.</p>"
             + "<input id=l placeholder='https://open.spotify.com/playlist/…' autofocus><button onclick='go()'>Import to LT Music</button>"
-            + "<div id=s></div><div class=bar><i id=b></i></div>"
+            + "<div id=s></div><div class=bar><i id=b></i></div><div id=m></div>"
             + "<script>function go(){var v=document.getElementById('l').value;if(!v)return;"
             + "fetch('/import',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'link='+encodeURIComponent(v)});poll()}"
             + "function poll(){fetch('/status').then(r=>r.json()).then(j=>{var s=document.getElementById('s');"
             + "if(j.state=='reading')s.textContent='Reading the playlist…';"
             + "else if(j.state=='matching'){s.textContent='Finding songs: '+j.done+' of '+j.total;document.getElementById('b').style.width=(100*j.done/Math.max(1,j.total))+'%'}"
-            + "else if(j.state=='done'){s.textContent='✓ '+j.message;document.getElementById('b').style.width='100%';return}"
+            + "else if(j.state=='done'){s.textContent='✓ '+j.message;document.getElementById('b').style.width='100%';"
+            + "var m=document.getElementById('m');m.innerHTML='';if(j.missed&&j.missed.length){var h=document.createElement('h2');"
+            + "h.textContent=j.missed.length+(j.missed.length==1?' song':' songs')+' didn\\'t come over';m.appendChild(h);"
+            + "j.missed.forEach(function(x){var i=x.indexOf(': ');var d=document.createElement('div');d.className='miss';"
+            + "var b=document.createElement('b');b.textContent=i>0?x.substring(0,i):x;d.appendChild(b);"
+            + "var w=document.createElement('span');w.textContent=i>0?x.substring(i+2):'';d.appendChild(w);m.appendChild(d)})}return}"
             + "else if(j.state=='error'){s.textContent='✗ '+j.message;return}"
             + "setTimeout(poll,800)})}</script></body></html>";
 }

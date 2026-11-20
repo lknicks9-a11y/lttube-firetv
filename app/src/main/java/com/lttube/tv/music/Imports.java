@@ -147,16 +147,28 @@ public final class Imports {
 
     // ------------------------------------------------------------------ finding the songs
     /** Each song's official release on YouTube Music (several at a time). Songs that can't be found are skipped. */
-    public static List<MItem> match(Source src, Progress p) {
+    public static List<MItem> match(Source src, Progress p) { return match(src, p, null); }
+
+    /**
+     * missed: one line per song that didn't come over and why ("Title — Artist: not on YouTube Music",
+     * "…: same recording as Other Song").
+     */
+    public static List<MItem> match(Source src, Progress p, List<String> missed) {
         ExecutorService ex = Executors.newFixedThreadPool(4);
         List<Future<MItem>> fs = new ArrayList<>();
         for (Track t : src.tracks) fs.add(ex.submit(() -> transfer(t)));
         List<MItem> out = new ArrayList<>();
+        java.util.Map<String, String> byVideo = new java.util.HashMap<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (int i = 0; i < fs.size(); i++) {
             MItem m = null;
             try { m = fs.get(i).get(40, java.util.concurrent.TimeUnit.SECONDS); } catch (Exception ignored) { }
-            if (m != null && seen.add(m.appleId.isEmpty() ? m.videoId : m.appleId)) out.add(m);
+            Track t = src.tracks.get(i);
+            String name = t.title + (t.artist.isEmpty() ? "" : " \u2014 " + t.artist);
+            if (m == null) { if (missed != null) missed.add(name + ": couldn't find it on YouTube Music"); }
+            else if (!seen.add(m.appleId.isEmpty() ? m.videoId : m.appleId)) { if (missed != null) missed.add(name + ": it's in the playlist twice"); }
+            else if (byVideo.containsKey(m.videoId)) { if (missed != null) missed.add(name + ": YouTube Music only has the same recording as \u201c" + byVideo.get(m.videoId) + "\u201d"); }
+            else { byVideo.put(m.videoId, t.title); out.add(m); }
             if (p != null) p.at(i + 1, fs.size(), src.tracks.get(i).title);
         }
         ex.shutdownNow();
@@ -270,7 +282,7 @@ public final class Imports {
                 List<String> ids = new ArrayList<>();
                 for (MItem m : songs) ids.add(m.videoId);
                 String id = Ytm.createPlaylist(src.name, "Imported from " + src.service + " by LT Music", ids);
-                if (id != null && !id.isEmpty()) return "account";
+                if (id != null && !id.isEmpty()) { lastPlaylistId = id; return "account"; }
             } catch (Exception ignored) { }
         }
         try {
@@ -285,6 +297,25 @@ public final class Imports {
             p.edit().putString("imports", all.toString()).apply();
         } catch (Exception ignored) { }
         return "tv";
+    }
+
+    /** The YouTube playlist the last import made (to check what landed in it). */
+    public static volatile String lastPlaylistId = "";
+
+    /** The songs YouTube actually kept in a playlist we made, by video id. */
+    public static java.util.Set<String> landed(String playlistId) {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        try {
+            Ytm.Page p = Ytm.browse("VL" + playlistId);
+            for (MItem m : p.songs()) ids.add(m.videoId);
+            String c = p.continuation;
+            for (int i = 0; i < 20 && c != null && !c.isEmpty(); i++) {
+                Ytm.Page more = Ytm.more("VL" + playlistId, c);
+                for (MItem m : more.songs()) ids.add(m.videoId);
+                c = more.continuation;
+            }
+        } catch (Exception ignored) { }
+        return ids;
     }
 
     /** Takes an imported playlist off this TV. */
