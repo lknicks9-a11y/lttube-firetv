@@ -433,7 +433,7 @@ public class PageActivity extends Activity {
         content.addView(t);
         List<MItem> items = new ArrayList<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
-        for (Ytm.Shelf s : pg.shelves) for (MItem m : s.items) if (m.official() && seen.add(m.browseId + m.videoId)) items.add(m);
+        for (Ytm.Shelf s : pg.shelves) for (MItem m : s.items) if (m.official() && seen.add(m.browseId + m.videoId + m.appleId)) items.add(m);
         if (items.isEmpty()) { TextView n = MusicUi.text(this, 17, MusicUi.TEXT2, false); n.setText("Nothing here."); n.setPadding(dp(MusicUi.PAD), dp(20), 0, 0); content.addView(n); return; }
         if (items.get(0).playable()) {
             // All of an artist's songs: one list, numbered, playable from any song.
