@@ -328,7 +328,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
             return id == null ? "" : (String) AppleWeb.albumLook(id)[0];
         }, (u, e) -> {
             if (my != motionSeq || u == null || u.isEmpty() || isFinishing()) return;
-            lyMotion.postDelayed(() -> { if (my == motionSeq && !isFinishing()) lyMotion.play(u, 1080, 1080); }, 1500);
+            lyMotion.postDelayed(() -> { if (my == motionSeq && !isFinishing()) lyMotion.play(u, 540, 540); }, 1500);
         });
     }
     private LinearLayout lyInfoRow, lyCtlRow;

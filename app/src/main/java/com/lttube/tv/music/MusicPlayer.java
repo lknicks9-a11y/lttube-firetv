@@ -83,7 +83,13 @@ public final class MusicPlayer {
         autoplay = prefs.getBoolean("autoplay", true);
         String ua = YoutubeParsingHelper.getVisionOsUserAgent(new Localization("en", "US"));
         OkHttpDataSource.Factory http = new OkHttpDataSource.Factory(NpDownloader.get().client).setUserAgent(ua);
-        player = new ExoPlayer.Builder(c).setMediaSourceFactory(new DefaultMediaSourceFactory(http)).build();
+        // A deep buffer (30 s ahead, up to 2 min), so a slow moment on the network never breaks up the sound.
+        androidx.media3.exoplayer.DefaultLoadControl load = new androidx.media3.exoplayer.DefaultLoadControl.Builder()
+                .setBufferDurationsMs(30_000, 120_000, 1_500, 3_000)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build();
+        player = new ExoPlayer.Builder(c).setMediaSourceFactory(new DefaultMediaSourceFactory(http)).setLoadControl(load)
+                .setHandleAudioBecomingNoisy(true).build();
         player.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true);
         player.setWakeMode(C.WAKE_MODE_NETWORK);
         player.addListener(new Player.Listener() {

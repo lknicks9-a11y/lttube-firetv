@@ -59,7 +59,7 @@ public class Backdrop extends FrameLayout {
         spin.setDuration(120_000);
         spin.setRepeatCount(ValueAnimator.INFINITE);
         spin.setInterpolator(new LinearInterpolator());
-        spin.start();
+        // Still (no constant spinning): redrawing the whole screen every frame took processor time from the music.
     }
 
     @Override protected void onDetachedFromWindow() {
