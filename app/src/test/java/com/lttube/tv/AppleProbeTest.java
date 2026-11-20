@@ -72,10 +72,13 @@ public class AppleProbeTest {
             java.lang.reflect.Method rs = com.lttube.tv.music.MusicPlayer.class.getDeclaredMethod("resolve", com.lttube.tv.music.MItem.class); rs.setAccessible(true);
             java.lang.reflect.Method sg = com.lttube.tv.music.AppleWeb.class.getDeclaredMethod("song", org.json.JSONObject.class); sg.setAccessible(true);
             int n = 0;
-            for (Object o : (java.util.List<?>) it.invoke(null, "Drake God's Plan Started From the Bottom Hotline Bling", "song", 50)) {
+            String cleanAlbum = null;
+            for (Object o : (java.util.List<?>) it.invoke(null, "Drake", "album", 100)) {
                 org.json.JSONObject j = (org.json.JSONObject) o;
-                if (!"cleaned".equals(j.optString("trackExplicitness")) || n++ >= 3) continue;
-                com.lttube.tv.music.MItem m = (com.lttube.tv.music.MItem) sg.invoke(null, j);
+                if ("cleaned".equals(j.optString("collectionExplicitness"))) { cleanAlbum = String.valueOf(j.optLong("collectionId")); System.out.println("APL CLEAN album " + j.optString("collectionName")); break; }
+            }
+            if (cleanAlbum != null) for (com.lttube.tv.music.MItem m : com.lttube.tv.music.AppleMusic.album("AM:" + cleanAlbum).songs()) {
+                if (n++ >= 4) break;
                 try { rs.invoke(null, m); System.out.println("APL CLEAN " + m.title + " -> " + m.videoId); } catch (Throwable e) { System.out.println("APL CLEAN " + m.title + " FAILED " + e.getCause()); }
             }
             System.out.println("APL CLEAN tried=" + n);
