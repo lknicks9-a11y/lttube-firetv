@@ -231,17 +231,34 @@ public final class AppleWeb {
         return "";
     }
 
-    /** An album's motion artwork, if Apple has one for it. */
-    public static String albumMotion(String albumId) {
+    /** The first "bgColor" Apple gives inside an artwork block, as a colour (0 if none). */
+    static int bgOf(Object holder) {
+        if (holder == null) return 0;
+        List<Object> stack = new ArrayList<>();
+        stack.add(holder);
+        while (!stack.isEmpty()) {
+            Object o = stack.remove(0);
+            if (o instanceof JSONObject) {
+                JSONObject j = (JSONObject) o;
+                String c = j.optString("bgColor", "");
+                if (c.matches("[0-9a-fA-F]{6}")) return 0xFF000000 | Integer.parseInt(c, 16);
+                for (java.util.Iterator<String> it = j.keys(); it.hasNext(); ) stack.add(j.opt(it.next()));
+            } else if (o instanceof JSONArray) for (int i = 0; i < ((JSONArray) o).length(); i++) stack.add(((JSONArray) o).opt(i));
+        }
+        return 0;
+    }
+
+    /** An album's motion artwork and its colour, as on its Apple Music page: {motion, colour}. */
+    public static Object[] albumLook(String albumId) {
         try {
             Object[] pg = page("https://music.apple.com/us/album/x/" + albumId);
             for (Section s : sections(pg[1])) if (s.kind.equals("containerDetailHeaderLockup")) {
                 JSONArray it = s.raw.optJSONArray("items");
                 JSONObject h = it == null ? null : it.optJSONObject(0);
-                if (h != null) return motion(h.opt("videoArtwork"));
+                if (h != null) return new Object[]{motion(h.opt("videoArtwork")), bgOf(h.opt("artwork"))};
             }
         } catch (Exception ignored) { }
-        return "";
+        return new Object[]{"", 0};
     }
 
     // ------------------------------------------------------------------ pages
@@ -286,6 +303,8 @@ public final class AppleWeb {
                         p.thumb = u.replace("{w}x{h}{c}.{f}", "600x600cc.jpg");
                     }
                     p.motion = motion(h.opt("wideVideoArtwork"));
+                    // The page's colour: the motion video's (if it plays) or the photo's, as Apple gives it.
+                    p.bgColor = bgOf(p.motion.isEmpty() ? h.opt("artwork") : h.opt("wideVideoArtwork"));
                     p.title = h.optString("title", h.optString("name", ""));
                     p.description = h.optString("bio", "").replaceAll("<[^>]+>", "");
                     if (p.description.isEmpty()) p.description = firstString(h.opt("bioAction"), "paragraphText", 0).replaceAll("<[^>]+>", "");
@@ -333,6 +352,7 @@ public final class AppleWeb {
                     p.title = h.optString("title");
                     p.thumb = art(h, 1000);
                     p.motion = motion(h.opt("videoArtwork"));
+                    p.bgColor = bgOf(h.opt("artwork"));
                     JSONObject desc = h.optJSONObject("modalPresentationDescriptor");
                     if (desc != null) p.description = desc.optString("paragraphText").replaceAll("<[^>]+>", "");
                     JSONArray sl = h.optJSONArray("subtitleLinks");

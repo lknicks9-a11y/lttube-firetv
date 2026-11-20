@@ -41,6 +41,14 @@ public class PageActivity extends Activity {
     private int W, H;
     private boolean followingNow;
     private MItem place;
+    /** Apple gave the artwork's own colour: use it rather than one guessed from the picture. */
+    private boolean exactColor;
+
+    private void exact(int c) {
+        if (c == 0) return;
+        exactColor = true;
+        MusicUi.fadeTo(root, MusicUi.pageColor(c), t -> hero.setTint(t));
+    }
     private Motion motion;
 
     @Override protected void onPause() { super.onPause(); hero.pauseMotion(); if (motion != null) motion.pause(); }
@@ -67,7 +75,7 @@ public class PageActivity extends Activity {
         root.addView(hero, new FrameLayout.LayoutParams(-1, dp(Math.round(H * 0.74f)), Gravity.TOP));
         if (!item.thumb.isEmpty()) hero.set(MItem.art(item.thumb, 1080), false);
         // The page takes on a deep shade of the album / artist picture.
-        MusicUi.colorOf(this, item.thumb, c -> MusicUi.fadeTo(root, MusicUi.tintOf(c), t -> hero.setTint(t)));
+        MusicUi.colorOf(this, item.thumb, c -> { if (!exactColor) MusicUi.fadeTo(root, MusicUi.pageColor(c), t -> hero.setTint(t)); });
 
         scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
@@ -133,6 +141,7 @@ public class PageActivity extends Activity {
         boolean artist = MItem.ARTIST.equals(item.type) || item.browseId.startsWith("UC");
         if (!pg.banner.isEmpty()) hero.set(pg.banner, true);
         if (artist) hero.setMotion(pg.motion);
+        exact(pg.bgColor);
         else if (!pg.thumb.isEmpty()) hero.set(MItem.art(pg.thumb, 1080), false);
         // Only official releases (the songs on Spotify / Apple Music) — no uploads or clips.
         final List<MItem> songs = new ArrayList<>();
@@ -215,7 +224,11 @@ public class PageActivity extends Activity {
             if (!pg.motion.isEmpty()) mo.play(pg.motion);
             else if (item.browseId.startsWith("AM:")) {
                 final String aid = item.browseId.substring(3);
-                Bg.run(() -> AppleWeb.albumMotion(aid), (u, e) -> { if (u != null && !u.isEmpty() && !isFinishing()) mo.play(u); });
+                Bg.run(() -> AppleWeb.albumLook(aid), (u, e) -> {
+                    if (u == null || isFinishing()) return;
+                    if (!((String) u[0]).isEmpty()) mo.play((String) u[0]);
+                    exact((Integer) u[1]);
+                });
             }
             head.addView(coverBox, new LinearLayout.LayoutParams(dp(cs), dp(cs)));
             LinearLayout info = new LinearLayout(this);

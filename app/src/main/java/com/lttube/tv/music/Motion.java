@@ -44,14 +44,24 @@ public class Motion extends FrameLayout {
         } catch (Throwable e) { release(); }
     }
 
-    /** Fills the frame (cropping the overflow), like a cover photo. */
+    /**
+     * Fills the frame like a cover photo: the video view stays exactly the frame's size and the picture inside it
+     * is scaled up evenly and centred (the overflow cropped), so it never stretches or stops partway across.
+     */
     private void fit() {
-        int w = getWidth(), h = getHeight();
+        int w = tv.getWidth(), h = tv.getHeight();
         if (vw == 0 || vh == 0 || w == 0 || h == 0) { post(this::fit); return; }
         float s = Math.max(w / (float) vw, h / (float) vh);
-        int fw = Math.round(vw * s), fh = Math.round(vh * s);
-        LayoutParams lp = new LayoutParams(fw, fh, android.view.Gravity.CENTER);
-        tv.setLayoutParams(lp);
+        android.graphics.Matrix m = new android.graphics.Matrix();
+        // The view already stretches the video to w x h; undo that, then scale evenly by s, about the centre.
+        m.setScale(vw * s / w, vh * s / h, w / 2f, h / 2f);
+        tv.setTransform(m);
+        tv.invalidate();
+    }
+
+    @Override protected void onSizeChanged(int w, int h, int ow, int oh) {
+        super.onSizeChanged(w, h, ow, oh);
+        if (vw > 0) post(this::fit);
     }
 
     public void pause() { if (player != null) player.pause(); }

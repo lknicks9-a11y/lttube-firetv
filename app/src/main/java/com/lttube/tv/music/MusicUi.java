@@ -107,6 +107,19 @@ public final class MusicUi {
         return Color.HSVToColor(hsv);
     }
 
+    /**
+     * A page in the artwork's own colour (Apple's colour for it): the same hue and richness, only darkened as far
+     * as white text needs. Dark artwork stays exactly its colour.
+     */
+    public static int pageColor(int c) {
+        float[] hsv = new float[3];
+        Color.colorToHSV(c, hsv);
+        if (hsv[1] < 0.12f) { hsv[2] = Math.min(hsv[2], 0.30f); return Color.HSVToColor(hsv); }
+        hsv[1] = Math.min(0.9f, hsv[1] < 0.35f ? hsv[1] * 1.25f : hsv[1]);
+        hsv[2] = Math.max(0.16f, Math.min(hsv[2], 0.46f));
+        return Color.HSVToColor(hsv);
+    }
+
     /** Fades a page's background to a new colour. */
     public static void fadeTo(View v, int to) { fadeTo(v, to, null); }
 

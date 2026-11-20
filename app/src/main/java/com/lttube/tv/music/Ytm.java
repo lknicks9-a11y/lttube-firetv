@@ -49,6 +49,8 @@ public final class Ytm {
         public String banner = "", subscribers = "", monthly = "";
         /** Apple Music motion artwork (a short silent looping video), if it has one. */
         public String motion = "";
+        /** The artwork's own background colour, as Apple Music gives it (0: not known). */
+        public int bgColor;
         public String channelId = "";
         public String playlistId = "";
         public final List<Shelf> shelves = new ArrayList<>();
