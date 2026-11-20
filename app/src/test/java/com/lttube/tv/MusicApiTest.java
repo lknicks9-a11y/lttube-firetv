@@ -57,6 +57,17 @@ public class MusicApiTest {
             if (song == null && m.playable()) song = m;
         }
         safe("ALBUM fixed", () -> Ytm.browse("MPREb_pnVvyDhXXd0"));
+        try {
+            String am = com.lttube.tv.music.AppleMusic.artistId("SoFaygo");
+            com.lttube.tv.music.AppleMusic.Discography dd = com.lttube.tv.music.AppleMusic.discography(am);
+            System.out.println("MUS APPLE artist=" + am + " albums=" + dd.albums.size() + " singles=" + dd.singles.size()
+                    + (dd.albums.isEmpty() ? "" : " first=" + dd.albums.get(0).title + " / " + dd.albums.get(0).subtitle));
+            if (!dd.albums.isEmpty()) {
+                long t0 = System.currentTimeMillis();
+                Ytm.Page ap = com.lttube.tv.music.AppleMusic.album(dd.albums.get(0).browseId);
+                System.out.println("MUS APPLE ALBUM [" + ap.title + "] " + ap.subtitle + " matched=" + ap.songs().size() + " in " + (System.currentTimeMillis() - t0) + "ms");
+            }
+        } catch (Throwable e) { System.out.println("MUS APPLE FAILED " + e); }
         for (String link : new String[]{"https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M", "https://music.apple.com/us/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb"}) {
             try {
                 com.lttube.tv.music.Imports.Source src = com.lttube.tv.music.Imports.read(link);

@@ -73,7 +73,9 @@ public class PageActivity extends Activity {
         spinner = new ProgressBar(this);
         root.addView(spinner, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER));
         Bg.run(() -> item.browseId.startsWith("LOCAL:") ? Imports.page(this, item.browseId)
-                : item.browseId.startsWith("MIX:") ? Mixes.page(this, item.browseId) : Ytm.browse(item.browseId, item.params), (pg, e) -> {
+                : item.browseId.startsWith("MIX:") ? Mixes.page(this, item.browseId)
+                : item.browseId.startsWith("AM:") ? AppleMusic.album(item.browseId)
+                : item.browseId.startsWith("AMALL:") ? appleAll(item.browseId) : Ytm.browse(item.browseId, item.params), (pg, e) -> {
             spinner.setVisibility(View.GONE);
             if (pg == null) {
                 TextView t = MusicUi.text(this, 18, MusicUi.TEXT2, false);
@@ -87,6 +89,17 @@ public class PageActivity extends Activity {
     }
 
     private int dp(float v) { return MusicUi.dp(this, v); }
+
+    /** "See all" of an artist's Apple Music albums or singles. */
+    private static Ytm.Page appleAll(String id) throws Exception {
+        String[] p = id.split(":");
+        AppleMusic.Discography d = AppleMusic.discography(p[1]);
+        Ytm.Page pg = new Ytm.Page();
+        Ytm.Shelf s = new Ytm.Shelf();
+        s.items.addAll(p[2].equals("singles") ? d.singles : d.albums);
+        pg.shelves.add(s);
+        return pg;
+    }
 
     private void show(Ytm.Page pg) {
         if (MItem.MORE.equals(item.type)) { all(pg); return; }
@@ -172,7 +185,7 @@ public class PageActivity extends Activity {
         boolean list = !artist && !MItem.CATEGORY.equals(item.type) && !songs.isEmpty();
         MusicUi.Opener open = (m, ctx) -> MusicUi.open(this, m, ctx);
         if (list) {
-            boolean numbered = MItem.ALBUM.equals(item.type) || item.browseId.startsWith("MPRE");
+            boolean numbered = MItem.ALBUM.equals(item.type) || item.browseId.startsWith("MPRE") || item.browseId.startsWith("AM:");
             LinearLayout l = new LinearLayout(this);
             l.setOrientation(LinearLayout.VERTICAL);
             l.setPadding(dp(MusicUi.PAD - 12), dp(6), dp(MusicUi.PAD - 12), 0);
@@ -236,11 +249,40 @@ public class PageActivity extends Activity {
                     }
                 } else if (st.matches(".*\\b(albums?|singles?|eps?)\\b.*")) rest.add(s);
             }
-            MusicUi.addShelves(this, content, rest, open, null);
+            // Albums and Singles & EPs: Apple Music's complete discography (YouTube Music's rows if Apple has none).
+            final LinearLayout disco = new LinearLayout(this);
+            disco.setOrientation(LinearLayout.VERTICAL);
+            disco.setClipChildren(false);
+            content.addView(disco);
+            final String name = pg.title.isEmpty() ? item.title : pg.title;
+            Bg.run(() -> {
+                String id = AppleMusic.artistId(name);
+                if (id == null) return null;
+                AppleMusic.Discography d = AppleMusic.discography(id);
+                return d.albums.isEmpty() && d.singles.isEmpty() ? null : new Object[]{id, d};
+            }, (r, e) -> {
+                if (r == null) { MusicUi.addShelves(this, disco, rest, open, null); return; }
+                String id = (String) r[0];
+                AppleMusic.Discography d = (AppleMusic.Discography) r[1];
+                discoRow(disco, "Albums", d.albums, "AMALL:" + id + ":albums", open);
+                discoRow(disco, "Singles & EPs", d.singles, "AMALL:" + id + ":singles", open);
+            });
         } else {
             MusicUi.addShelves(this, content, pg.shelves, open, null);
         }
         play.requestFocus();
+    }
+
+    private void discoRow(LinearLayout into, String title, List<MItem> items, String allId, MusicUi.Opener open) {
+        if (items.isEmpty()) return;
+        MItem more = null;
+        if (items.size() > 8) {
+            more = new MItem();
+            more.type = MItem.MORE;
+            more.title = title;
+            more.browseId = allId;
+        }
+        MusicUi.addRow(this, into, title, items.subList(0, Math.min(12, items.size())), 136, open, null, more);
     }
 
     /** "See all": every release in the shelf (official only), as a grid. */

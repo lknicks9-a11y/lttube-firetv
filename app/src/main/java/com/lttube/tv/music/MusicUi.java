@@ -132,7 +132,7 @@ public final class MusicUi {
             ring.setColor(Color.TRANSPARENT);
             x.setForeground(ring);
         } else x.setForeground(null);
-        x.animate().scaleX(has ? scale : 1f).scaleY(has ? scale : 1f).translationZ(has ? dp(x.getContext(), 10) : 0).setDuration(150).start();
+        // No growing: the outline stays inside the item, so nothing around it ever cuts it off.
     }
 
     // ------------------------------------------------------------------ pictures
@@ -490,7 +490,22 @@ public final class MusicUi {
             float dx = Math.abs(cx - fx) + (cx < 0 || cx > screenW ? screenW : 0);
             if (dx < bestDx) { bestDx = dx; best = v; }
         }
-        return best != null && best.requestFocus();
+        if (best == null || !best.requestFocus()) return false;
+        // Keep it in the middle of the screen, so whatever is under it (titles, the next row) shows too.
+        final View target = best;
+        for (Object p0 = best.getParent(); p0 instanceof View; p0 = ((View) p0).getParent()) {
+            if (p0 instanceof android.widget.ScrollView) {
+                final android.widget.ScrollView sv = (android.widget.ScrollView) p0;
+                android.graphics.Rect r = new android.graphics.Rect();
+                target.getDrawingRect(r);
+                sv.offsetDescendantRectToMyCoords(target, r);
+                int y = r.centerY() - sv.getHeight() / 2;
+                int max = Math.max(0, sv.getChildAt(0).getHeight() - sv.getHeight());
+                sv.smoothScrollTo(0, Math.max(0, Math.min(max, y)));
+                break;
+            }
+        }
+        return true;
     }
 
     private static void focusables(View v, List<View> out) {

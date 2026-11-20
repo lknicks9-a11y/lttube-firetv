@@ -176,7 +176,17 @@ public final class Imports {
                 if (t.seconds > 0 && m.seconds > 0 && Math.abs(t.seconds - m.seconds) <= 3) score += 2;
                 if (score > bestScore) { bestScore = score; best = m; }
             }
-            return bestScore >= 3 ? best : null;
+            if (bestScore >= 3) return best;
+            // Not in the songs search: try everything, still official releases only, and only a close match.
+            Ytm.Page all = Ytm.search(t.title + " " + t.artist, false);
+            for (Ytm.Shelf s : all.shelves) for (MItem m : s.items) {
+                if (!m.playable() || m.slop() || m.mvType.endsWith("UGC")) continue;
+                int score = 0;
+                if (norm(m.title).equals(norm(t.title)) || norm(m.title).contains(norm(t.title))) score += 3;
+                if (norm(m.artist).contains(norm(t.artist)) || norm(t.artist).contains(norm(m.artist))) score += 3;
+                if (score > bestScore) { bestScore = score; best = m; }
+            }
+            return bestScore >= 5 ? best : null;
         } catch (Exception e) {
             return null;
         }

@@ -116,8 +116,9 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         buildLyrics();
         buildQueue();
         // Songs open on their lyrics; if a song has none, it switches to the picture screen by itself.
-        lyricsOn = getIntent().getBooleanExtra("lyrics", true);
-        autoLyrics = lyricsOn;
+        // The player is the lyrics screen (Back goes back to where you were).
+        lyricsOn = true;
+        autoLyrics = false;
         refresh(true);
         setLyrics(lyricsOn);
         if (!lyricsOn) playBtn.requestFocus();
@@ -127,9 +128,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
     @Override
     protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
-        boolean want = i.getBooleanExtra("lyrics", true);
-        autoLyrics = want;
-        if (want != lyricsOn) setLyrics(want);
+        if (!lyricsOn) setLyrics(true);
     }
 
     private int dp(float v) { return MusicUi.dp(this, v); }
@@ -349,9 +348,14 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         ll.setMargins(0, dp(by + 24), dp(MusicUi.PAD), 0);
         lyricsBox.addView(lyLeft, ll);
         LinearLayout lb = new LinearLayout(this);
-        lyClose = MusicUi.pill(this, R.drawable.ic_m_lyrics, "Lyrics");
-        lyClose.setOnClickListener(v -> setLyrics(false));
+        lyClose = MusicUi.pill(this, R.drawable.ic_m_add, "Save");
+        lyClose.setOnClickListener(v -> save());
         lb.addView(lyClose, new LinearLayout.LayoutParams(-2, dp(40)));
+        TextView lyArtistBtn = MusicUi.pill(this, 0, "Artist");
+        lyArtistBtn.setOnClickListener(v -> openArtist());
+        LinearLayout.LayoutParams lal = new LinearLayout.LayoutParams(-2, dp(40));
+        lal.leftMargin = dp(12);
+        lb.addView(lyArtistBtn, lal);
         lyQueue = MusicUi.pill(this, R.drawable.ic_m_queue, "Queue");
         lyQueue.setOnClickListener(v -> showQueue(true));
         LinearLayout.LayoutParams lql = new LinearLayout.LayoutParams(-2, dp(40));
@@ -529,11 +533,14 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
 
     // ================================================================== save / follow / artist
     private void paintSave(boolean on) {
-        saveBtn.setText(on ? "Saved" : "Save");
-        android.graphics.drawable.Drawable d = getDrawable(on ? R.drawable.ic_check : R.drawable.ic_m_add).mutate();
-        d.setBounds(0, 0, dp(20), dp(20));
-        d.setTint(on ? MusicUi.PINK : Color.WHITE);
-        saveBtn.setCompoundDrawables(d, null, null, null);
+        for (TextView b : new TextView[]{saveBtn, lyClose}) {
+            if (b == null) continue;
+            b.setText(on ? "Saved" : "Save");
+            android.graphics.drawable.Drawable d = getDrawable(on ? R.drawable.ic_check : R.drawable.ic_m_add).mutate();
+            d.setBounds(0, 0, dp(20), dp(20));
+            d.setTint(on ? MusicUi.PINK : Color.WHITE);
+            b.setCompoundDrawables(d, null, null, null);
+        }
     }
 
     /** Save: adds the song to your Liked songs on YouTube Music. */
@@ -566,7 +573,8 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
     }
 
     private void openArtist() {
-        if (aboutFor == null) return;
+        if (aboutFor == null) { MItem cur = mp.current(); if (cur != null && !cur.artistId.isEmpty()) aboutFor = cur.artistId; }
+        if (aboutFor == null) { toast("No artist page for this song"); return; }
         MItem a = new MItem();
         a.type = MItem.ARTIST;
         a.browseId = aboutFor;
@@ -615,8 +623,6 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         lyLines.setTranslationY(0);
         if (l == null || l.lines.isEmpty()) {
             addLine("Lyrics aren't available for this song.", false);
-            // Opened straight to lyrics but there are none: show the song's picture screen instead.
-            if (autoLyrics && lyricsOn) setLyrics(false);
             return;
         }
         for (Lyrics.Line ln : l.lines) addLine(ln.text.isEmpty() ? "♪" : ln.text, l.timed);
@@ -717,7 +723,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
             case KeyEvent.KEYCODE_BACK:
                 if (down) return true;
                 if (queuePanel.getVisibility() == View.VISIBLE) showQueue(false);
-                else if (lyricsOn) setLyrics(false);
+                else if (lyricsOn) finish();
                 else if (scroll.getScrollY() > 10) { scroll.smoothScrollTo(0, 0); playBtn.requestFocus(); }
                 else finish();
                 return true;
