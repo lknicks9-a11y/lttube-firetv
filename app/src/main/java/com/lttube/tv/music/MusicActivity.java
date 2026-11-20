@@ -557,6 +557,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
                 l.add(liked);
             }
             if (which.equals("all") || which.equals("playlists")) l.addAll(Imports.local(this));
+            if (which.equals("all") || which.equals("artists")) l.addAll(Mixes.favorites(this));
             String[] feeds = which.equals("playlists") ? new String[]{Ytm.LIB_PLAYLISTS} : which.equals("artists") ? new String[]{Ytm.LIB_ARTISTS}
                     : which.equals("albums") ? new String[]{Ytm.LIB_ALBUMS} : new String[]{Ytm.LIB_PLAYLISTS, Ytm.LIB_ARTISTS, Ytm.LIB_ALBUMS};
             for (String f : feeds) try {

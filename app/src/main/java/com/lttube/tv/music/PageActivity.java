@@ -199,9 +199,8 @@ public class PageActivity extends Activity {
             btns.setGravity(Gravity.CENTER_VERTICAL);
             btns.setPadding(0, dp(14), 0, 0);
             btns.setClipChildren(false);
-            ImageView shuf = MusicUi.iconButton(this, R.drawable.ic_m_shuffle, 40);
-            shuf.setOnClickListener(v -> { if (!songs.isEmpty()) { played(); MusicPlayer.get(this).shuffleList(songs, pl); startActivity(MusicPlayer.nowPlaying(this)); } });
-            btns.addView(shuf, new LinearLayout.LayoutParams(dp(40), dp(40)));
+            // Like Apple Music: a big Play (a random song of theirs — every official song, top songs and the
+            // rest — then more shuffled), with Favorite beside it.
             ImageView big = new ImageView(this);
             big.setImageResource(R.drawable.ic_m_play);
             big.setColorFilter(0xFF000000);
@@ -210,11 +209,25 @@ public class PageActivity extends Activity {
             big.setPadding(bp + dp(2), bp, bp - dp(2), bp);
             paintBig(big, false);
             big.setOnFocusChangeListener((v, has) -> paintBig((ImageView) v, has));
-            big.setOnClickListener(v -> startPlay(songs, pl));
+            final String aid = item.browseId.startsWith("AMA:") ? item.browseId.substring(4) : null;
+            big.setOnClickListener(v -> shuffleArtist(aid, songs));
             LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(dp(58), dp(58));
-            bl.setMargins(dp(16), 0, dp(16), 0);
+            bl.setMargins(0, 0, dp(14), 0);
             btns.addView(big, bl);
             play = big;
+            final MItem fav = new MItem();
+            fav.type = MItem.ARTIST;
+            fav.browseId = item.browseId;
+            fav.title = title;
+            fav.subtitle = "Artist";
+            fav.thumb = !pg.thumb.isEmpty() ? pg.thumb : item.thumb;
+            final ImageView star = MusicUi.iconButton(this, Mixes.isFavorite(this, fav.browseId) ? R.drawable.ic_m_star : R.drawable.ic_m_star_o, 44);
+            star.setOnClickListener(v -> {
+                boolean on = Mixes.toggleFavorite(this, fav);
+                star.setImageResource(on ? R.drawable.ic_m_star : R.drawable.ic_m_star_o);
+                Toast.makeText(this, on ? "Added to your favourite artists" : "Removed from your favourite artists", Toast.LENGTH_SHORT).show();
+            });
+            btns.addView(star, new LinearLayout.LayoutParams(dp(44), dp(44)));
             if (!item.browseId.startsWith("AMA:")) {
                 final TextView fol = MusicUi.pill(this, 0, "Follow");
                 final String cid = pg.channelId.isEmpty() ? item.browseId : pg.channelId;
@@ -225,10 +238,9 @@ public class PageActivity extends Activity {
                     final boolean on = followingNow;
                     Bg.run(() -> { Ytm.follow(cid, on); return true; }, (ok, e) -> { if (e != null) { followingNow = !on; fol.setText(!on ? "Following" : "Follow"); } });
                 });
-                btns.addView(fol, new LinearLayout.LayoutParams(-2, dp(40)));
-            } else {
-                View sp = new View(this);
-                btns.addView(sp, new LinearLayout.LayoutParams(dp(40), dp(40)));
+                LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-2, dp(40));
+                fl.leftMargin = dp(12);
+                btns.addView(fol, fl);
             }
             head.addView(btns, new LinearLayout.LayoutParams(-2, -2));
             headBox.addView(head, new FrameLayout.LayoutParams(-1, -1));
@@ -265,7 +277,7 @@ public class PageActivity extends Activity {
             // The motion starts a moment after the page is up, small (it's only a cover), so it never holds anything up.
             // Motion artwork (every album / playlist that has it) starts 3 seconds after the page is up.
             final long opened = android.os.SystemClock.uptimeMillis();
-            if (!pg.motion.isEmpty()) mo.postDelayed(() -> { if (!isFinishing()) mo.play(pg.motion, 540, 540); }, 3000);
+            if (!pg.motion.isEmpty()) mo.postDelayed(() -> { if (!isFinishing()) mo.play(pg.motion, 1080, 1080); }, 3000);
             else if (MItem.ALBUM.equals(item.type) || item.browseId.startsWith("AM:") || item.browseId.startsWith("MPRE")) {
                 final String known = item.browseId.startsWith("AM:") ? item.browseId.substring(3) : null;
                 final String atitle = title, aartist = !item.artist.isEmpty() ? item.artist : pg.subtitle.split("\\s*\u2022\\s*")[0];
@@ -275,7 +287,7 @@ public class PageActivity extends Activity {
                 }, (u, e) -> {
                     if (u == null || isFinishing()) return;
                     long wait = Math.max(0, 3000 - (android.os.SystemClock.uptimeMillis() - opened));
-                    if (!((String) u[0]).isEmpty()) mo.postDelayed(() -> { if (!isFinishing()) mo.play((String) u[0], 540, 540); }, wait);
+                    if (!((String) u[0]).isEmpty()) mo.postDelayed(() -> { if (!isFinishing()) mo.play((String) u[0], 1080, 1080); }, wait);
                     exact((Integer) u[1]);
                 });
             }
@@ -453,6 +465,21 @@ public class PageActivity extends Activity {
             MusicUi.addShelves(this, content, pg.shelves, open, null);
         }
         play.requestFocus();
+    }
+
+    /** Play on an artist: every official song of theirs (Top Songs and all the rest), shuffled. */
+    private void shuffleArtist(String appleId, List<MItem> fallback) {
+        Toast.makeText(this, "Shuffling their songs\u2026", Toast.LENGTH_SHORT).show();
+        Bg.run(() -> {
+            List<MItem> all = new ArrayList<>();
+            if (appleId != null) for (Ytm.Shelf s : AppleWeb.seeAll(appleId, "songs").shelves) for (MItem m : s.items) if (m.playable() && m.official()) all.add(m);
+            if (all.isEmpty()) all.addAll(fallback);
+            return all;
+        }, (all, e) -> {
+            if (all == null || all.isEmpty() || isFinishing()) return;
+            MusicPlayer.get(this).shuffleList(all, null);
+            startActivity(MusicPlayer.nowPlaying(this));
+        });
     }
 
     private void startPlay(List<MItem> songs, String pl) {

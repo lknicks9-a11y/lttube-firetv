@@ -195,6 +195,34 @@ public final class Mixes {
         } catch (Exception ignored) { }
     }
 
+    // ------------------------------------------------------------------ favourite artists
+    public static synchronized boolean isFavorite(Context c, String key) {
+        for (MItem m : favorites(c)) if (m.browseId.equals(key)) return true;
+        return false;
+    }
+
+    /** Adds or removes; returns whether it's a favourite now. */
+    public static synchronized boolean toggleFavorite(Context c, MItem a) {
+        List<MItem> l = favorites(c);
+        boolean was = false;
+        for (int i = l.size() - 1; i >= 0; i--) if (l.get(i).browseId.equals(a.browseId)) { l.remove(i); was = true; }
+        if (!was) l.add(0, a);
+        org.json.JSONArray arr = new org.json.JSONArray();
+        for (MItem m : l) arr.put(m.toJson());
+        prefs(c).edit().putString("favs", arr.toString()).apply();
+        return !was;
+    }
+
+    /** Your favourite artists, newest first. */
+    public static synchronized List<MItem> favorites(Context c) {
+        List<MItem> l = new ArrayList<>();
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(prefs(c).getString("favs", "[]"));
+            for (int i = 0; i < a.length(); i++) l.add(MItem.fromJson(a.optJSONObject(i)));
+        } catch (Exception ignored) { }
+        return l;
+    }
+
     /** Takes a deleted playlist out of Recently Played. */
     public static synchronized void forget(Context c, String key) {
         try {
@@ -229,7 +257,12 @@ public final class Mixes {
         List<String> ids = new ArrayList<>(plays.keySet());
         ids.sort((x, y) -> plays.get(y) - plays.get(x));
         List<MItem> out = new ArrayList<>();
-        for (String id : ids.subList(0, Math.min(n, ids.size()))) {
+        // Your favourite artists come first.
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (MItem f : favorites(c)) { if (out.size() >= n) break; if (names.add(f.title.toLowerCase())) out.add(f); }
+        for (String id : ids) {
+            if (out.size() >= n) break;
+            if (!names.add(any.get(id).artist.toLowerCase())) continue;
             MItem a = new MItem();
             a.type = MItem.ARTIST;
             a.browseId = id;
