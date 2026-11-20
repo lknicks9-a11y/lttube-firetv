@@ -88,6 +88,8 @@ public class MusicVideoActivity extends Activity {
         at = Math.max(0, Math.min(list.size() - 1, getIntent().getIntExtra(AT, 0)));
         MusicPlayer.get(this).pause();
 
+        String ua = YoutubeParsingHelper.getVisionOsUserAgent(new Localization("en", "US"));
+        http = new OkHttpDataSource.Factory(NpDownloader.get().client).setUserAgent(ua);
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
         setContentView(root);
@@ -134,9 +136,15 @@ public class MusicVideoActivity extends Activity {
         spinner = new ProgressBar(this);
         root.addView(spinner, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER));
 
-        String ua = YoutubeParsingHelper.getVisionOsUserAgent(new Localization("en", "US"));
-        http = new OkHttpDataSource.Factory(NpDownloader.get().client).setUserAgent(ua);
-        player = new ExoPlayer.Builder(this).build();
+
+        // Smooth on a TV: YouTube's adaptive stream (chunks that match the connection), up to 1080p in the format
+        // every Fire TV decodes in hardware, with a good buffer ahead.
+        androidx.media3.exoplayer.trackselection.DefaultTrackSelector ts = new androidx.media3.exoplayer.trackselection.DefaultTrackSelector(this);
+        ts.setParameters(ts.buildUponParameters().setMaxVideoSize(1920, 1080).setPreferredVideoMimeType(androidx.media3.common.MimeTypes.VIDEO_H264));
+        androidx.media3.exoplayer.DefaultLoadControl load = new androidx.media3.exoplayer.DefaultLoadControl.Builder()
+                .setBufferDurationsMs(20_000, 60_000, 1_500, 3_000).setPrioritizeTimeOverSizeThresholds(true).build();
+        player = new ExoPlayer.Builder(this).setTrackSelector(ts).setLoadControl(load)
+                .setMediaSourceFactory(new androidx.media3.exoplayer.source.DefaultMediaSourceFactory(http)).build();
         player.setVideoChangeFrameRateStrategy(androidx.media3.common.C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF);
         view.setPlayer(player);
         player.addListener(new Player.Listener() {
@@ -187,6 +195,10 @@ public class MusicVideoActivity extends Activity {
 
     /** The best picture up to 1080p (AVC first: every Fire TV plays it smoothly) with the best original audio. */
     private MediaSource source(StreamInfo si) throws Exception {
+        String hls = si.getHlsUrl();
+        if (hls != null && !hls.isEmpty())
+            return new androidx.media3.exoplayer.hls.HlsMediaSource.Factory(http)
+                    .createMediaSource(new MediaItem.Builder().setUri(hls).setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8).build());
         VideoStream best = null;
         for (VideoStream v : si.getVideoOnlyStreams()) {
             if (!v.isUrl() || v.getDeliveryMethod() != DeliveryMethod.PROGRESSIVE_HTTP || v.getHeight() > 1080) continue;
