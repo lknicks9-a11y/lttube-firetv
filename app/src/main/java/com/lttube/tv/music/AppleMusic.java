@@ -140,6 +140,10 @@ public final class AppleMusic {
                 p.description = o.optString("copyright");
             } else if ("track".equals(o.optString("wrapperType"))) tracks.add(o);
         }
+        // Apple lists an album's music videos as extra tracks: they're kept apart from the songs (Music Videos).
+        List<JSONObject> videos = new ArrayList<>();
+        for (int i = tracks.size() - 1; i >= 0; i--) if ("music-video".equals(tracks.get(i).optString("kind"))) videos.add(0, tracks.remove(i));
+        p.subtitle = p.subtitle.replaceAll("\\d+ songs$", tracks.size() + (tracks.size() == 1 ? " song" : " songs"));
         tracks.sort((x, y) -> x.optInt("discNumber") != y.optInt("discNumber") ? x.optInt("discNumber") - y.optInt("discNumber") : x.optInt("trackNumber") - y.optInt("trackNumber"));
         // The tracks straight from Apple Music: each finds its recording on YouTube Music only when it plays
         // (and the next few ahead of it), so the album opens at once.
@@ -152,6 +156,19 @@ public final class AppleMusic {
             s.items.add(m);
         }
         p.shelves.add(s);
+        if (!videos.isEmpty()) {
+            Ytm.Shelf v = new Ytm.Shelf();
+            v.title = "Music Videos";
+            for (JSONObject t : videos) {
+                MItem m = AppleWeb.song(t);
+                m.video = true;
+                m.album = p.title;
+                m.thumb = t.optString("artworkUrl100").replaceAll("/\\d+x\\d+bb\\.(jpg|png)$", "/640x360bb.jpg");
+                if (m.thumb.isEmpty()) m.thumb = p.thumb.replace("1000x1000bb", "600x600bb");
+                v.items.add(m);
+            }
+            p.shelves.add(v);
+        }
         return p;
     }
 

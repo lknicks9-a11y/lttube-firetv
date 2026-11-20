@@ -60,7 +60,7 @@ public final class Ytm {
         /** For a song list page: every song on it. */
         public List<MItem> songs() {
             List<MItem> l = new ArrayList<>();
-            for (Shelf s : shelves) for (MItem m : s.items) if (m.playable()) l.add(m);
+            for (Shelf s : shelves) for (MItem m : s.items) if (m.playable() && !m.video) l.add(m);
             return l;
         }
     }

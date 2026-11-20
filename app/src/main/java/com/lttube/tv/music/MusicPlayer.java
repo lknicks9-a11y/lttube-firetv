@@ -195,6 +195,23 @@ public final class MusicPlayer {
         });
     }
 
+    /** An album's music video (from Apple): the artist's official video of it on YouTube. */
+    static void resolveVideo(MItem m) throws Exception {
+        String main = m.artist.split(",|&| feat\\.")[0].trim();
+        String want = Imports.plainTitle(m.title).toLowerCase(java.util.Locale.US).replaceAll("[^a-z0-9]", "");
+        MItem best = null;
+        int bestScore = Integer.MIN_VALUE;
+        for (Ytm.Shelf s : Ytm.search(m.title + " " + main + " official video", false).shelves) for (MItem v : s.items) {
+            if (!v.playable() || v.slop()) continue;
+            String t = Imports.plainTitle(v.title).toLowerCase(java.util.Locale.US).replaceAll("[^a-z0-9]", "");
+            int sc = (t.contains(want) ? 5 : -10) + (v.mvType.endsWith("OMV") ? 6 : v.mvType.endsWith("ATV") ? -4 : 0)
+                    + (v.artist.toLowerCase(java.util.Locale.US).contains(main.toLowerCase(java.util.Locale.US)) ? 3 : 0);
+            if (sc > bestScore) { bestScore = sc; best = v; }
+        }
+        if (best == null || bestScore < 5) throw new Exception("not found");
+        m.videoId = best.videoId;
+    }
+
     /** "Go to song radio": a station from this song, which goes in Recently Played like Apple's stations. */
     public void startStation(MItem song) {
         playRadio(song);
