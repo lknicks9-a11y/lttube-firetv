@@ -1022,25 +1022,17 @@ public final class MusicUi {
     // ------------------------------------------------------------------ opening things
     public static void open(Activity a, MItem m, List<MItem> context) {
         MusicPlayer mp = MusicPlayer.get(a);
-        if (m.video && m.playable() && m.videoId.isEmpty()) {
-            // An Apple Music video: find the same official video on YouTube, then play it.
-            com.lttube.tv.Bg.run(() -> { MusicPlayer.resolveVideo(m); return m; }, (r, e) -> {
-                if (r == null || r.videoId.isEmpty()) { android.widget.Toast.makeText(a, "Couldn't find that video", android.widget.Toast.LENGTH_SHORT).show(); return; }
-                open(a, r, context);
-            });
-            return;
-        }
         if (m.video && m.playable()) {
-            // Music videos play as video (LTTube's player); the music pauses meanwhile.
-            mp.pause();
-            com.lttube.tv.Item v = new com.lttube.tv.Item();
-            v.url = "https://www.youtube.com/watch?v=" + m.videoId;
-            v.title = m.title;
-            v.channel = m.artist;
-            v.thumb = m.thumb;
-            v.duration = m.seconds;
-            com.lttube.tv.Nav.queue = new java.util.ArrayList<>();
-            com.lttube.tv.Nav.play(a, v);
+            // Music videos play in LT Music's own video screen; next / previous go through the others beside it.
+            List<MItem> vids = new java.util.ArrayList<>();
+            if (context != null) for (MItem x : context) if (x.video && x.playable()) vids.add(x);
+            if (!vids.contains(m)) { vids.clear(); vids.add(m); }
+            org.json.JSONArray arr = new org.json.JSONArray();
+            for (MItem x : vids) arr.put(x.toJson());
+            Intent i = new Intent(a, MusicVideoActivity.class);
+            i.putExtra(MusicVideoActivity.LIST, arr.toString());
+            i.putExtra(MusicVideoActivity.AT, vids.indexOf(m));
+            a.startActivity(i);
             return;
         }
         if (m.playable()) {
