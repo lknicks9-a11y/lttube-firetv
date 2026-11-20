@@ -96,6 +96,7 @@ public class AppleProbeTest {
             for (com.lttube.tv.music.Ytm.Shelf s : com.lttube.tv.music.Ytm.search("Cold Shoulder Drake", true).shelves) for (com.lttube.tv.music.MItem v : s.items)
                 System.out.println("APL CSYT2 " + v.title + " | " + v.artist + " | " + v.album + " | " + v.seconds + "s | E=" + v.explicit + " | " + v.mvType + " | " + v.videoId);
         } catch (Throwable e) { System.out.println("APL CS FAILED " + e); }
+        try { com.lttube.tv.music.Ytm.Page vp = com.lttube.tv.music.AppleWeb.seeAll("271256", "videos"); System.out.println("APL ALLVIDEOS n=" + vp.shelves.get(0).items.size() + " first=" + vp.shelves.get(0).items.get(0).title + " | " + vp.shelves.get(0).items.get(0).subtitle + " video=" + vp.shelves.get(0).items.get(0).video); } catch (Throwable e) { System.out.println("APL ALLVIDEOS FAILED " + e); }
         try { dump("HABIBTI", com.lttube.tv.music.AppleMusic.album("AM:6818209777").shelves); } catch (Throwable e) { System.out.println("APL HABIBTI FAILED " + e); }
         try { dump("EXTRAS", com.lttube.tv.music.AppleWeb.albumExtras("1440824484")); } catch (Throwable e) { System.out.println("APL EXTRAS FAILED " + e); }
         try { for (com.lttube.tv.music.Ytm.Shelf s : com.lttube.tv.music.AppleWeb.anyPage("https://music.apple.com/us/curator/apple-music-sports/1555172867").shelves) System.out.println("APL SPORTS [" + s.title + "] " + s.moreId + " " + (s.items.isEmpty() ? "" : s.items.get(0).thumb)); } catch (Throwable e) { System.out.println("APL SPORTS FAILED " + e); }

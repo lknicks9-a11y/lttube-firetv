@@ -473,7 +473,8 @@ public final class AppleWeb {
             sh.items.addAll(s.items);
             sh.list = s.kind.equals("artistFeaturedContentAndTracks") || s.kind.equals("trackLockup");
             String t = sh.title.toLowerCase(java.util.Locale.US);
-            if (t.contains("appears")) sh.moreId = "AMALL:" + appleId + ":appears";
+            if (t.contains("video")) sh.moreId = "AMALL:" + appleId + ":videos";
+            else if (t.contains("appears")) sh.moreId = "AMALL:" + appleId + ":appears";
             else if (t.contains("single")) sh.moreId = "AMALL:" + appleId + ":singles";
             else if (t.contains("album")) sh.moreId = "AMALL:" + appleId + ":albums";
             else if (sh.list) sh.moreId = "AMALL:" + appleId + ":songs";
@@ -536,7 +537,8 @@ public final class AppleWeb {
     public static Ytm.Page seeAll(String appleId, String kind) throws Exception {
         Ytm.Page p = new Ytm.Page();
         Ytm.Shelf s = new Ytm.Shelf();
-        String section = kind.equals("albums") ? "full-albums" : kind.equals("singles") ? "singles" : kind.equals("appears") ? "appears-on-albums" : "top-songs";
+        String section = kind.equals("albums") ? "full-albums" : kind.equals("singles") ? "singles" : kind.equals("appears") ? "appears-on-albums"
+                : kind.equals("videos") ? "music-videos" : "top-songs";
         java.util.Set<String> seen = new java.util.HashSet<>();
         try {
             for (Section sec : sections(page("https://music.apple.com/us/artist/x/" + appleId + "/see-all?section=" + section)[1]))
@@ -545,7 +547,26 @@ public final class AppleWeb {
                     if (seen.add(norm(m.title))) s.items.add(m);
                 }
         } catch (Exception ignored) { }
-        if (kind.equals("songs")) {
+        if (kind.equals("videos")) {
+            // Every music video of theirs: Apple's list, then the rest of the catalogue's (newest first).
+            String name = "";
+            try { name = artist(appleId).title; } catch (Exception ignored) { }
+            for (MItem m : s.items) { if (m.artist.matches("\\d{4}") || m.artist.isEmpty()) { m.subtitle = m.artist.isEmpty() ? name : m.artist; m.artist = name; } }
+            try {
+                JSONObject o = new JSONObject(get("https://itunes.apple.com/lookup?id=" + appleId + "&entity=musicVideo&limit=200&sort=recent&country=US"));
+                JSONArray a = o.optJSONArray("results");
+                if (a != null) for (int i = 0; i < a.length(); i++) {
+                    JSONObject t = a.optJSONObject(i);
+                    if (t == null || !"track".equals(t.optString("wrapperType"))) continue;
+                    MItem m = song(t);
+                    m.video = true;
+                    m.thumb = t.optString("artworkUrl100").replaceAll("/\\d+x\\d+bb\\.(jpg|png)$", "/640x360bb.jpg");
+                    String yr = t.optString("releaseDate").length() >= 4 ? t.optString("releaseDate").substring(0, 4) : "";
+                    m.subtitle = yr.isEmpty() ? m.artist : yr;
+                    if (seen.add(norm(m.title))) s.items.add(m);
+                }
+            } catch (Exception ignored) { }
+        } else if (kind.equals("songs")) {
             s.list = true;
             String name = "";
             try { name = artist(appleId).title; } catch (Exception ignored) { }

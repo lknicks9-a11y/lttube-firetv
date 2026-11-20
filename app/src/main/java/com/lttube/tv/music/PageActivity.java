@@ -532,7 +532,29 @@ public class PageActivity extends Activity {
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (Ytm.Shelf s : pg.shelves) for (MItem m : s.items) if (m.official() && seen.add(m.browseId + m.videoId + m.appleId)) items.add(m);
         if (items.isEmpty()) { TextView n = MusicUi.text(this, 17, MusicUi.TEXT2, false); n.setText("Nothing here."); n.setPadding(dp(MusicUi.PAD), dp(20), 0, 0); content.addView(n); return; }
-        if (items.get(0).playable()) {
+        if (items.get(0).video) {
+            // Every music video: a grid of wide pictures, four across; each plays as video.
+            int cols = 4, gap = 16, w = (W - MusicUi.PAD * 2 - gap * (cols - 1)) / cols;
+            LinearLayout g = new LinearLayout(this);
+            g.setOrientation(LinearLayout.VERTICAL);
+            g.setPadding(dp(MusicUi.PAD), dp(14), dp(MusicUi.PAD), dp(50));
+            g.setClipChildren(false);
+            LinearLayout row = null;
+            MusicUi.Opener open = (m, ctx) -> MusicUi.open(this, m, ctx);
+            for (int i = 0; i < items.size(); i++) {
+                if (i % cols == 0) {
+                    row = new LinearLayout(this);
+                    row.setClipChildren(false);
+                    LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-1, -2);
+                    rl.bottomMargin = dp(16);
+                    g.addView(row, rl);
+                }
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(w), -2);
+                if (i % cols != cols - 1) lp.rightMargin = dp(gap);
+                row.addView(MusicUi.card(this, items.get(i), dp(w / 1.54f), items, open, null), lp);
+            }
+            content.addView(g);
+        } else if (items.get(0).playable()) {
             // All of an artist's songs: one list, numbered, playable from any song.
             LinearLayout l = new LinearLayout(this);
             l.setOrientation(LinearLayout.VERTICAL);
