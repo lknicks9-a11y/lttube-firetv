@@ -154,6 +154,10 @@ public final class AppleWeb {
         String url = cd == null ? "" : cd.optString("url");
         MItem m = new MItem();
         m.title = o.optString("title", o.optString("name", ""));
+        if (m.title.isEmpty()) {
+            JSONArray tl = o.optJSONArray("titleLinks");
+            if (tl != null && tl.length() > 0) m.title = tl.optJSONObject(0).optString("title");
+        }
         m.thumb = art(o, 600);
         JSONArray sl = o.optJSONArray("subtitleLinks");
         if (sl != null && sl.length() > 0) {
@@ -258,7 +262,13 @@ public final class AppleWeb {
             p.title = "";
         }
         p.thumb = p.banner.replace("/1920x1080cw.jpg", "/600x600cc.jpg");
-        for (Ytm.Shelf s : p.shelves) for (MItem m : s.items) if (m.playable() && m.artist.isEmpty()) m.artist = p.title;
+        // An artist's top songs list the album ("Angelic 7 · 2019") where the artist would go: it's their song.
+        for (Ytm.Shelf s : p.shelves) for (MItem m : s.items) if (m.playable() && s.list) {
+            String sub = m.artist;
+            if (sub.contains(" · ")) m.album = sub.substring(0, sub.indexOf(" · "));
+            m.artist = p.title;
+            m.subtitle = p.title;
+        }
         return p;
     }
 
