@@ -424,6 +424,39 @@ public final class MusicUi {
         into.addView(grid);
     }
 
+    /**
+     * Apple's wide banner rows (the top of a category, New): wide pictures three across, the name and who made it
+     * above each, like the web player.
+     */
+    public static void addWide(Activity a, LinearLayout into, String title, List<MItem> items, Opener open, Hover hover) {
+        if (items.isEmpty()) return;
+        if (title != null && !title.isEmpty()) into.addView(heading(a, title));
+        int gap = 14, w = (screenDp(a) - PAD * 2 - gap * 2) / 3, h = Math.round(w * 0.571f);
+        LinearLayout row = new LinearLayout(a);
+        row.setClipChildren(false);
+        for (MItem m : items) {
+            LinearLayout col = new LinearLayout(a);
+            col.setOrientation(LinearLayout.VERTICAL);
+            TextView t = line(a, 15, TEXT, false);
+            t.setText(m.title);
+            col.addView(t, new LinearLayout.LayoutParams(dp(a, w), -2));
+            TextView s = line(a, 14, TEXT2, false);
+            s.setText(m.artist.isEmpty() ? m.subtitle : m.artist);
+            s.setPadding(0, dp(a, 2), 0, dp(a, 8));
+            col.addView(s, new LinearLayout.LayoutParams(dp(a, w), -2));
+            ImageView iv = new ImageView(a);
+            iv.setFocusable(true);
+            art(iv, m.thumb, dp(a, 8));
+            iv.setOnFocusChangeListener((x, has) -> { markFocus(x, has, dp(a, 8), false, 1f); if (has) { AppleWeb.prefetch(m); if (hover != null) hover.on(m); } });
+            iv.setOnClickListener(v -> open.open(m, items));
+            col.addView(iv, new LinearLayout.LayoutParams(dp(a, w), dp(a, h)));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.rightMargin = dp(a, gap);
+            row.addView(col, lp);
+        }
+        into.addView(hscroll(a, row));
+    }
+
     private static boolean ARTIST_TYPE(MItem m) { return MItem.ARTIST.equals(m.type); }
 
     /** A compact tile: small cover on the left, the name beside it (the quick picks on Home). */
@@ -872,6 +905,7 @@ public final class MusicUi {
         for (Ytm.Shelf s : shelves) {
             if (s.items.isEmpty()) continue;
             if ("TOP".equals(s.moreId)) { addTopResults(a, into, s.title, s.items, open); continue; }
+            if ("WIDE".equals(s.moreId)) { addWide(a, into, s.title, s.items, open, hover); continue; }
             boolean videos = s.title.toLowerCase(java.util.Locale.US).contains("video");
             if (videos) for (MItem m : s.items) if (m.playable()) m.video = true;
             String title = s.title.isEmpty() ? s.strap : s.title;
@@ -993,7 +1027,7 @@ public final class MusicUi {
         choose(a, m.title, new String[]{"Play next", "Add to queue", "Go to song radio"}, new Runnable[]{
                 () -> { mp.playNext(m); android.widget.Toast.makeText(a, "Plays next", android.widget.Toast.LENGTH_SHORT).show(); },
                 () -> { mp.addToQueue(m); android.widget.Toast.makeText(a, "Added to queue", android.widget.Toast.LENGTH_SHORT).show(); },
-                () -> { mp.playRadio(m); a.startActivity(MusicPlayer.nowPlaying(a)); }});
+                () -> { mp.startStation(m); a.startActivity(MusicPlayer.nowPlaying(a)); }});
     }
 
     /** The app's name with its note badge. */

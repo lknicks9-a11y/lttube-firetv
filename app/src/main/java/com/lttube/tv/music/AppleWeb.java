@@ -116,6 +116,11 @@ public final class AppleWeb {
                     continue;
                 }
                 MItem m = item(it);
+                if (m != null && s.kind.equals("flowcaseLockup")) {
+                    JSONObject a = it.optJSONObject("artwork");
+                    JSONObject d = a == null ? null : (a.optJSONObject("dictionary") != null ? a.optJSONObject("dictionary") : a);
+                    if (d != null) m.thumb = d.optString("url").replace("{w}", "1040").replace("{h}", "594").replace("{c}", "sr").replace("{f}", "jpg");
+                }
                 if (m != null) s.items.add(m);
             }
             if (s.title.isEmpty()) s.title = guessTitle(s.id);
@@ -352,9 +357,28 @@ public final class AppleWeb {
             sh.title = s.title;
             sh.items.addAll(s.items);
             sh.list = s.kind.equals("trackLockup");
+            if (s.kind.equals("flowcaseLockup")) sh.moreId = "WIDE";
             p.shelves.add(sh);
         }
         return p;
+    }
+
+    /**
+     * The rows under an album on Apple Music: Other Versions (deluxe, clean…), More By the artist, Featured On,
+     * You Might Also Like.
+     */
+    public static List<Ytm.Shelf> albumExtras(String albumId) {
+        List<Ytm.Shelf> out = new ArrayList<>();
+        try {
+            for (Section s : sections(page("https://music.apple.com/us/album/x/" + albumId)[1])) {
+                if (!s.kind.equals("squareLockup") || s.items.isEmpty() || s.title.isEmpty()) continue;
+                Ytm.Shelf sh = new Ytm.Shelf();
+                sh.title = s.title;
+                for (MItem m : s.items) if (!m.browseId.equals("AM:" + albumId)) sh.items.add(m);
+                if (!sh.items.isEmpty()) out.add(sh);
+            }
+        } catch (Exception ignored) { }
+        return out;
     }
 
     /** The Apple Music album for a name and artist (so albums found elsewhere get Apple's motion artwork too). */

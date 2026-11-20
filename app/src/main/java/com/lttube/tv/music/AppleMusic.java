@@ -116,6 +116,7 @@ public final class AppleMusic {
         Object[] hit = albums.get(id);
         if (hit != null && System.currentTimeMillis() - (Long) hit[0] < 20 * 60_000L) return (Ytm.Page) hit[1];
         Ytm.Page p = albumFetch(id);
+        p.shelves.addAll(AppleWeb.albumExtras(id.startsWith("AM:") ? id.substring(3) : id));
         albums.put(id, new Object[]{System.currentTimeMillis(), p});
         return p;
     }

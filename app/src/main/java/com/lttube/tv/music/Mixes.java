@@ -186,7 +186,7 @@ public final class Mixes {
             org.json.JSONArray old = new org.json.JSONArray(prefs(c).getString("places", "[]"));
             org.json.JSONArray now = new org.json.JSONArray();
             now.put(m.toJson());
-            for (int i = 0; i < old.length() && now.length() < 24; i++) {
+            for (int i = 0; i < old.length() && now.length() < 40; i++) {
                 MItem o = MItem.fromJson(old.optJSONObject(i));
                 String k = !o.browseId.isEmpty() ? o.browseId : o.playlistId;
                 if (!k.equals(key)) now.put(old.optJSONObject(i));
@@ -221,6 +221,28 @@ public final class Mixes {
             for (int i = 0; i < a.length(); i++) l.add(MItem.fromJson(a.optJSONObject(i)));
         } catch (Exception ignored) { }
         return l;
+    }
+
+    /** Recently Played, all of it (up to 40, newest first): Apple's "See All". */
+    public static Ytm.Page recentPage(Context c) {
+        Ytm.Page p = new Ytm.Page();
+        p.title = "Recently Played";
+        Ytm.Shelf s = new Ytm.Shelf();
+        s.items.addAll(places(c));
+        p.shelves.add(s);
+        return p;
+    }
+
+    /** A station started from a song ("<Song> Station"), for Recently Played. */
+    public static MItem station(MItem song) {
+        MItem st = new MItem();
+        st.type = MItem.PLAYLIST;
+        st.title = song.title + " Station";
+        st.subtitle = "Station";
+        st.artist = song.artist;
+        st.thumb = song.thumb;
+        st.playlistId = "RDAMVM" + song.videoId;
+        return st;
     }
 
     /** Takes a deleted playlist out of Recently Played. */

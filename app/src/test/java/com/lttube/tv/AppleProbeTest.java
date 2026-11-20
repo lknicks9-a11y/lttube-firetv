@@ -66,6 +66,9 @@ public class AppleProbeTest {
         try { dump("SEARCH", AppleWeb.search("drake").shelves); } catch (Throwable e) { System.out.println("APL SEARCH FAILED " + e); }
         try { java.util.List<com.lttube.tv.music.MItem> cats = com.lttube.tv.music.AppleWeb.categories(); System.out.println("APL CATS n=" + cats.size() + (cats.isEmpty() ? "" : " first=" + cats.get(0).title + " " + cats.get(0).browseId + " " + cats.get(0).thumb));
             if (!cats.isEmpty()) dump("CATPAGE", com.lttube.tv.music.AppleWeb.anyPage(cats.get(2).browseId.substring(4)).shelves); } catch (Throwable e) { System.out.println("APL CATS FAILED " + e); }
+        try { dump("EXTRAS", com.lttube.tv.music.AppleWeb.albumExtras("1440824484")); } catch (Throwable e) { System.out.println("APL EXTRAS FAILED " + e); }
+        try { for (com.lttube.tv.music.Ytm.Shelf s : com.lttube.tv.music.AppleWeb.anyPage("https://music.apple.com/us/curator/apple-music-sports/1555172867").shelves) System.out.println("APL SPORTS [" + s.title + "] " + s.moreId + " " + (s.items.isEmpty() ? "" : s.items.get(0).thumb)); } catch (Throwable e) { System.out.println("APL SPORTS FAILED " + e); }
+        System.out.println("APL ART " + com.lttube.tv.music.MItem.art("https://is1-ssl.mzstatic.com/image/thumb/Features/x/y.png/300x300cc.jpg", 600) + " " + com.lttube.tv.music.MItem.art("https://is1-ssl.mzstatic.com/image/thumb/Features/x/y.png/200x200SC.DN02.jpg?l=en-US", 600));
         try { System.out.println("APL ALBUMLOOK " + java.util.Arrays.toString(com.lttube.tv.music.AppleWeb.albumLook("6812412381"))); } catch (Throwable e) { System.out.println("APL ALBUMLOOK FAILED " + e); }
         try { dump("SEARCHALL", com.lttube.tv.music.AppleWeb.searchAll("sofaygo").shelves); } catch (Throwable e) { System.out.println("APL SEARCHALL FAILED " + e); }
         try {

@@ -91,7 +91,8 @@ public class PageActivity extends Activity {
 
         spinner = new ProgressBar(this);
         root.addView(spinner, new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER));
-        Bg.run(() -> item.browseId.startsWith("LOCAL:") ? Imports.page(this, item.browseId)
+        Bg.run(() -> item.browseId.equals("RECENT") ? Mixes.recentPage(this)
+                : item.browseId.startsWith("LOCAL:") ? Imports.page(this, item.browseId)
                 : item.browseId.startsWith("MIX:") ? Mixes.page(this, item.browseId)
                 : item.browseId.startsWith("AM:") ? AppleMusic.album(item.browseId)
                 : item.browseId.startsWith("AMA:") ? AppleWeb.artist(item.browseId.substring(4))

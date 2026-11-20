@@ -307,6 +307,30 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
 
     // ================================================================== lyrics
     private ImageView lyPlay, lyShuffle, lyRepeat;
+    private Motion lyMotion;
+    private int motionSeq;
+
+    /** Looks up this song's album on Apple Music and plays its motion artwork on the cover, if it has one. */
+    private void albumMotion(MItem cur) {
+        final int my = ++motionSeq;
+        if (lyMotion == null) return;
+        lyMotion.release();
+        lyMotion.setAlpha(0f);
+        if (cur == null) return;
+        final String appleId = cur.appleId, album = cur.album, artist = cur.artist.split(",|&| feat\\.")[0].trim();
+        Bg.run(() -> {
+            String id = null;
+            if (!appleId.isEmpty()) {
+                org.json.JSONObject o = AppleWeb.lookupTrack(appleId);
+                if (o != null && o.optLong("collectionId") > 0) id = String.valueOf(o.optLong("collectionId"));
+            }
+            if (id == null && !album.isEmpty()) id = AppleWeb.albumIdFor(album, artist);
+            return id == null ? "" : (String) AppleWeb.albumLook(id)[0];
+        }, (u, e) -> {
+            if (my != motionSeq || u == null || u.isEmpty() || isFinishing()) return;
+            lyMotion.postDelayed(() -> { if (my == motionSeq && !isFinishing()) lyMotion.play(u, 1080, 1080); }, 1500);
+        });
+    }
     private LinearLayout lyInfoRow, lyCtlRow;
 
     /**
@@ -327,6 +351,13 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         lyArt = new ImageView(this);
         lyArt.setElevation(dp(18));
         lyricsBox.addView(lyArt, at(ax, ay, a, a));
+        // The album's motion artwork (if it has one) plays over the cover.
+        lyMotion = new Motion(this);
+        lyMotion.setElevation(dp(18.5f));
+        lyMotion.setClipToOutline(true);
+        lyMotion.setBackground(MusicUi.round(0, dp(10)));
+        lyMotion.setOutlineProvider(android.view.ViewOutlineProvider.BACKGROUND);
+        lyricsBox.addView(lyMotion, at(ax, ay, a, a));
 
         // Song, "Artist — Album", star and "…".
         lyInfoRow = new LinearLayout(this);
@@ -543,7 +574,8 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
                 title.setText(cur.title);
                 artist.setText(cur.artist.isEmpty() ? cur.subtitle : cur.artist);
                 lyTitle.setText(cur.title);
-                lyArtist.setText(cur.artist);
+                lyArtist.setText(cur.artist + (cur.album.isEmpty() ? "" : " \u2014 " + cur.album));
+                albumMotion(cur);
                 backdrop.setArt(cur.thumb);
                 Boolean l = liked.get(cur.videoId);
                 paintSave(l != null && l);
@@ -653,7 +685,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
 
     @Override public void changed() { refresh(false); paintLyCtls(); }
     @Override protected void onResume() { super.onResume(); mp.addListener(this); refresh(true); h.post(tick); poke(); }
-    @Override protected void onPause() { mp.removeListener(this); h.removeCallbacks(tick); h.removeCallbacks(hide); super.onPause(); }
+    @Override protected void onPause() { mp.removeListener(this); h.removeCallbacks(tick); h.removeCallbacks(hide); if (lyMotion != null) lyMotion.pause(); super.onPause(); }
 
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
 

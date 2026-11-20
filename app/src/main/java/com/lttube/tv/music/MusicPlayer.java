@@ -176,6 +176,13 @@ public final class MusicPlayer {
     }
 
     /** One song, then YouTube Music's radio for it. */
+    /** "Go to song radio": a station from this song, which goes in Recently Played like Apple's stations. */
+    public void startStation(MItem song) {
+        playRadio(song);
+        final MItem s = song;
+        Bg.run(() -> { resolve(s); return s; }, (r, e) -> { if (r != null && !r.videoId.isEmpty()) Mixes.visited(app, Mixes.station(r)); });
+    }
+
     public void playRadio(MItem song) {
         List<MItem> l = new ArrayList<>();
         l.add(song);

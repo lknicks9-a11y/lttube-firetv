@@ -375,7 +375,14 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
                 content.addView(MusicUi.pickRow(this, picks, opener(), this::hover));
             }
             List<MItem> places = Mixes.places(this);
-            if (!places.isEmpty()) MusicUi.addRow(this, content, "Recently Played", places.subList(0, Math.min(14, places.size())), 138, opener(), this::hover);
+            if (!places.isEmpty()) {
+                // Like Apple's: the newest few here, "See All" for everything (up to 40).
+                MItem all = new MItem();
+                all.type = MItem.MORE;
+                all.title = "Recently Played";
+                all.browseId = "RECENT";
+                MusicUi.addRow(this, content, "Recently Played", places.subList(0, Math.min(12, places.size())), 138, opener(), this::hover, places.size() > 12 ? all : null);
+            }
             if (!newFor.isEmpty()) MusicUi.addRow(this, content, "New Releases for You", newFor, 138, opener(), this::hover);
             List<MItem> made = Mixes.cards(this);
             if (!made.isEmpty()) {
