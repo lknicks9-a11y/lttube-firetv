@@ -22,6 +22,16 @@ public class FadeFrame extends FrameLayout {
         p.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
     }
 
+    /**
+     * The lyrics inside are as tall as the whole song, not squeezed into this window's height (squeezing left later
+     * lines with no room at all, so they vanished). The window only shows a slice of them.
+     */
+    @Override protected void measureChildWithMargins(android.view.View child, int wSpec, int wUsed, int hSpec, int hUsed) {
+        MarginLayoutParams lp = (MarginLayoutParams) child.getLayoutParams();
+        int cw = getChildMeasureSpec(wSpec, getPaddingLeft() + getPaddingRight() + lp.leftMargin + lp.rightMargin + wUsed, lp.width);
+        child.measure(cw, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+    }
+
     @Override protected void dispatchDraw(Canvas c) {
         super.dispatchDraw(c);
         int w = getWidth(), h = getHeight();
