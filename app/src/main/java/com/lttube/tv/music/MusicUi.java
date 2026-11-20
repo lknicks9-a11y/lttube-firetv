@@ -205,6 +205,7 @@ public final class MusicUi {
         iv.setFocusable(true);
         int w = wide ? Math.round(size * 1.6f) : size, h = size;
         if (round) circle(iv, m.thumb); else art(iv, m.thumb, dp(a, 6));
+        if (round && !m.thumb.contains("mzstatic.com")) artistPhoto(iv, m);
         iv.setOnFocusChangeListener((x, has) -> { markFocus(x, has, dp(a, 6), round, 1.05f); if (has && hover != null) hover.on(m); });
         iv.setOnClickListener(v -> open.open(m, ctx));
         iv.setOnKeyListener((v, k, e) -> {
@@ -223,6 +224,20 @@ public final class MusicUi {
         s.setPadding(0, dp(a, 3), 0, 0);
         col.addView(s, new LinearLayout.LayoutParams(w, -2));
         return col;
+    }
+
+    /** Every artist shows their Apple Music photo (found by their Apple id, or by name). */
+    static void artistPhoto(ImageView iv, MItem m) {
+        final String key = m.browseId + "|" + m.title;
+        iv.setTag(R.id.tag_color, key);
+        com.lttube.tv.Bg.run(() -> {
+            String id = m.browseId.startsWith("AMA:") ? m.browseId.substring(4) : AppleMusic.artistId(m.title);
+            return id == null ? null : AppleWeb.artistPhoto(id, 600);
+        }, (u, e) -> {
+            if (u == null || u.isEmpty() || !key.equals(iv.getTag(R.id.tag_color))) return;
+            m.thumb = u;
+            circle(iv, u);
+        });
     }
 
     /** A compact tile: small cover on the left, the name beside it (the quick picks on Home). */
@@ -510,8 +525,18 @@ public final class MusicUi {
 
     private static void focusables(View v, List<View> out) {
         if (v.getVisibility() != View.VISIBLE || v.getAlpha() == 0f) return;
-        if (v.isFocusable() && v.getWidth() > 0) { out.add(v); return; }
+        // A row that scrolls sideways is itself "focusable" but holds the real items: look inside it.
+        boolean container = v instanceof ViewGroup && hasFocusableInside((ViewGroup) v);
+        if (v.isFocusable() && v.getWidth() > 0 && !container) { out.add(v); return; }
         if (v instanceof ViewGroup) for (int i = 0; i < ((ViewGroup) v).getChildCount(); i++) focusables(((ViewGroup) v).getChildAt(i), out);
+    }
+
+    private static boolean hasFocusableInside(ViewGroup g) {
+        for (int i = 0; i < g.getChildCount(); i++) {
+            View c = g.getChildAt(i);
+            if (c.isFocusable() || (c instanceof ViewGroup && hasFocusableInside((ViewGroup) c))) return true;
+        }
+        return false;
     }
 
     public static TextView heading(Context a, String title) {

@@ -245,7 +245,11 @@ public final class AppleWeb {
             if (s.kind.equals("artistDetailHeader")) {
                 JSONArray it = s.raw.optJSONArray("items");
                 JSONObject h = it == null ? null : it.optJSONObject(0);
-                if (h != null) p.title = h.optString("title", h.optString("name", ""));
+                if (h != null) {
+                    p.title = h.optString("title", h.optString("name", ""));
+                    p.description = h.optString("bio", "").replaceAll("<[^>]+>", "");
+                    if (p.description.isEmpty()) p.description = firstString(h.opt("bioAction"), "paragraphText", 0).replaceAll("<[^>]+>", "");
+                }
                 continue;
             }
             if (s.items.isEmpty()) continue;
@@ -253,9 +257,11 @@ public final class AppleWeb {
             sh.title = s.title;
             sh.items.addAll(s.items);
             sh.list = s.kind.equals("artistFeaturedContentAndTracks") || s.kind.equals("trackLockup");
-            if (sh.title.toLowerCase(java.util.Locale.US).contains("album") || sh.title.toLowerCase(java.util.Locale.US).contains("single")) {
-                sh.moreId = "AMALL:" + appleId + ":" + (sh.title.toLowerCase(java.util.Locale.US).contains("single") ? "singles" : "albums");
-            }
+            String t = sh.title.toLowerCase(java.util.Locale.US);
+            if (t.contains("appears")) sh.moreId = "AMALL:" + appleId + ":appears";
+            else if (t.contains("single")) sh.moreId = "AMALL:" + appleId + ":singles";
+            else if (t.contains("album")) sh.moreId = "AMALL:" + appleId + ":albums";
+            else if (sh.list) sh.moreId = "AMALL:" + appleId + ":songs";
             p.shelves.add(sh);
         }
         if (p.title.isEmpty()) {
@@ -298,6 +304,51 @@ public final class AppleWeb {
         p.subtitle += "  •  " + songs.items.size() + " songs";
         p.shelves.add(songs);
         return p;
+    }
+
+    /**
+     * Everything in one of an artist's sections: albums, singles & EPs, appears on, or songs. Apple's own
+     * "see all" page (first 20) completed from the whole catalogue, kept apart the way Apple keeps them.
+     */
+    public static Ytm.Page seeAll(String appleId, String kind) throws Exception {
+        Ytm.Page p = new Ytm.Page();
+        Ytm.Shelf s = new Ytm.Shelf();
+        String section = kind.equals("albums") ? "full-albums" : kind.equals("singles") ? "singles" : kind.equals("appears") ? "appears-on-albums" : "top-songs";
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        try {
+            for (Section sec : sections(page("https://music.apple.com/us/artist/x/" + appleId + "/see-all?section=" + section)[1]))
+                for (MItem m : sec.items) {
+                    if (m.type.equals(MItem.ALBUM)) m.title = m.title.replaceAll(" - (Single|EP)$", "");
+                    if (seen.add(norm(m.title))) s.items.add(m);
+                }
+        } catch (Exception ignored) { }
+        if (kind.equals("songs")) {
+            s.list = true;
+            String name = "";
+            try { name = artist(appleId).title; } catch (Exception ignored) { }
+            for (MItem m : s.items) { if (m.artist.contains(" · ")) m.album = m.artist.substring(0, m.artist.indexOf(" · ")); m.artist = name; m.subtitle = name; }
+            for (JSONObject o : lookupSongs(appleId)) {
+                MItem m = song(o);
+                if (seen.add(norm(m.title))) s.items.add(m);
+            }
+        } else {
+            AppleMusic.Discography d = AppleMusic.discography(appleId);
+            for (MItem m : kind.equals("albums") ? d.albums : kind.equals("singles") ? d.singles : d.appearsOn)
+                if (seen.add(norm(m.title))) s.items.add(m);
+        }
+        p.shelves.add(s);
+        return p;
+    }
+
+    private static List<JSONObject> lookupSongs(String appleId) throws Exception {
+        JSONObject o = new JSONObject(get("https://itunes.apple.com/lookup?id=" + appleId + "&entity=song&limit=200&country=US"));
+        JSONArray a = o.optJSONArray("results");
+        List<JSONObject> l = new ArrayList<>();
+        if (a != null) for (int i = 0; i < a.length(); i++) {
+            JSONObject t = a.optJSONObject(i);
+            if (t != null && "track".equals(t.optString("wrapperType")) && String.valueOf(t.optLong("artistId")).equals(appleId)) l.add(t);
+        }
+        return l;
     }
 
     // ------------------------------------------------------------------ charts and genres

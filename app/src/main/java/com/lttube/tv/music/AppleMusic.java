@@ -49,7 +49,7 @@ public final class AppleMusic {
     }
 
     public static class Discography {
-        public final List<MItem> albums = new ArrayList<>(), singles = new ArrayList<>();
+        public final List<MItem> albums = new ArrayList<>(), singles = new ArrayList<>(), appearsOn = new ArrayList<>();
     }
 
     /** Every album, and every single / EP, newest first. */
@@ -69,6 +69,8 @@ public final class AppleMusic {
             // The clean and explicit copies of one record show once (the explicit one, listed first).
             String key = norm(clean) + "|" + single;
             if (!seen.add(key)) continue;
+            // Their own records only; records by others that they're on go to Appears On.
+            boolean theirs = String.valueOf(o.optLong("artistId")).equals(appleArtistId);
             MItem m = new MItem();
             m.type = MItem.ALBUM;
             m.browseId = "AM:" + o.optLong("collectionId");
@@ -77,7 +79,7 @@ public final class AppleMusic {
             String year = o.optString("releaseDate").length() >= 4 ? o.optString("releaseDate").substring(0, 4) : "";
             m.subtitle = (single ? (name.endsWith(" - EP") ? "EP" : "Single") : "Album") + (year.isEmpty() ? "" : " • " + year);
             m.thumb = o.optString("artworkUrl100").replace("100x100bb", "600x600bb");
-            (single ? d.singles : d.albums).add(m);
+            (!theirs ? d.appearsOn : single ? d.singles : d.albums).add(m);
         }
         return d;
     }

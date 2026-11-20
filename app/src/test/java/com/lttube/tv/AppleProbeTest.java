@@ -72,6 +72,11 @@ public class AppleProbeTest {
             r.invoke(null, s);
             System.out.println("APL RESOLVE " + s.title + " / " + s.artist + " -> v=" + s.videoId + " mv=" + s.mvType + " album=" + s.album);
         } catch (Throwable e) { System.out.println("APL RESOLVE FAILED " + e); }
+        for (String k : new String[]{"albums", "singles", "appears", "songs"}) {
+            try { Ytm.Page p = AppleWeb.seeAll("1456793166", k); Ytm.Shelf sh = p.shelves.get(0); System.out.println("APL ALL " + k + " n=" + sh.items.size() + (sh.items.isEmpty() ? "" : " first=" + sh.items.get(0).title + " / " + sh.items.get(0).artist + " last=" + sh.items.get(sh.items.size() - 1).title)); }
+            catch (Throwable e) { System.out.println("APL ALL " + k + " FAILED " + e); }
+        }
+        try { System.out.println("APL BIO " + AppleWeb.artist("1456793166").description.length()); } catch (Throwable e) { System.out.println("APL BIO FAILED " + e); }
         MItem y = new MItem(); y.title = "Hell Yeah"; y.artist = "SoFaygo";
         System.out.println("APL COVER " + AppleWeb.cover(y));
     }

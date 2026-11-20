@@ -104,15 +104,10 @@ public class PageActivity extends Activity {
         return AppleWeb.artist(id);
     }
 
-    /** "See all" of an artist's Apple Music albums or singles. */
+    /** "See all" of an artist's albums, singles & EPs, appears on, or songs. */
     private static Ytm.Page appleAll(String id) throws Exception {
         String[] p = id.split(":");
-        AppleMusic.Discography d = AppleMusic.discography(p[1]);
-        Ytm.Page pg = new Ytm.Page();
-        Ytm.Shelf s = new Ytm.Shelf();
-        s.items.addAll(p[2].equals("singles") ? d.singles : d.albums);
-        pg.shelves.add(s);
-        return pg;
+        return AppleWeb.seeAll(p[1], p.length > 2 ? p[2] : "albums");
     }
 
     private void show(Ytm.Page pg) {
@@ -250,7 +245,7 @@ public class PageActivity extends Activity {
                     if (!s.moreId.isEmpty()) {
                         // Every song of theirs (official releases only), not just the top few.
                         final MItem allSongs = new MItem();
-                        allSongs.type = MItem.PLAYLIST;
+                        allSongs.type = s.moreId.startsWith("AMALL:") ? MItem.MORE : MItem.PLAYLIST;
                         allSongs.title = "All songs";
                         allSongs.browseId = s.moreId;
                         allSongs.params = s.moreParams;
@@ -263,7 +258,7 @@ public class PageActivity extends Activity {
                     }
                 } else {
                     if (st.matches(".*\\b(albums?|singles?|eps?)\\b.*")) rest.add(s);
-                    if (!s.list && !st.contains("video") && !st.contains("playlist")) restAll.add(s);
+                    if (!s.list && !st.contains("video")) restAll.add(s);
                 }
             }
             // Albums and Singles & EPs: Apple Music's complete discography (YouTube Music's rows if Apple has none).
@@ -319,7 +314,19 @@ public class PageActivity extends Activity {
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (Ytm.Shelf s : pg.shelves) for (MItem m : s.items) if (m.official() && seen.add(m.browseId + m.videoId)) items.add(m);
         if (items.isEmpty()) { TextView n = MusicUi.text(this, 17, MusicUi.TEXT2, false); n.setText("Nothing here."); n.setPadding(dp(MusicUi.PAD), dp(20), 0, 0); content.addView(n); return; }
-        MusicUi.addGrid(this, content, items, 6, (m, ctx) -> MusicUi.open(this, m, ctx));
+        if (items.get(0).playable()) {
+            // All of an artist's songs: one list, numbered, playable from any song.
+            LinearLayout l = new LinearLayout(this);
+            l.setOrientation(LinearLayout.VERTICAL);
+            l.setPadding(dp(MusicUi.PAD - 12), dp(10), dp(MusicUi.PAD - 12), dp(40));
+            for (int i = 0; i < items.size(); i++) {
+                final int at = i;
+                View r = MusicUi.songRow(this, items.get(i), i + 1, true);
+                r.setOnClickListener(v -> { MusicPlayer.get(this).playList(items, at, null); startActivity(MusicPlayer.nowPlaying(this)); });
+                l.addView(r, new LinearLayout.LayoutParams(-1, dp(62)));
+            }
+            content.addView(l);
+        } else MusicUi.addGrid(this, content, items, 6, (m, ctx) -> MusicUi.open(this, m, ctx));
         content.post(() -> { View f = firstFocusable(content); if (f != null) f.requestFocus(); });
         if (!items.get(0).thumb.isEmpty()) MusicUi.colorOf(this, items.get(0).thumb, c -> MusicUi.fadeTo(root, MusicUi.tintOf(c)));
     }
