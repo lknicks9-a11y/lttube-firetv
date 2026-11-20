@@ -325,15 +325,17 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         // The bar sits low; the lyrics get the space above it and never reach it.
         int by = Math.round(H * 0.82f);
         int lx = Math.round(W * 0.46f), ly = Math.round(H * 0.04f);
-        lyWindow = new FadeFrame(this, dp(70), dp(56));
+        // Soft, long fades at the top and bottom; the lines have room on the right so nothing is cut.
+        lyWindow = new FadeFrame(this, dp(96), dp(84));
         lyLines = new LinearLayout(this);
         lyLines.setOrientation(LinearLayout.VERTICAL);
         // Every line can be drawn wherever it slides to (the window around them does the cutting, softly).
         lyLines.setClipChildren(false);
         lyLines.setClipToPadding(false);
         lyWindow.addView(lyLines, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
-        lyricsBox.addView(lyWindow, at(lx, ly, W - lx - MusicUi.PAD, by - ly - 18));
+        lyricsBox.addView(lyWindow, at(lx, ly, W - lx - 16, by - ly - 18));
         lySource = MusicUi.text(this, 12, 0x99FFFFFF, false);
+        lySource.setVisibility(View.GONE);
         lySource.setPadding(0, dp(8), 0, 0);
         tt.addView(lySource);
 
@@ -573,8 +575,17 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
     }
 
     private void openArtist() {
-        if (aboutFor == null) { MItem cur = mp.current(); if (cur != null && !cur.artistId.isEmpty()) aboutFor = cur.artistId; }
-        if (aboutFor == null) { toast("No artist page for this song"); return; }
+        MItem cur = mp.current();
+        if (cur == null || cur.artist.isEmpty()) { toast("No artist page for this song"); return; }
+        // The artist's page (found by name): their photo, top songs, albums and singles.
+        MItem a = new MItem();
+        a.type = MItem.ARTIST;
+        a.title = cur.artist.split(",|&| feat\\.")[0].trim();
+        a.browseId = "AMN:" + a.title;
+        MusicUi.open(this, a, null);
+    }
+
+    private void openArtistOld() {
         MItem a = new MItem();
         a.type = MItem.ARTIST;
         a.browseId = aboutFor;
@@ -639,7 +650,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         t.setAlpha(timed ? 0.45f : 0.9f);
         t.setText(s);
         t.setLineSpacing(0, 1.08f);
-        t.setPadding(0, dp(10), 0, dp(10));
+        t.setPadding(dp(4), dp(10), dp(MusicUi.PAD + 14), dp(10));
         t.setPivotX(0);
         t.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         lyLines.addView(t, new LinearLayout.LayoutParams(-1, -2));

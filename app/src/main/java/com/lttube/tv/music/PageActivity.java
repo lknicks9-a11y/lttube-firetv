@@ -75,6 +75,10 @@ public class PageActivity extends Activity {
         Bg.run(() -> item.browseId.startsWith("LOCAL:") ? Imports.page(this, item.browseId)
                 : item.browseId.startsWith("MIX:") ? Mixes.page(this, item.browseId)
                 : item.browseId.startsWith("AM:") ? AppleMusic.album(item.browseId)
+                : item.browseId.startsWith("AMA:") ? AppleWeb.artist(item.browseId.substring(4))
+                : item.browseId.startsWith("AMP:") ? AppleWeb.playlist(item.browseId.substring(4))
+                : item.browseId.startsWith("AMG:") ? AppleWeb.genre(item.browseId)
+                : item.browseId.startsWith("AMN:") || item.browseId.startsWith("UC") ? appleArtistByName(item)
                 : item.browseId.startsWith("AMALL:") ? appleAll(item.browseId) : Ytm.browse(item.browseId, item.params), (pg, e) -> {
             spinner.setVisibility(View.GONE);
             if (pg == null) {
@@ -89,6 +93,16 @@ public class PageActivity extends Activity {
     }
 
     private int dp(float v) { return MusicUi.dp(this, v); }
+
+    /** An artist reached from a song (by name): their Apple Music page. */
+    private Ytm.Page appleArtistByName(MItem a) throws Exception {
+        String name = a.browseId.startsWith("AMN:") ? a.browseId.substring(4) : a.title;
+        String id = name.isEmpty() ? null : AppleMusic.artistId(name);
+        if (id == null) return Ytm.browse(a.browseId.startsWith("UC") ? a.browseId : "", null);
+        item.browseId = "AMA:" + id;
+        item.type = MItem.ARTIST;
+        return AppleWeb.artist(id);
+    }
 
     /** "See all" of an artist's Apple Music albums or singles. */
     private static Ytm.Page appleAll(String id) throws Exception {
@@ -164,7 +178,7 @@ public class PageActivity extends Activity {
             lp.leftMargin = dp(14);
             btns.addView(shuf, lp);
         }
-        if (artist) {
+        if (artist && !item.browseId.startsWith("AMA:")) {
             final TextView fol = MusicUi.pill(this, 0, "Follow");
             final String cid = pg.channelId.isEmpty() ? item.browseId : pg.channelId;
             fol.setOnClickListener(v -> {
@@ -206,7 +220,7 @@ public class PageActivity extends Activity {
             MusicUi.addShelves(this, content, rest, open, null);
         } else if (artist) {
             // Popular: the artist's top songs, numbered, one per row.
-            List<Ytm.Shelf> rest = new ArrayList<>();
+            List<Ytm.Shelf> rest = new ArrayList<>(), restAll = new ArrayList<>();
             boolean done = false;
             for (Ytm.Shelf s : pg.shelves) {
                 String st = s.title.toLowerCase(java.util.Locale.US);
@@ -247,7 +261,10 @@ public class PageActivity extends Activity {
                         ml.setMargins(dp(MusicUi.PAD), dp(10), 0, dp(4));
                         content.addView(more, ml);
                     }
-                } else if (st.matches(".*\\b(albums?|singles?|eps?)\\b.*")) rest.add(s);
+                } else {
+                    if (st.matches(".*\\b(albums?|singles?|eps?)\\b.*")) rest.add(s);
+                    if (!s.list && !st.contains("video") && !st.contains("playlist")) restAll.add(s);
+                }
             }
             // Albums and Singles & EPs: Apple Music's complete discography (YouTube Music's rows if Apple has none).
             final LinearLayout disco = new LinearLayout(this);
@@ -255,6 +272,12 @@ public class PageActivity extends Activity {
             disco.setClipChildren(false);
             content.addView(disco);
             final String name = pg.title.isEmpty() ? item.title : pg.title;
+            if (item.browseId.startsWith("AMA:")) {
+                // Already the artist's Apple Music page: Albums, Singles & EPs, Appears On, Similar Artists.
+                MusicUi.addShelves(this, disco, restAll, open, null);
+                if (!songs.isEmpty() || !pg.shelves.isEmpty()) { View f = firstFocusable(content); if (f != null) f.requestFocus(); }
+                return;
+            }
             Bg.run(() -> {
                 String id = AppleMusic.artistId(name);
                 if (id == null) return null;

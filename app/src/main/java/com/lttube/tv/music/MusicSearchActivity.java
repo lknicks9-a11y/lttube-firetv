@@ -155,18 +155,8 @@ public class MusicSearchActivity extends Activity {
     private void search(String text) {
         final int my = ++seq;
         spinner.setVisibility(View.VISIBLE);
-        Bg.run(() -> {
-            List<Ytm.Shelf> out = new ArrayList<>();
-            Ytm.Page all = null;
-            try { all = Ytm.search(text, false); } catch (Exception ignored) { }
-            boolean hasSongs = false;
-            if (all != null) for (Ytm.Shelf s : all.shelves) { out.add(s); if (s.list && s.title.toLowerCase(java.util.Locale.US).contains("song")) hasSongs = true; }
-            if (!hasSongs) {
-                Ytm.Page songs = Ytm.search(text, true);
-                for (Ytm.Shelf s : songs.shelves) { if (s.title.isEmpty()) s.title = "Songs"; out.add(Math.min(out.size(), 1), s); }
-            }
-            return out;
-        }, (l, e) -> {
+        Bg.run(() -> AppleWeb.search(text).shelves
+        , (l, e) -> {
             if (my != seq) return;
             spinner.setVisibility(View.GONE);
             results.removeAllViews();

@@ -1,52 +1,38 @@
 package com.lttube.tv;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-import org.junit.Test;
-import okhttp3.Request;
-import okhttp3.Response;
+import com.lttube.tv.music.AppleWeb;
+import com.lttube.tv.music.MItem;
+import com.lttube.tv.music.Ytm;
 
+import org.junit.Test;
+
+/** Checks the Apple Music side of LT Music with real data. Never fails; prints what it finds. */
 public class AppleProbeTest {
-    static String get(String u) {
+    static void dump(String name, java.util.List<Ytm.Shelf> shelves) {
+        System.out.println("APL " + name + " shelves=" + shelves.size());
+        for (Ytm.Shelf s : shelves) {
+            MItem f = s.items.isEmpty() ? null : s.items.get(0);
+            System.out.println("APL   [" + s.title + "] list=" + s.list + " n=" + s.items.size() + " more=" + s.moreId
+                    + (f == null ? "" : " first=" + f.type + " | " + f.title + " | " + f.artist + " | b=" + f.browseId + " a=" + f.appleId + " s=" + f.seconds + " thumb=" + (f.thumb.isEmpty() ? "-" : f.thumb.substring(Math.max(0, f.thumb.length() - 30)))));
+        }
+    }
+    @Test public void check() {
+        org.schabi.newpipe.extractor.NewPipe.init(NpDownloader.get(), new org.schabi.newpipe.extractor.localization.Localization("en", "US"), new org.schabi.newpipe.extractor.localization.ContentCountry("US"));
+        try { dump("BROWSE", AppleWeb.browse()); } catch (Throwable e) { System.out.println("APL BROWSE FAILED " + e); }
+        try { dump("CHARTS", AppleWeb.charts()); } catch (Throwable e) { System.out.println("APL CHARTS FAILED " + e); }
+        try { Ytm.Page g = AppleWeb.genre("AMG:18"); System.out.println("APL GENRE " + g.title); dump("GENRE", g.shelves); } catch (Throwable e) { System.out.println("APL GENRE FAILED " + e); }
+        try { Ytm.Page a = AppleWeb.artist("1456793166"); System.out.println("APL ARTIST [" + a.title + "] banner=" + a.banner); dump("ARTIST", a.shelves); } catch (Throwable e) { System.out.println("APL ARTIST FAILED " + e); }
+        try { Ytm.Page p = AppleWeb.playlist("https://music.apple.com/us/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb"); System.out.println("APL PLAYLIST [" + p.title + "] " + p.subtitle + " thumb=" + p.thumb + " desc=" + p.description.length()); dump("PLAYLIST", p.shelves); } catch (Throwable e) { System.out.println("APL PLAYLIST FAILED " + e); }
+        try { dump("SEARCH", AppleWeb.search("drake").shelves); } catch (Throwable e) { System.out.println("APL SEARCH FAILED " + e); }
         try {
-            Request r = new Request.Builder().url(u).header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36").build();
-            try (Response res = NpDownloader.get().client.newCall(r).execute()) { return res.body() == null ? "" : res.body().string(); }
-        } catch (Throwable e) { return ""; }
-    }
-    static Object data(String html) throws Exception {
-        java.util.regex.Matcher d = java.util.regex.Pattern.compile("<script[^>]*id=\"serialized-server-data\"[^>]*>(.*?)</script>", java.util.regex.Pattern.DOTALL).matcher(html);
-        return d.find() ? new org.json.JSONTokener(d.group(1)).nextValue() : null;
-    }
-    static void sections(String name, String url) {
-        try {
-            Object root = data(get(url));
-            java.util.List<JSONObject> secs = new java.util.ArrayList<>();
-            find(root, secs, 0);
-            System.out.println("APL " + name + " sections=" + secs.size());
-            int k = 0;
-            for (JSONObject s : secs) {
-                if (k++ > 9) break;
-                JSONArray items = s.optJSONArray("items");
-                String title = "";
-                JSONObject h = s.optJSONObject("header");
-                if (h != null) { JSONObject it = h.optJSONObject("item"); title = it != null ? it.optString("title") : h.toString().substring(0, Math.min(80, h.toString().length())); }
-                System.out.println("APL   SEC [" + title + "] id=" + s.optString("id") + " kind=" + s.optString("itemKind") + " n=" + (items == null ? 0 : items.length())
-                        + " first=" + (items == null || items.length() == 0 ? "" : items.optJSONObject(0).toString().substring(0, Math.min(900, items.optJSONObject(0).toString().length()))));
-            }
-        } catch (Throwable e) { System.out.println("APL " + name + " FAILED " + e); }
-    }
-    static void find(Object n, java.util.List<JSONObject> out, int d) {
-        if (n == null || d > 30) return;
-        if (n instanceof JSONObject) {
-            JSONObject o = (JSONObject) n;
-            if (o.has("itemKind") && o.has("items")) { out.add(o); return; }
-            java.util.Iterator<String> it = o.keys();
-            while (it.hasNext()) find(o.opt(it.next()), out, d + 1);
-        } else if (n instanceof JSONArray) { JSONArray a = (JSONArray) n; for (int i = 0; i < a.length(); i++) find(a.opt(i), out, d + 1); }
-    }
-    @Test public void probe() {
-        sections("ARTIST", "https://music.apple.com/us/artist/sofaygo/1456793166");
-        sections("BROWSE", "https://music.apple.com/us/browse");
-        sections("PLAYLIST", "https://music.apple.com/us/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb");
+            java.util.List<Ytm.Shelf> c = AppleWeb.charts();
+            MItem s = c.get(0).items.get(0);
+            java.lang.reflect.Method r = com.lttube.tv.music.MusicPlayer.class.getDeclaredMethod("resolve", MItem.class);
+            r.setAccessible(true);
+            r.invoke(null, s);
+            System.out.println("APL RESOLVE " + s.title + " / " + s.artist + " -> v=" + s.videoId + " mv=" + s.mvType + " album=" + s.album);
+        } catch (Throwable e) { System.out.println("APL RESOLVE FAILED " + e); }
+        MItem y = new MItem(); y.title = "Hell Yeah"; y.artist = "SoFaygo";
+        System.out.println("APL COVER " + AppleWeb.cover(y));
     }
 }

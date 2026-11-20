@@ -24,6 +24,8 @@ public class MItem {
     public String artistId = "";
     public String thumb = "";
     public String videoId = "";
+    /** The song's Apple Music id: its details and cover come from Apple; its audio is found on YouTube Music when it plays. */
+    public String appleId = "";
     /** For playing an album / playlist / mix. */
     public String playlistId = "";
     /** For opening an album / playlist / artist page. */
@@ -38,6 +40,7 @@ public class MItem {
     public boolean official() {
         if (!playable()) return true;
         if (slop()) return false;
+        if (!appleId.isEmpty()) return true;
         if (mvType.endsWith("ATV")) return true;
         if (mvType.endsWith("UGC") || mvType.contains("PODCAST")) return false;
         return !album.isEmpty();
@@ -48,12 +51,16 @@ public class MItem {
     /** Mood / genre tiles carry their colour. */
     public int color;
 
-    public boolean playable() { return SONG.equals(type) && !videoId.isEmpty(); }
+    public boolean playable() { return SONG.equals(type) && (!videoId.isEmpty() || !appleId.isEmpty()); }
+
+    /** One key per song, whether or not its audio has been found yet. */
+    public String key() { return !videoId.isEmpty() ? videoId : "am" + appleId; }
 
     /** Square art at a size that looks sharp on a TV. */
     public static String art(String url, int px) {
         if (url == null || url.isEmpty()) return "";
         if (url.startsWith("//")) url = "https:" + url;
+        if (url.contains("mzstatic.com")) return url.replaceAll("/\\d+x\\d+(bb|cc|cw)\\.(jpg|png|webp)$", "/" + px + "x" + px + "bb.jpg");
         if (url.contains("googleusercontent.com") || url.contains("ggpht.com")) {
             return url.replaceAll("=w\\d+-h\\d+[^&]*$", "=w" + px + "-h" + px + "-l90-rj").replaceAll("=s\\d+[^&]*$", "=s" + px);
         }
@@ -65,7 +72,7 @@ public class MItem {
         try {
             o.put("type", type).put("title", title).put("subtitle", subtitle).put("artist", artist).put("album", album)
                     .put("thumb", thumb).put("videoId", videoId).put("playlistId", playlistId).put("browseId", browseId)
-                    .put("params", params).put("seconds", seconds).put("color", color).put("artistId", artistId).put("video", video).put("mvType", mvType);
+                    .put("params", params).put("seconds", seconds).put("color", color).put("artistId", artistId).put("video", video).put("mvType", mvType).put("appleId", appleId);
         } catch (Exception ignored) { }
         return o;
     }
@@ -88,6 +95,7 @@ public class MItem {
         m.artistId = o.optString("artistId");
         m.video = o.optBoolean("video");
         m.mvType = o.optString("mvType");
+        m.appleId = o.optString("appleId");
         return m;
     }
 

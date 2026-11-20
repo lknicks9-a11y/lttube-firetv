@@ -35,9 +35,10 @@ public class FadeFrame extends FrameLayout {
     @Override protected void dispatchDraw(Canvas c) {
         super.dispatchDraw(c);
         int w = getWidth(), h = getHeight();
-        p.setShader(new LinearGradient(0, 0, 0, topFade, 0xFF000000, 0x00000000, Shader.TileMode.CLAMP));
+        // Eased fades (most of the softening near the edge), so lines dissolve rather than hit a line.
+        p.setShader(new LinearGradient(0, 0, 0, topFade, new int[]{0xFF000000, 0xB3000000, 0x40000000, 0x00000000}, new float[]{0f, 0.35f, 0.7f, 1f}, Shader.TileMode.CLAMP));
         c.drawRect(0, 0, w, topFade, p);
-        p.setShader(new LinearGradient(0, h - bottomFade, 0, h, 0x00000000, 0xFF000000, Shader.TileMode.CLAMP));
+        p.setShader(new LinearGradient(0, h - bottomFade, 0, h, new int[]{0x00000000, 0x40000000, 0xB3000000, 0xFF000000}, new float[]{0f, 0.3f, 0.65f, 1f}, Shader.TileMode.CLAMP));
         c.drawRect(0, h - bottomFade, w, h, p);
     }
 }

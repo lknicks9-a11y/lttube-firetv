@@ -337,49 +337,66 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         Bg.run(() -> {
             List<Object> out = new ArrayList<>();
             switch (which) {
-                case "new": out.add(Ytm.browse(Ytm.NEW)); break;
-                case "charts": out.add(Ytm.browse(Ytm.CHARTS)); break;
-                case "moods": out.add(Ytm.browse(Ytm.MOODS)); break;
-                default: {
-                    // Quick picks: your playlists when signed in, otherwise the first things YouTube Music suggests.
-                    List<MItem> quick = new ArrayList<>();
-                    if (in) try {
-                        for (Ytm.Shelf s : Ytm.browse(Ytm.LIB_PLAYLISTS).shelves) for (MItem m : s.items)
-                            if (quick.size() < 8 && !m.title.equalsIgnoreCase("New playlist")) quick.add(m);
-                    } catch (Exception ignored) { }
-                    Ytm.Page home = Ytm.browse(Ytm.HOME);
-                    // Leave out random people's playlists and anything that isn't an official release.
-                    for (Ytm.Shelf s : home.shelves) {
-                        List<MItem> keep = new ArrayList<>();
-                        for (MItem m : s.items) if (curated(m)) keep.add(m);
-                        s.items.clear();
-                        s.items.addAll(keep);
+                case "new": {
+                    // New releases: Apple Music's shelves of new albums.
+                    Ytm.Page p = new Ytm.Page();
+                    for (Ytm.Shelf sh : AppleWeb.browse()) {
+                        int albums = 0;
+                        for (MItem m : sh.items) if (MItem.ALBUM.equals(m.type)) albums++;
+                        if (albums > sh.items.size() / 2) p.shelves.add(sh);
                     }
-                    if (quick.size() < 8) for (Ytm.Shelf s : home.shelves) for (MItem m : s.items) if (quick.size() < 8 && !m.playable()) quick.add(m);
+                    out.add(p);
+                    break;
+                }
+                case "charts": {
+                    Ytm.Page p = new Ytm.Page();
+                    p.shelves.addAll(AppleWeb.charts());
+                    out.add(p);
+                    break;
+                }
+                case "moods": {
+                    Ytm.Page p = new Ytm.Page();
+                    Ytm.Shelf g = new Ytm.Shelf();
+                    g.title = "Genres";
+                    g.items.addAll(AppleWeb.genres());
+                    p.shelves.add(g);
+                    out.add(p);
+                    break;
+                }
+                default: {
+                    List<Ytm.Shelf> browse = new ArrayList<>();
+                    try { browse = AppleWeb.browse(); } catch (Exception ignored) { }
+                    // Quick picks: Apple Music's playlists.
+                    List<MItem> quick = new ArrayList<>();
+                    for (Ytm.Shelf sh : browse) for (MItem m : sh.items) if (MItem.PLAYLIST.equals(m.type) && quick.size() < 8 && !quick.contains(m)) quick.add(m);
                     out.add(quick);
                     // Made for you (from what you play here), and more from the artists you play most.
                     Ytm.Page mine = new Ytm.Page();
                     List<MItem> made = Mixes.cards(this);
-                    if (!made.isEmpty()) { Ytm.Shelf ms = new Ytm.Shelf(); ms.title = "Made for you"; ms.items.addAll(made); mine.shelves.add(ms); }
+                    if (!made.isEmpty()) { Ytm.Shelf ms = new Ytm.Shelf(); ms.title = "Made for You"; ms.items.addAll(made); mine.shelves.add(ms); }
+                    out.add(mine);
+                    Ytm.Page rest = new Ytm.Page();
+                    try {
+                        for (Ytm.Shelf c : AppleWeb.charts()) {
+                            if (c.list) { while (c.items.size() > 20) c.items.remove(c.items.size() - 1); }
+                            rest.shelves.add(c);
+                        }
+                    } catch (Exception ignored) { }
+                    rest.shelves.addAll(browse);
                     for (MItem a : Mixes.topArtists(this, 2)) {
                         try {
-                            Ytm.Page ap = Ytm.browse(a.browseId);
-                            for (Ytm.Shelf s : ap.shelves) if (!s.list && s.title.toLowerCase(java.util.Locale.US).matches(".*\\balbums?\\b.*")) {
-                                s.title = "More from " + (ap.title.isEmpty() ? a.title : ap.title);
-                                mine.shelves.add(s);
-                                break;
-                            }
+                            String id = AppleMusic.artistId(a.title);
+                            if (id == null) continue;
+                            AppleMusic.Discography d = AppleMusic.discography(id);
+                            if (d.albums.isEmpty()) continue;
+                            Ytm.Shelf sh = new Ytm.Shelf();
+                            sh.title = "More from " + a.title;
+                            sh.items.addAll(d.albums.subList(0, Math.min(12, d.albums.size())));
+                            rest.shelves.add(sh);
                         } catch (Exception ignored) { }
                     }
-                    out.add(mine);
-                    out.add(home);
-                    if (home.shelves.size() < 6) {
-                        Ytm.Page more = new Ytm.Page();
-                        for (String id : new String[]{Ytm.NEW, Ytm.CHARTS}) try {
-                            for (Ytm.Shelf s : Ytm.browse(id).shelves) if (!s.title.toLowerCase(java.util.Locale.US).contains("podcast")) more.shelves.add(s);
-                        } catch (Exception ignored) { }
-                        out.add(more);
-                    }
+                    if (rest.shelves.isEmpty() && browse.isEmpty()) throw new Exception("Couldn't reach the music catalogue");
+                    out.add(rest);
                 }
             }
             return out;
@@ -450,16 +467,11 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         content.addView(box, bl);
         final int my = seq;
         spinner.setVisibility(View.VISIBLE);
-        Bg.run(() -> Ytm.browse(Ytm.MOODS), (pg, e) -> {
-            if (my != seq) return;
-            spinner.setVisibility(View.GONE);
-            if (pg == null) { content.addView(note("Couldn't load: " + Bg.message(e))); return; }
-            List<MItem> all = new ArrayList<>();
-            for (Ytm.Shelf sh : pg.shelves) for (MItem m : sh.items) if (MItem.CATEGORY.equals(m.type)) all.add(m);
-            MusicUi.addTiles(this, content, "Browse all", all, (m, ctx) -> MusicUi.open(this, m, ctx));
-            content.addView(spacer(40));
-            tilePictures(all);
-        });
+        List<MItem> all = AppleWeb.genres();
+        spinner.setVisibility(View.GONE);
+        MusicUi.addTiles(this, content, "Browse all", all, (m, ctx) -> MusicUi.open(this, m, ctx));
+        content.addView(spacer(40));
+        tilePictures(all);
     }
 
     /** Each browse tile gets a picture from inside it, tilted into its corner. */
@@ -470,10 +482,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         for (int i = 0; i < Math.min(Math.min(tiles.size(), pics.size()), 24); i++) {
             final MItem m = tiles.get(i);
             final ImageView pic = pics.get(i);
-            Bg.run(() -> {
-                for (Ytm.Shelf s : Ytm.browse(m.browseId, m.params).shelves) for (MItem x : s.items) if (!x.thumb.isEmpty()) return x.thumb;
-                return "";
-            }, (url, e) -> { if (my == seq && url != null && !url.isEmpty()) MusicUi.art(pic, url, dp(4)); });
+            Bg.run(() -> AppleWeb.genreCover(m.browseId), (url, e) -> { if (my == seq && url != null && !url.isEmpty()) MusicUi.art(pic, url, dp(4)); });
         }
     }
 

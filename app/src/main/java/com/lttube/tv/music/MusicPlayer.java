@@ -180,7 +180,7 @@ public final class MusicPlayer {
         l.add(song);
         setQueue(l, 0);
         playAt(0, 0);
-        loadQueue(song.videoId, null, true);
+        loadQueue(song, null, true);
     }
 
     /** A mix / playlist / album by its id, without its page: YouTube Music's own queue for it. */
@@ -219,14 +219,17 @@ public final class MusicPlayer {
         fire();
     }
 
-    private void loadQueue(String videoId, String playlistId, boolean radio) {
+    private void loadQueue(MItem song, String playlistId, boolean radio) {
         final int my = seq;
-        Bg.run(() -> Ytm.queue(videoId, playlistId, radio), (q, e) -> {
+        final String[] vid = {song.videoId};
+        Bg.run(() -> { resolve(song); vid[0] = song.videoId; return Ytm.queue(song.videoId, playlistId, radio); }, (q, e) -> {
+            final String videoId = vid[0];
             if (q == null || my != seq) return;
             MItem cur = current();
             // Keep what's playing first; the rest of YouTube Music's queue follows.
             List<MItem> rest = new ArrayList<>();
             for (MItem m : q.items) if ((cur == null || !m.videoId.equals(cur.videoId)) && m.official()) rest.add(m);
+            // Radio songs show with Apple Music's names where the song is the same one.
             if (cur != null) {
                 for (MItem m : q.items) if (m.videoId.equals(cur.videoId)) { if (cur.album.isEmpty()) cur.album = m.album; if (cur.seconds == 0) cur.seconds = m.seconds; }
             }
@@ -249,7 +252,7 @@ public final class MusicPlayer {
             if (!autoplay || queue.isEmpty() || repeat == REPEAT_ALL) return;
             MItem last = queue.get(queue.size() - 1);
             fetchingMore = true;
-            Bg.run(() -> Ytm.queue(last.videoId, null, true), (q, e) -> {
+            Bg.run(() -> { resolve(last); return Ytm.queue(last.videoId, null, true); }, (q, e) -> {
                 fetchingMore = false;
                 if (q == null) return;
                 java.util.Set<String> have = new java.util.HashSet<>();
@@ -386,7 +389,13 @@ public final class MusicPlayer {
     /** Gets the next song's stream ready so it starts the moment this one ends. */
     private void prefetch() {
         final MItem n = repeat == REPEAT_ONE ? null : peekNext();
-        if (n == null || fresh(n.videoId)) return;
+        // Covers: songs from the radio get Apple Music's artwork (this one and the next few).
+        for (int i = Math.max(0, index); i < Math.min(queue.size(), index + 4); i++) {
+            final MItem c = queue.get(i);
+            if (c.appleId.isEmpty() && !c.thumb.contains("mzstatic.com") && !c.title.isEmpty())
+                Bg.run(() -> AppleWeb.cover(c), (u, e) -> { if (u != null && !u.isEmpty()) { c.thumb = u; fire(); } });
+        }
+        if (n == null || (!n.videoId.isEmpty() && fresh(n.videoId))) return;
         Bg.run(() -> audioUrl(n), (u, e) -> { });
     }
 
@@ -397,7 +406,25 @@ public final class MusicPlayer {
         }
     }
 
+    /** A song from Apple Music: find its official release on YouTube Music (keeping Apple's name and cover). */
+    static void resolve(MItem m) throws Exception {
+        if (!m.videoId.isEmpty()) return;
+        Imports.Track t = new Imports.Track();
+        t.title = m.title;
+        t.artist = m.artist.split(",|&| feat\\.")[0].trim();
+        t.seconds = m.seconds;
+        MItem yt = Imports.find(t);
+        if (yt == null) throw new Exception("couldn't find " + m.title + " to play");
+        m.videoId = yt.videoId;
+        m.mvType = yt.mvType;
+        m.artistId = yt.artistId;
+        if (m.album.isEmpty()) m.album = yt.album;
+        if (m.seconds == 0) m.seconds = yt.seconds;
+        if (m.thumb.isEmpty()) m.thumb = yt.thumb;
+    }
+
     private String audioUrl(MItem m) throws Exception {
+        resolve(m);
         synchronized (urls) { if (fresh(m.videoId)) return urls.get(m.videoId); }
         StreamInfo si = StreamInfo.getInfo(Feeds.yt(), "https://www.youtube.com/watch?v=" + m.videoId);
         if (m.thumb.isEmpty()) try { m.thumb = si.getThumbnails().get(si.getThumbnails().size() - 1).getUrl(); } catch (Exception ignored) { }
