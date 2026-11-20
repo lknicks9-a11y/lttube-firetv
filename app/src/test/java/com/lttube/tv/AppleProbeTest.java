@@ -16,6 +16,24 @@ public class AppleProbeTest {
                     + (f == null ? "" : " first=" + f.type + " | " + f.title + " | " + f.artist + " | b=" + f.browseId + " a=" + f.appleId + " s=" + f.seconds + " thumb=" + (f.thumb.isEmpty() ? "-" : f.thumb.substring(Math.max(0, f.thumb.length() - 30)))));
         }
     }
+    @Test public void keys() throws Exception {
+        java.lang.reflect.Method pm = AppleWeb.class.getDeclaredMethod("page", String.class);
+        pm.setAccessible(true);
+        Object[] pg = (Object[]) pm.invoke(null, "https://music.apple.com/us/artist/x/1456793166");
+        java.util.List<org.json.JSONObject> raw = new java.util.ArrayList<>();
+        java.lang.reflect.Method cs = AppleWeb.class.getDeclaredMethod("collectSections", Object.class, java.util.List.class, int.class);
+        cs.setAccessible(true);
+        cs.invoke(null, pg[1], raw, 0);
+        for (org.json.JSONObject o : raw) {
+            org.json.JSONArray it = o.optJSONArray("items");
+            org.json.JSONObject f = it == null || it.length() == 0 ? null : it.optJSONObject(0);
+            java.util.List<String> k = new java.util.ArrayList<>();
+            if (f != null) { java.util.Iterator<String> i = f.keys(); while (i.hasNext()) k.add(i.next()); }
+            System.out.println("APL KEYS " + o.optString("itemKind") + " header=" + (o.opt("header") == null ? "-" : o.opt("header").toString().substring(0, Math.min(200, o.opt("header").toString().length()))) + " itemkeys=" + k);
+            if (f != null && f.has("title")) System.out.println("APL   title=" + f.opt("title"));
+        }
+    }
+
     @Test public void check() {
         org.schabi.newpipe.extractor.NewPipe.init(NpDownloader.get(), new org.schabi.newpipe.extractor.localization.Localization("en", "US"), new org.schabi.newpipe.extractor.localization.ContentCountry("US"));
         try { dump("BROWSE", AppleWeb.browse()); } catch (Throwable e) { System.out.println("APL BROWSE FAILED " + e); }
