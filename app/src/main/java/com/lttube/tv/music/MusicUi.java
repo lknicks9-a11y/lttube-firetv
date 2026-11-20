@@ -64,8 +64,12 @@ public final class MusicUi {
         return t;
     }
 
+    /** How far the main screen's sidebar pushes the page in (0 elsewhere). */
+    public static int inset;
+
+    /** The width the page has to lay itself out in. */
     public static int screenDp(Context a) {
-        return Math.round(a.getResources().getDisplayMetrics().widthPixels / a.getResources().getDisplayMetrics().density);
+        return Math.round(a.getResources().getDisplayMetrics().widthPixels / a.getResources().getDisplayMetrics().density) - inset;
     }
 
     public static TextView line(Context c, float sp, int color, boolean bold) {
@@ -598,7 +602,7 @@ public final class MusicUi {
 
     /** Everything as a wrapping grid (a "See all" page, Your Library). */
     public static void addGrid(Activity a, LinearLayout into, List<MItem> items, int cols, Opener open) {
-        int W = Math.round(a.getResources().getDisplayMetrics().widthPixels / a.getResources().getDisplayMetrics().density);
+        int W = screenDp(a);
         int gap = 18, size = (W - PAD * 2 - gap * (cols - 1)) / cols;
         LinearLayout g = new LinearLayout(a);
         g.setOrientation(LinearLayout.VERTICAL);
@@ -768,7 +772,7 @@ public final class MusicUi {
     /** Colour tiles in rows of four. */
     public static void addTiles(Activity a, LinearLayout into, String title, List<MItem> tiles, Opener open) {
         if (title != null && !title.isEmpty()) into.addView(heading(a, title));
-        int W = Math.round(a.getResources().getDisplayMetrics().widthPixels / a.getResources().getDisplayMetrics().density);
+        int W = screenDp(a);
         int gap = 16, w = (W - PAD * 2 - gap * 3) / 4, h = Math.round(w * 9f / 16f);
         LinearLayout grid = new LinearLayout(a);
         grid.setOrientation(LinearLayout.VERTICAL);
