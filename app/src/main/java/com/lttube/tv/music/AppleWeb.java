@@ -244,7 +244,10 @@ public final class AppleWeb {
 
     /** An Apple artwork address at a size (their links are templates with {w}x{h}). */
     static String art(Object holder, int px) {
-        JSONObject a = holder instanceof JSONObject ? ((JSONObject) holder).optJSONObject("artwork") : null;
+        // Big feature cards carry a wide editorial picture (often the artist) as "artwork" and the real cover as
+        // "coverArtwork": the cover is what a cover spot shows.
+        JSONObject a = holder instanceof JSONObject ? ((JSONObject) holder).optJSONObject("coverArtwork") : null;
+        if (a == null && holder instanceof JSONObject) a = ((JSONObject) holder).optJSONObject("artwork");
         if (a == null) a = Ytm.findObj(holder, "artwork");
         if (a == null) return "";
         JSONObject dict = a.optJSONObject("dictionary");

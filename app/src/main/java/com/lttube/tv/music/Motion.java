@@ -1,34 +1,36 @@
 package com.lttube.tv.music;
 
 import android.content.Context;
-import android.graphics.Color;
+import android.view.Gravity;
+import android.view.TextureView;
 import android.widget.FrameLayout;
 
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
+import androidx.media3.common.VideoSize;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.AspectRatioFrameLayout;
-import androidx.media3.ui.PlayerView;
 
 /**
  * Motion artwork: the short silent looping video some artists, albums and playlists have on Apple Music. It fills
- * its frame edge to edge (cropped like a photo, never stretched or stopping short) at full quality, over the
- * still picture, which shows until the video is actually playing. Always muted; never touches the music.
+ * its frame edge to edge (cropped like a photo, never stretched or stopping short) at full quality, drawn right
+ * where it sits on the page (so the page's colour never hides it), over the still picture until it's playing.
+ * Always muted; never touches the music.
  */
 public class Motion extends FrameLayout {
-    private final PlayerView view;
+    private final AspectRatioFrameLayout frame;
+    private final TextureView tv;
     private ExoPlayer player;
 
     public Motion(Context c) {
         super(c);
-        view = new PlayerView(c);
-        view.setUseController(false);
-        view.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
-        view.setShutterBackgroundColor(Color.TRANSPARENT);
-        view.setKeepContentOnPlayerReset(true);
-        view.setFocusable(false);
-        view.setVisibility(INVISIBLE);
-        addView(view, new LayoutParams(-1, -1));
+        setClipChildren(true);
+        frame = new AspectRatioFrameLayout(c);
+        frame.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+        tv = new TextureView(c);
+        frame.addView(tv, new LayoutParams(-1, -1));
+        addView(frame, new LayoutParams(-1, -1, Gravity.CENTER));
+        setAlpha(0f);
     }
 
     public void play(String url) { play(url, 1920, 1080); }
@@ -43,11 +45,14 @@ public class Motion extends FrameLayout {
             player = new ExoPlayer.Builder(getContext()).setTrackSelector(ts).build();
             player.setVolume(0f);
             player.setRepeatMode(Player.REPEAT_MODE_ALL);
+            player.setVideoTextureView(tv);
             player.addListener(new Player.Listener() {
-                @Override public void onRenderedFirstFrame() { view.setVisibility(VISIBLE); }
-                @Override public void onPlayerError(androidx.media3.common.PlaybackException e) { view.setVisibility(INVISIBLE); }
+                @Override public void onVideoSizeChanged(VideoSize s) {
+                    if (s.width > 0 && s.height > 0) frame.setAspectRatio(s.width * s.pixelWidthHeightRatio / s.height);
+                }
+                @Override public void onRenderedFirstFrame() { animate().alpha(1f).setDuration(600).start(); }
+                @Override public void onPlayerError(androidx.media3.common.PlaybackException e) { setAlpha(0f); }
             });
-            view.setPlayer(player);
             player.setMediaItem(MediaItem.fromUri(url));
             player.prepare();
             player.play();
@@ -58,7 +63,6 @@ public class Motion extends FrameLayout {
     public void resume() { if (player != null) player.play(); }
 
     public void release() {
-        view.setPlayer(null);
         if (player != null) { try { player.release(); } catch (Throwable ignored) { } player = null; }
     }
 

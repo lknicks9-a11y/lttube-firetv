@@ -801,6 +801,8 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         // Room on both sides: the first letters (and their soft blur) never touch the edge.
         t.setPadding(dp(48), dp(12), dp(14), dp(12));
         t.setPivotX(0);
+        // A soft shadow under the words, so they stand off the bright artwork behind.
+        t.setShadowLayer(dp(10), 0, dp(2), 0x66000000);
         t.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         lyLines.addView(t, new LinearLayout.LayoutParams(-1, -2));
     }
