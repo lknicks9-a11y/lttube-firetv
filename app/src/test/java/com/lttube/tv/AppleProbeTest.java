@@ -64,6 +64,9 @@ public class AppleProbeTest {
         try { Ytm.Page a = AppleWeb.artist("1456793166"); System.out.println("APL ARTIST [" + a.title + "] banner=" + a.banner); dump("ARTIST", a.shelves); } catch (Throwable e) { System.out.println("APL ARTIST FAILED " + e); }
         try { Ytm.Page p = AppleWeb.playlist("https://music.apple.com/us/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb"); System.out.println("APL PLAYLIST [" + p.title + "] " + p.subtitle + " thumb=" + p.thumb + " desc=" + p.description.length()); dump("PLAYLIST", p.shelves); } catch (Throwable e) { System.out.println("APL PLAYLIST FAILED " + e); }
         try { dump("SEARCH", AppleWeb.search("drake").shelves); } catch (Throwable e) { System.out.println("APL SEARCH FAILED " + e); }
+        try { java.util.List<com.lttube.tv.music.MItem> cats = com.lttube.tv.music.AppleWeb.categories(); System.out.println("APL CATS n=" + cats.size() + (cats.isEmpty() ? "" : " first=" + cats.get(0).title + " " + cats.get(0).browseId + " " + cats.get(0).thumb));
+            if (!cats.isEmpty()) dump("CATPAGE", com.lttube.tv.music.AppleWeb.anyPage(cats.get(2).browseId.substring(4)).shelves); } catch (Throwable e) { System.out.println("APL CATS FAILED " + e); }
+        try { System.out.println("APL ALBUMLOOK " + java.util.Arrays.toString(com.lttube.tv.music.AppleWeb.albumLook("6812412381"))); } catch (Throwable e) { System.out.println("APL ALBUMLOOK FAILED " + e); }
         try { dump("SEARCHALL", com.lttube.tv.music.AppleWeb.searchAll("sofaygo").shelves); } catch (Throwable e) { System.out.println("APL SEARCHALL FAILED " + e); }
         try {
             java.util.List<Ytm.Shelf> c = AppleWeb.charts();

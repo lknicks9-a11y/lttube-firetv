@@ -296,6 +296,75 @@ public final class AppleWeb {
         return 0;
     }
 
+    /**
+     * The category tiles on Apple Music's search page, exactly as Apple has them right now (their pictures,
+     * colours and order), each opening that category's page.
+     */
+    public static List<MItem> categories() throws Exception {
+        Object[] pg = page("https://music.apple.com/us/search");
+        List<MItem> out = new ArrayList<>();
+        List<Object> stack = new ArrayList<>();
+        stack.add(pg[1]);
+        while (!stack.isEmpty()) {
+            Object o = stack.remove(0);
+            if (o instanceof JSONObject) {
+                JSONObject j = (JSONObject) o;
+                if ("brickLockup".equals(j.optString("itemKind")) && j.optJSONArray("items") != null) {
+                    JSONArray items = j.optJSONArray("items");
+                    for (int i = 0; i < items.length(); i++) {
+                        JSONObject it = items.optJSONObject(i);
+                        if (it == null) continue;
+                        JSONObject cd = it.optJSONObject("contentDescriptor");
+                        if (cd == null) cd = Ytm.findObj(it.opt("segue"), "contentDescriptor");
+                        String url = cd == null ? "" : cd.optString("url");
+                        if (url.isEmpty()) continue;
+                        MItem m = new MItem();
+                        m.type = MItem.CATEGORY;
+                        m.title = it.optString("title");
+                        m.browseId = "AMX:" + url;
+                        JSONObject art = it.optJSONObject("artwork");
+                        JSONObject d = art == null ? null : (art.optJSONObject("dictionary") != null ? art.optJSONObject("dictionary") : art);
+                        if (d != null) {
+                            m.thumb = d.optString("url").replace("{w}", "640").replace("{h}", "360").replace("{c}", "sr").replace("{f}", "jpg");
+                            String bg = d.optString("bgColor", "");
+                            if (bg.matches("[0-9a-fA-F]{6}")) m.color = 0xFF000000 | Integer.parseInt(bg, 16);
+                        }
+                        out.add(m);
+                    }
+                    return out;
+                }
+                for (java.util.Iterator<String> k = j.keys(); k.hasNext(); ) stack.add(j.opt(k.next()));
+            } else if (o instanceof JSONArray) for (int i = 0; i < ((JSONArray) o).length(); i++) stack.add(((JSONArray) o).opt(i));
+        }
+        return out;
+    }
+
+    /** Any Apple Music page (a category, a curator, a room): its rows, as Apple lays them out. */
+    public static Ytm.Page anyPage(String url) throws Exception {
+        Object[] pg = page(url);
+        Ytm.Page p = new Ytm.Page();
+        for (Section s : sections(pg[1])) {
+            if (s.items.isEmpty()) continue;
+            Ytm.Shelf sh = new Ytm.Shelf();
+            sh.title = s.title;
+            sh.items.addAll(s.items);
+            sh.list = s.kind.equals("trackLockup");
+            p.shelves.add(sh);
+        }
+        return p;
+    }
+
+    /** The Apple Music album for a name and artist (so albums found elsewhere get Apple's motion artwork too). */
+    public static String albumIdFor(String title, String artist) {
+        try {
+            for (JSONObject o : itunes(title + " " + artist, "album", 5)) {
+                String n = o.optString("collectionName").replaceAll(" - (Single|EP)$", "");
+                if (norm(n).equals(norm(title)) && (artist.isEmpty() || norm(o.optString("artistName")).contains(norm(artist.split(",|&")[0])))) return String.valueOf(o.optLong("collectionId"));
+            }
+        } catch (Exception ignored) { }
+        return null;
+    }
+
     /** An album's motion artwork and its colour, as on its Apple Music page: {motion, colour}. */
     public static Object[] albumLook(String albumId) {
         try {

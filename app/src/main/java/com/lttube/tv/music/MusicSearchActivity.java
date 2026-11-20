@@ -26,10 +26,11 @@ import java.util.List;
  * Playlists. With nothing typed: Browse Categories.
  */
 public class MusicSearchActivity extends Activity {
-    private static final String LETTERS = "abcdefghijklmnopqrstuvwxyz", DIGITS = "1234567890&'-.,!?";
+    private static final String[] ROWS = {"abcdefghijklm", "nopqrstuvwxyz", "1234567890"};
     private final StringBuilder q = new StringBuilder();
     private TextView field;
     private LinearLayout content, keyRow, hints, results;
+    private View firstKey;
     private ScrollView scroll;
     private ProgressBar spinner;
     private final Handler h = new Handler(Looper.getMainLooper());
@@ -71,9 +72,10 @@ public class MusicSearchActivity extends Activity {
         fl.gravity = Gravity.CENTER_HORIZONTAL;
         content.addView(field, fl);
 
-        // One line of keys across the screen.
+        // The keyboard: three rows (a–m, n–z, numbers with space and delete), centred under the bar.
         keyRow = new LinearLayout(this);
-        keyRow.setPadding(dp(MusicUi.PAD - 4), dp(14), dp(MusicUi.PAD - 4), 0);
+        keyRow.setOrientation(LinearLayout.VERTICAL);
+        keyRow.setPadding(dp(MusicUi.PAD + 20), dp(14), dp(MusicUi.PAD + 20), 0);
         content.addView(keyRow);
         buildKeys();
 
@@ -95,7 +97,7 @@ public class MusicSearchActivity extends Activity {
         spinner.setVisibility(View.GONE);
         root.addView(spinner, new FrameLayout.LayoutParams(dp(40), dp(40), Gravity.CENTER));
         categories();
-        keyRow.getChildAt(0).requestFocus();
+        firstKey.requestFocus();
     }
 
     private int dp(float v) { return MusicUi.dp(this, v); }
@@ -104,27 +106,34 @@ public class MusicSearchActivity extends Activity {
 
     private void buildKeys() {
         keyRow.removeAllViews();
-        String chars = digits ? DIGITS : LETTERS;
-        for (char c : chars.toCharArray()) keyRow.addView(key(String.valueOf(c), () -> type(String.valueOf(c))), keyLp(1));
-        keyRow.addView(key(digits ? "abc" : "123", () -> { digits = !digits; buildKeys(); keyRow.getChildAt(keyRow.getChildCount() - 3).requestFocus(); }), keyLp(2));
-        keyRow.addView(key("space", () -> type(" ")), keyLp(2));
-        keyRow.addView(key("⌫", this::backspace), keyLp(2));
+        for (int r = 0; r < ROWS.length; r++) {
+            LinearLayout row = new LinearLayout(this);
+            for (char c : ROWS[r].toCharArray()) row.addView(key(String.valueOf(c), () -> type(String.valueOf(c))), keyLp(1));
+            if (r == 2) {
+                row.addView(key("space", () -> type(" ")), keyLp(2));
+                row.addView(key("\u232B", this::backspace), keyLp(1));
+            }
+            LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-1, -2);
+            rl.bottomMargin = dp(6);
+            keyRow.addView(row, rl);
+        }
+        firstKey = ((LinearLayout) keyRow.getChildAt(0)).getChildAt(0);
     }
 
     private LinearLayout.LayoutParams keyLp(int span) {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(38), span);
-        lp.setMargins(dp(2), 0, dp(2), 0);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(40), span);
+        lp.setMargins(dp(3), 0, dp(3), 0);
         return lp;
     }
 
     private TextView key(String label, Runnable r) {
-        TextView k = MusicUi.text(this, label.length() > 1 ? 13 : 17, MusicUi.TEXT, false);
+        TextView k = MusicUi.medium(this, label.length() > 1 ? 14 : 18, MusicUi.TEXT);
         k.setText(label);
         k.setGravity(Gravity.CENTER);
         k.setFocusable(true);
-        final GradientDrawable bg = MusicUi.round(0, dp(8));
+        final GradientDrawable bg = MusicUi.round(0x14FFFFFF, dp(8));
         k.setBackground(bg);
-        k.setOnFocusChangeListener((v, has) -> { bg.setColor(has ? Color.WHITE : 0); k.setTextColor(has ? 0xFF111111 : MusicUi.TEXT); });
+        k.setOnFocusChangeListener((v, has) -> { bg.setColor(has ? Color.WHITE : 0x14FFFFFF); k.setTextColor(has ? 0xFF111111 : MusicUi.TEXT); });
         k.setOnClickListener(v -> r.run());
         return k;
     }
@@ -174,34 +183,19 @@ public class MusicSearchActivity extends Activity {
         });
     }
 
-    /** Nothing typed: Browse Categories (every genre). */
+    /** Nothing typed: Browse Categories — Apple Music's own tiles, fetched fresh, so they change when Apple's do. */
     private void categories() {
         shown = "";
-        seq++;
+        final int my = ++seq;
         results.removeAllViews();
-        List<MItem> g = AppleWeb.genres();
-        MusicUi.addTiles(this, results, "Browse Categories", g, (m, ctx) -> MusicUi.open(this, m, ctx));
-        for (MItem m : g) {
-            Bg.run(() -> AppleWeb.genreCover(m.browseId), (u, e) -> { if (u != null && !u.isEmpty()) { m.thumb = u; paintTile(m); } });
-        }
-    }
-
-    /** A category tile gets its picture once it's known. */
-    private void paintTile(MItem m) {
-        View v = findTile(results, m);
-        if (v != null && v.getTag() instanceof android.widget.ImageView) MusicUi.art((android.widget.ImageView) v.getTag(), m.thumb, dp(4));
-    }
-
-    private View findTile(View v, MItem m) {
-        if (v instanceof FrameLayout && v.getTag() instanceof android.widget.ImageView && v.isFocusable()) {
-            for (int i = 0; i < ((FrameLayout) v).getChildCount(); i++)
-                if (((FrameLayout) v).getChildAt(i) instanceof TextView && m.title.equals(((TextView) ((FrameLayout) v).getChildAt(i)).getText().toString())) return v;
-        }
-        if (v instanceof android.view.ViewGroup) for (int i = 0; i < ((android.view.ViewGroup) v).getChildCount(); i++) {
-            View r = findTile(((android.view.ViewGroup) v).getChildAt(i), m);
-            if (r != null) return r;
-        }
-        return null;
+        spinner.setVisibility(View.VISIBLE);
+        Bg.run(AppleWeb::categories, (l, e) -> {
+            if (my != seq) return;
+            spinner.setVisibility(View.GONE);
+            results.removeAllViews();
+            if (l == null || l.isEmpty()) l = AppleWeb.genres();
+            MusicUi.addTiles(this, results, "Browse Categories", l, (m, ctx) -> MusicUi.open(this, m, ctx));
+        });
     }
 
     private void note(String s) {
@@ -230,7 +224,7 @@ public class MusicSearchActivity extends Activity {
         }
         if (k == KeyEvent.KEYCODE_BACK && e.getAction() == KeyEvent.ACTION_UP && scroll.getScrollY() > 10) {
             scroll.smoothScrollTo(0, 0);
-            keyRow.getChildAt(0).requestFocus();
+            firstKey.requestFocus();
             return true;
         }
         return super.dispatchKeyEvent(e);

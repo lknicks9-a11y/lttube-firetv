@@ -48,11 +48,29 @@ public final class MusicUi {
 
     public static int dp(Context c, float v) { return Math.round(v * c.getResources().getDisplayMetrics().density); }
 
+    private static final java.util.Map<Integer, Typeface> fonts = new java.util.HashMap<>();
+    private static android.content.res.AssetManager assets;
+
+    /**
+     * LT Music's typeface: Inter (regular 400, medium 500, semibold 600, bold 700) — open-licence and drawn to sit
+     * very close to Apple's SF Pro. The system font if it isn't there.
+     */
+    public static Typeface font(int weight) {
+        Typeface t = fonts.get(weight);
+        if (t != null) return t;
+        String name = weight >= 700 ? "Bold" : weight >= 600 ? "SemiBold" : weight >= 500 ? "Medium" : "Regular";
+        try { if (assets != null) t = Typeface.createFromAsset(assets, "fonts/Inter-" + name + ".ttf"); } catch (Throwable ignored) { }
+        if (t == null) t = Typeface.create(weight >= 500 && weight < 700 ? "sans-serif-medium" : "sans-serif", weight >= 700 ? Typeface.BOLD : Typeface.NORMAL);
+        else fonts.put(weight, t);
+        return t;
+    }
+
     public static TextView text(Context c, float sp, int color, boolean bold) {
+        if (assets == null) assets = c.getApplicationContext().getAssets();
         TextView t = new TextView(c);
         t.setTextSize(sp);
         t.setTextColor(color);
-        t.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
+        t.setTypeface(font(bold ? 700 : 400));
         t.setIncludeFontPadding(false);
         return t;
     }
@@ -60,7 +78,7 @@ public final class MusicUi {
     /** Semi-bold (titles on cards, labels, buttons). */
     public static TextView medium(Context c, float sp, int color) {
         TextView t = text(c, sp, color, false);
-        t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        t.setTypeface(font(600));
         return t;
     }
 
@@ -314,11 +332,11 @@ public final class MusicUi {
             txt.setGravity(Gravity.BOTTOM);
             txt.setPadding(dp(a, 10), 0, dp(a, 10), dp(a, 10));
             TextView eye = line(a, 11, Color.WHITE, false);
-            eye.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            eye.setTypeface(font(600));
             eye.setText((String) p[0]);
             txt.addView(eye);
             TextView t = line(a, 14, Color.WHITE, false);
-            t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            t.setTypeface(font(600));
             t.setText(m.title);
             t.setPadding(0, dp(a, 2), 0, 0);
             txt.addView(t);
@@ -535,6 +553,29 @@ public final class MusicUi {
 
     /** Browse tiles: a colour block with its name, and a picture tilted into the corner. */
     public static View categoryTile(Activity a, MItem m, int w, int h, Opener open) {
+        if (m.browseId.startsWith("AMX:")) {
+            // Apple's own tile: its picture fills it, the name along the bottom.
+            FrameLayout f = new FrameLayout(a);
+            f.setFocusable(true);
+            f.setClipToOutline(true);
+            f.setBackground(round(m.color == 0 ? EMPTY : m.color, dp(a, 8)));
+            ImageView pic = new ImageView(a);
+            f.addView(pic, new FrameLayout.LayoutParams(-1, -1));
+            art(pic, m.thumb, 0);
+            View shade = new View(a);
+            shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, new int[]{0x8C000000, 0x00000000}));
+            f.addView(shade, new FrameLayout.LayoutParams(-1, Math.round(h * 0.55f), Gravity.BOTTOM));
+            TextView t = medium(a, 16, Color.WHITE);
+            t.setText(m.title);
+            t.setMaxLines(1);
+            t.setEllipsize(TextUtils.TruncateAt.END);
+            FrameLayout.LayoutParams tl = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM | Gravity.START);
+            tl.setMargins(dp(a, 12), 0, dp(a, 12), dp(a, 10));
+            f.addView(t, tl);
+            outline(f, dp(a, 8), false, 1f);
+            f.setOnClickListener(v -> open.open(m, null));
+            return f;
+        }
         FrameLayout f = new FrameLayout(a);
         f.setFocusable(true);
         f.setClipToOutline(true);

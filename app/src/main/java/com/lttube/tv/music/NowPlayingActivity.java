@@ -58,6 +58,8 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
     private Bar bar;
     private TextView tElapsed, tLeft, note;
     private boolean chromeShown = true;
+    /** The lyrics screen's bar, times and buttons: they fade away after 3 seconds and come back on any press. */
+    private final java.util.List<View> lyControls = new java.util.ArrayList<>();
 
     // about the artist
     private LinearLayout about;
@@ -368,6 +370,10 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         FrameLayout.LayoutParams lbl = new FrameLayout.LayoutParams(-2, -2, Gravity.END | Gravity.BOTTOM);
         lbl.setMargins(0, 0, dp(MusicUi.PAD), dp(10));
         lyricsBox.addView(lb, lbl);
+        lyControls.add(lyBar);
+        lyControls.add(lyElapsed);
+        lyControls.add(lyLeft);
+        lyControls.add(lb);
     }
 
     private FrameLayout.LayoutParams at(int x, int y, int w, int hh) {
@@ -517,10 +523,16 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
     private void poke() {
         h.removeCallbacks(hide);
         if (!chromeShown) showChrome(true);
-        h.postDelayed(hide, 6000);
+        h.postDelayed(hide, lyricsOn ? 3000 : 6000);
     }
 
     private void showChrome(boolean on) {
+        if (lyricsOn && queuePanel.getVisibility() != View.VISIBLE) {
+            // Lyrics on their own: just the words (and the cover) once you leave the remote alone.
+            chromeShown = on;
+            for (View v : lyControls) v.animate().alpha(on ? 1f : 0f).setDuration(on ? 200 : 700).start();
+            return;
+        }
         if (lyricsOn || queuePanel.getVisibility() == View.VISIBLE || scroll.getScrollY() > 10) { chromeShown = true; return; }
         chromeShown = on;
         chrome.animate().alpha(on ? 1f : 0f).setDuration(on ? 200 : 600).start();
@@ -646,7 +658,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
     private void addLine(String s, boolean timed) {
         LyricLine t = new LyricLine(this);
         t.setTextSize(32);
-        t.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD));
+        t.setTypeface(MusicUi.font(700));
         t.setIncludeFontPadding(false);
         t.setTextColor(Color.WHITE);
         t.setAlpha(timed ? 0.45f : 0.9f);
@@ -720,7 +732,7 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
         View f = getCurrentFocus();
         // Remote left alone, controls hidden: the first press just brings them back.
-        if (down && !chromeShown && !lyricsOn && k != KeyEvent.KEYCODE_BACK && !isMedia(k)) { poke(); return true; }
+        if (down && !chromeShown && k != KeyEvent.KEYCODE_BACK && !isMedia(k)) { poke(); return true; }
         if (down) poke();
         switch (k) {
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:

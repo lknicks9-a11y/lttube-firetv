@@ -97,6 +97,7 @@ public class PageActivity extends Activity {
                 : item.browseId.startsWith("AMA:") ? AppleWeb.artist(item.browseId.substring(4))
                 : item.browseId.startsWith("AMP:") ? AppleWeb.playlist(item.browseId.substring(4))
                 : item.browseId.startsWith("AMG:") ? AppleWeb.genre(item.browseId)
+                : item.browseId.startsWith("AMX:") ? AppleWeb.anyPage(item.browseId.substring(4))
                 : item.browseId.startsWith("AMN:") || item.browseId.startsWith("UC") ? appleArtistByName(item)
                 : item.browseId.startsWith("AMALL:") ? appleAll(item.browseId) : Ytm.browse(item.browseId, item.params), (pg, e) -> {
             spinner.setVisibility(View.GONE);
@@ -232,6 +233,15 @@ public class PageActivity extends Activity {
             head.addView(btns, new LinearLayout.LayoutParams(-2, -2));
             headBox.addView(head, new FrameLayout.LayoutParams(-1, -1));
             content.addView(headBox, new LinearLayout.LayoutParams(-1, dp(Math.round(H * (moving ? 0.66f : 0.62f)))));
+        } else if (MItem.CATEGORY.equals(item.type)) {
+            // A category: its name, big, then its rows.
+            hero.setVisibility(View.GONE);
+            TextView t = MusicUi.text(this, 32, MusicUi.TEXT, true);
+            t.setText(title);
+            t.setPadding(dp(MusicUi.PAD), dp(MusicUi.TOP + 16), dp(MusicUi.PAD), dp(4));
+            content.addView(t);
+            play = t;
+            if (item.color != 0) exact(item.color);
         } else {
             // An album or playlist: the cover on the left; beside it the name, who it's by, a line about it, and
             // Shuffle / Play under them. No big picture behind: the page takes on the cover's colour.
@@ -253,12 +263,19 @@ public class PageActivity extends Activity {
             coverBox.addView(mo, new FrameLayout.LayoutParams(-1, -1));
             motion = mo;
             // The motion starts a moment after the page is up, small (it's only a cover), so it never holds anything up.
-            if (!pg.motion.isEmpty()) mo.postDelayed(() -> { if (!isFinishing()) mo.play(pg.motion, 540, 540); }, 900);
-            else if (item.browseId.startsWith("AM:")) {
-                final String aid = item.browseId.substring(3);
-                Bg.run(() -> AppleWeb.albumLook(aid), (u, e) -> {
+            // Motion artwork (every album / playlist that has it) starts 3 seconds after the page is up.
+            final long opened = android.os.SystemClock.uptimeMillis();
+            if (!pg.motion.isEmpty()) mo.postDelayed(() -> { if (!isFinishing()) mo.play(pg.motion, 540, 540); }, 3000);
+            else if (MItem.ALBUM.equals(item.type) || item.browseId.startsWith("AM:") || item.browseId.startsWith("MPRE")) {
+                final String known = item.browseId.startsWith("AM:") ? item.browseId.substring(3) : null;
+                final String atitle = title, aartist = !item.artist.isEmpty() ? item.artist : pg.subtitle.split("\\s*\u2022\\s*")[0];
+                Bg.run(() -> {
+                    String aid = known != null ? known : AppleWeb.albumIdFor(atitle, aartist);
+                    return aid == null ? null : AppleWeb.albumLook(aid);
+                }, (u, e) -> {
                     if (u == null || isFinishing()) return;
-                    if (!((String) u[0]).isEmpty()) mo.postDelayed(() -> { if (!isFinishing()) mo.play((String) u[0], 540, 540); }, 600);
+                    long wait = Math.max(0, 3000 - (android.os.SystemClock.uptimeMillis() - opened));
+                    if (!((String) u[0]).isEmpty()) mo.postDelayed(() -> { if (!isFinishing()) mo.play((String) u[0], 540, 540); }, wait);
                     exact((Integer) u[1]);
                 });
             }
