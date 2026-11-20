@@ -53,7 +53,7 @@ public final class AppleWeb {
 
     // ------------------------------------------------------------------ getting ahead
     private static final java.util.concurrent.ExecutorService ahead = java.util.concurrent.Executors.newFixedThreadPool(2);
-    private static final android.os.Handler later = new android.os.Handler(android.os.Looper.getMainLooper());
+    private static android.os.Handler later;
     private static Runnable pendingAhead;
 
     /**
@@ -62,6 +62,7 @@ public final class AppleWeb {
      */
     public static void prefetch(MItem m) {
         if (m == null) return;
+        if (later == null) later = new android.os.Handler(android.os.Looper.getMainLooper());
         final String id = m.browseId;
         if (pendingAhead != null) later.removeCallbacks(pendingAhead);
         pendingAhead = () -> ahead.submit(() -> {
