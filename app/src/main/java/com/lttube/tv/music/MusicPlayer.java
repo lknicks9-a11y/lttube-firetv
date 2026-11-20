@@ -413,13 +413,16 @@ public final class MusicPlayer {
         // A song matched before always plays the same recording.
         String saved = matchPrefs == null ? null : matchPrefs.getString("am" + m.appleId, null);
         if (saved != null && !m.appleId.isEmpty()) { m.videoId = saved; return; }
-        // Its exact length and album from Apple first (chart and browse songs come without them).
-        if (!m.appleId.isEmpty() && (m.seconds == 0 || m.album.isEmpty())) {
+        // The song's own details from Apple (its real artist, title, album and length) — a page's list can
+        // show something else in those places (an artist page puts the album there; featured songs belong to others).
+        if (!m.appleId.isEmpty()) {
             org.json.JSONObject o = AppleWeb.lookupTrack(m.appleId);
-            if (o != null) {
-                if (m.seconds == 0) m.seconds = (int) (o.optLong("trackTimeMillis") / 1000);
-                if (m.album.isEmpty()) m.album = o.optString("collectionName").replaceAll(" - (Single|EP)$", "");
-                if (m.artist.isEmpty()) m.artist = o.optString("artistName");
+            if (o != null && "track".equals(o.optString("wrapperType"))) {
+                m.seconds = (int) (o.optLong("trackTimeMillis") / 1000);
+                m.album = o.optString("collectionName").replaceAll(" - (Single|EP)$", "");
+                m.artist = o.optString("artistName", m.artist);
+                if (!o.optString("trackName").isEmpty()) m.title = o.optString("trackName");
+                if (m.thumb.isEmpty()) m.thumb = o.optString("artworkUrl100").replace("100x100bb", "600x600bb");
             }
         }
         Imports.Track t = new Imports.Track();

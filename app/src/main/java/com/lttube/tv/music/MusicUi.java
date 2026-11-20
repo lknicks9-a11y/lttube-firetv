@@ -240,6 +240,70 @@ public final class MusicUi {
         });
     }
 
+    /**
+     * Top Picks: big cards, each with a small line above it saying why it's there ("Heavy Rotation", "Made For
+     * You", "Featuring …", "New Release"), the cover on top and a band in the cover's colour with the name.
+     */
+    public static View pickRow(Activity a, List<Object[]> picks, Opener open, Hover hover) {
+        LinearLayout row = new LinearLayout(a);
+        row.setClipChildren(false);
+        int W = Math.round(a.getResources().getDisplayMetrics().widthPixels / a.getResources().getDisplayMetrics().density);
+        int w = (W - PAD * 2 - 22 * 3) / 4;
+        List<MItem> ctx = new java.util.ArrayList<>();
+        for (Object[] p : picks) ctx.add((MItem) p[1]);
+        for (Object[] p : picks) {
+            final MItem m = (MItem) p[1];
+            LinearLayout col = new LinearLayout(a);
+            col.setOrientation(LinearLayout.VERTICAL);
+            TextView label = line(a, 15, 0xB3FFFFFF, false);
+            label.setText((String) p[0]);
+            label.setPadding(dp(a, 2), 0, 0, dp(a, 8));
+            col.addView(label, new LinearLayout.LayoutParams(dp(a, w), -2));
+            final LinearLayout card = new LinearLayout(a);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setFocusable(true);
+            card.setClipToOutline(true);
+            final GradientDrawable bg = round(0xFF3A3C40, dp(a, 10));
+            card.setBackground(bg);
+            ImageView iv = new ImageView(a);
+            if (MItem.ARTIST.equals(m.type)) {
+                // An artist: their round photo on the band colour.
+                FrameLayout box = new FrameLayout(a);
+                box.addView(iv, new FrameLayout.LayoutParams(dp(a, w * 0.7f), dp(a, w * 0.7f), Gravity.CENTER));
+                circle(iv, m.thumb);
+                if (!m.thumb.contains("mzstatic.com")) artistPhoto(iv, m);
+                card.addView(box, new LinearLayout.LayoutParams(dp(a, w), dp(a, w)));
+            } else {
+                art(iv, m.thumb, 0);
+                card.addView(iv, new LinearLayout.LayoutParams(dp(a, w), dp(a, w)));
+            }
+            LinearLayout band = new LinearLayout(a);
+            band.setOrientation(LinearLayout.VERTICAL);
+            band.setGravity(Gravity.CENTER);
+            band.setPadding(dp(a, 12), dp(a, 8), dp(a, 12), dp(a, 10));
+            TextView t = text(a, 16, Color.WHITE, true);
+            t.setText(m.title);
+            t.setGravity(Gravity.CENTER);
+            t.setMaxLines(2);
+            t.setEllipsize(TextUtils.TruncateAt.END);
+            band.addView(t, new LinearLayout.LayoutParams(-1, -2));
+            TextView sub = line(a, 14, 0xD9FFFFFF, false);
+            sub.setText(MItem.ARTIST.equals(m.type) ? "Artist" : m.artist.isEmpty() ? kindLine(m) : m.artist);
+            sub.setGravity(Gravity.CENTER);
+            sub.setPadding(0, dp(a, 3), 0, 0);
+            band.addView(sub, new LinearLayout.LayoutParams(-1, -2));
+            card.addView(band, new LinearLayout.LayoutParams(dp(a, w), dp(a, w * 0.40f)));
+            colorOf(a, m.thumb, c -> bg.setColor(c));
+            card.setOnFocusChangeListener((x, has) -> { markFocus(x, has, dp(a, 10), false, 1f); if (has && hover != null) hover.on(m); });
+            card.setOnClickListener(v -> open.open(m, ctx));
+            col.addView(card);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            lp.rightMargin = dp(a, 22);
+            row.addView(col, lp);
+        }
+        return hscroll(a, row);
+    }
+
     /** A compact tile: small cover on the left, the name beside it (the quick picks on Home). */
     public static View tile(Activity a, MItem m, int w, int h, List<MItem> ctx, Opener open, Hover hover) {
         LinearLayout t = new LinearLayout(a);
