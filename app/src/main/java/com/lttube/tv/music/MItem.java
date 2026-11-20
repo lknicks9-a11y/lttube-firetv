@@ -28,6 +28,8 @@ public class MItem {
     public String appleId = "";
     /** Explicit (Apple / YouTube Music's "E"); clean and non-explicit versions are false. */
     public boolean explicit;
+    /** Release date ("2024-05-17…"), when known: artist pages are in order of it, newest first. */
+    public String date = "";
     /** For playing an album / playlist / mix. */
     public String playlistId = "";
     /** For opening an album / playlist / artist page. */
@@ -83,7 +85,7 @@ public class MItem {
         try {
             o.put("type", type).put("title", title).put("subtitle", subtitle).put("artist", artist).put("album", album)
                     .put("thumb", thumb).put("videoId", videoId).put("playlistId", playlistId).put("browseId", browseId)
-                    .put("params", params).put("seconds", seconds).put("color", color).put("artistId", artistId).put("video", video).put("mvType", mvType).put("appleId", appleId).put("explicit", explicit);
+                    .put("params", params).put("seconds", seconds).put("color", color).put("artistId", artistId).put("video", video).put("mvType", mvType).put("appleId", appleId).put("explicit", explicit).put("date", date);
         } catch (Exception ignored) { }
         return o;
     }
@@ -108,6 +110,7 @@ public class MItem {
         m.mvType = o.optString("mvType");
         m.appleId = o.optString("appleId");
         m.explicit = o.optBoolean("explicit");
+        m.date = o.optString("date");
         return m;
     }
 

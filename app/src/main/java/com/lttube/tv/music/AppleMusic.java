@@ -103,6 +103,7 @@ public final class AppleMusic {
             String year = o.optString("releaseDate").length() >= 4 ? o.optString("releaseDate").substring(0, 4) : "";
             m.subtitle = (single ? (name.endsWith(" - EP") ? "EP" : "Single") : "Album") + (year.isEmpty() ? "" : " • " + year);
             m.thumb = o.optString("artworkUrl100").replace("100x100bb", "600x600bb");
+            m.date = o.optString("releaseDate");
             (!theirs ? d.appearsOn : single ? d.singles : d.albums).add(m);
         }
         return d;

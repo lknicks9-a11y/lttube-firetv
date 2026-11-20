@@ -485,6 +485,12 @@ public final class AppleWeb {
             p.title = "";
         }
         if (p.thumb.isEmpty()) p.thumb = p.banner.replace("/1920x1080sr.jpg", "/600x600cc.jpg");
+        // Albums, Singles & EPs, Music Videos, Appears On: newest first.
+        java.util.Map<String, String> dates = datesFor(appleId);
+        for (Ytm.Shelf s : p.shelves) {
+            String t = s.title.toLowerCase(java.util.Locale.US);
+            if (!s.list && (t.contains("album") || t.contains("single") || t.contains("video") || t.contains("appears") || t.contains("release"))) byYear(s.items, dates);
+        }
         // Their music videos show the year under the name (the video is found by the artist's name).
         for (Ytm.Shelf s : p.shelves) for (MItem m : s.items) if (m.video) {
             String year = m.artist.matches("\\d{4}") ? m.artist : m.subtitle.matches("\\d{4}") ? m.subtitle : "";
@@ -591,6 +597,15 @@ public final class AppleWeb {
             for (MItem m : kind.equals("albums") ? d.albums : kind.equals("singles") ? d.singles : d.appearsOn)
                 if (seen.add(norm(m.title))) s.items.add(m);
         }
+        // Everything in order of year, newest first.
+        java.util.Map<String, String> dates = datesFor(appleId);
+        if (kind.equals("songs")) {
+            // (Apple's top-songs list carries no dates: take them from the catalogue's songs.)
+            for (MItem m : s.items) if (m.date.isEmpty() && !m.appleId.isEmpty()) dates.putIfAbsent("s:" + m.appleId, "");
+            try { for (JSONObject o : lookupSongs(appleId)) dates.put("s:" + o.optLong("trackId"), o.optString("releaseDate")); } catch (Exception ignored) { }
+            for (MItem m : s.items) if (m.date.isEmpty()) { String d = dates.get("s:" + m.appleId); if (d != null && !d.isEmpty()) m.date = d; }
+        }
+        byYear(s.items, dates);
         p.shelves.add(s);
         return p;
     }
@@ -835,7 +850,58 @@ public final class AppleWeb {
         m.seconds = (int) (o.optLong("trackTimeMillis") / 1000);
         m.thumb = o.optString("artworkUrl100").replace("100x100bb", "600x600bb");
         m.explicit = "explicit".equals(o.optString("trackExplicitness"));
+        m.date = o.optString("releaseDate");
         return m;
+    }
+
+    // ------------------------------------------------------------------ in order of year
+    private static final java.util.Map<String, Object[]> dateCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Release dates for everything of an artist's, from Apple's catalogue: records by id ("AM:…"), music videos
+     * and songs by name. Kept 20 minutes.
+     */
+    @SuppressWarnings("unchecked")
+    static java.util.Map<String, String> datesFor(String appleId) {
+        Object[] hit = dateCache.get(appleId);
+        if (hit != null && System.currentTimeMillis() - (Long) hit[0] < 20 * 60_000L) return (java.util.Map<String, String>) hit[1];
+        java.util.Map<String, String> d = new java.util.HashMap<>();
+        java.util.concurrent.ExecutorService ex = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            java.util.concurrent.Future<AppleMusic.Discography> fd = ex.submit(() -> AppleMusic.discography(appleId));
+            java.util.concurrent.Future<JSONObject> fv = ex.submit(() -> new JSONObject(get("https://itunes.apple.com/lookup?id=" + appleId + "&entity=musicVideo&limit=200&country=US")));
+            try {
+                AppleMusic.Discography disc = fd.get(10, java.util.concurrent.TimeUnit.SECONDS);
+                for (List<MItem> l : java.util.Arrays.asList(disc.albums, disc.singles, disc.appearsOn)) for (MItem m : l) { d.put(m.browseId, m.date); d.putIfAbsent("t:" + norm(m.title), m.date); }
+            } catch (Exception ignored) { }
+            try {
+                JSONArray a = fv.get(10, java.util.concurrent.TimeUnit.SECONDS).optJSONArray("results");
+                if (a != null) for (int i = 0; i < a.length(); i++) {
+                    JSONObject t = a.optJSONObject(i);
+                    if (t != null && "track".equals(t.optString("wrapperType"))) d.putIfAbsent("v:" + norm(t.optString("trackName")), t.optString("releaseDate"));
+                }
+            } catch (Exception ignored) { }
+        } finally { ex.shutdownNow(); }
+        dateCache.put(appleId, new Object[]{System.currentTimeMillis(), d});
+        return d;
+    }
+
+    /** Fills in dates it knows and puts the list newest first (anything without a date keeps its place at the end). */
+    static void byYear(List<MItem> items, java.util.Map<String, String> dates) {
+        for (MItem m : items) {
+            if (!m.date.isEmpty()) continue;
+            String d = dates.get(m.browseId);
+            if (d == null) d = dates.get((m.video ? "v:" : "t:") + norm(m.title));
+            if (d == null && !m.appleId.isEmpty()) d = dates.get("s:" + m.appleId);
+            if (d == null && m.subtitle.matches("\\d{4}")) d = m.subtitle;
+            if (d != null) m.date = d;
+        }
+        List<MItem> dated = new ArrayList<>(), rest = new ArrayList<>();
+        for (MItem m : items) (m.date.isEmpty() ? rest : dated).add(m);
+        dated.sort((x, y) -> y.date.compareTo(x.date));
+        items.clear();
+        items.addAll(dated);
+        items.addAll(rest);
     }
 
     static List<JSONObject> itunes(String q, String entity, int n) throws Exception {
