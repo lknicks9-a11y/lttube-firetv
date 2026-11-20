@@ -59,7 +59,13 @@ public final class AppleMusic {
         Discography d = new Discography();
         if (a == null) return d;
         List<JSONObject> l = new ArrayList<>();
-        for (int i = 0; i < a.length(); i++) { JSONObject o = a.optJSONObject(i); if (o != null && "collection".equals(o.optString("wrapperType"))) l.add(o); }
+        String me = "";
+        for (int i = 0; i < a.length(); i++) {
+            JSONObject o = a.optJSONObject(i);
+            if (o == null) continue;
+            if ("artist".equals(o.optString("wrapperType"))) me = norm(o.optString("artistName"));
+            if ("collection".equals(o.optString("wrapperType"))) l.add(o);
+        }
         l.sort((x, y) -> y.optString("releaseDate").compareTo(x.optString("releaseDate")));
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (JSONObject o : l) {
@@ -69,8 +75,15 @@ public final class AppleMusic {
             // The clean and explicit copies of one record show once (the explicit one, listed first).
             String key = norm(clean) + "|" + single;
             if (!seen.add(key)) continue;
-            // Their own records only; records by others that they're on go to Appears On.
-            boolean theirs = String.valueOf(o.optLong("artistId")).equals(appleArtistId);
+            // Theirs: their own records, and joint ones with them named as an artist ("X & Them").
+            // Appears On: other people's records that name them as featured. Anything else (compilations,
+            // soundtracks that just include a song of theirs) isn't shown.
+            String by = o.optString("artistName");
+            boolean primary = String.valueOf(o.optLong("artistId")).equals(appleArtistId);
+            boolean joint = !primary && !me.isEmpty() && splitNames(by).contains(me);
+            boolean featured = !primary && !joint && !me.isEmpty() && norm(name).contains(me);
+            if (!primary && !joint && !featured) continue;
+            boolean theirs = primary || joint;
             MItem m = new MItem();
             m.type = MItem.ALBUM;
             m.browseId = "AM:" + o.optLong("collectionId");
@@ -132,6 +145,12 @@ public final class AppleMusic {
         ex.shutdownNow();
         p.shelves.add(s);
         return p;
+    }
+
+    private static java.util.Set<String> splitNames(String s) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        for (String p : s.split(",|&| and | x | X ")) out.add(norm(p));
+        return out;
     }
 
     private static String norm(String s) { return s == null ? "" : s.toLowerCase(java.util.Locale.US).replaceAll("[^a-z0-9]", ""); }

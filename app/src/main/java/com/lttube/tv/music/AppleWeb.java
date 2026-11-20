@@ -333,6 +333,17 @@ public final class AppleWeb {
             }
         } else {
             AppleMusic.Discography d = AppleMusic.discography(appleId);
+            // Keep the lists apart: nothing of theirs in Appears On, nothing in Appears On among theirs.
+            java.util.Set<String> own = new java.util.HashSet<>(), feat = new java.util.HashSet<>();
+            for (MItem m : d.albums) own.add(norm(m.title));
+            for (MItem m : d.singles) own.add(norm(m.title));
+            for (MItem m : d.appearsOn) feat.add(norm(m.title));
+            if (kind.equals("appears")) {
+                List<MItem> keep = new ArrayList<>();
+                for (MItem m : s.items) if (!own.contains(norm(m.title))) keep.add(m);
+                s.items.clear();
+                s.items.addAll(keep);
+            }
             for (MItem m : kind.equals("albums") ? d.albums : kind.equals("singles") ? d.singles : d.appearsOn)
                 if (seen.add(norm(m.title))) s.items.add(m);
         }

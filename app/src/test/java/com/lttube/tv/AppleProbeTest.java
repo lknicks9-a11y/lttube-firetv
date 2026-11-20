@@ -76,6 +76,8 @@ public class AppleProbeTest {
             try { Ytm.Page p = AppleWeb.seeAll("1456793166", k); Ytm.Shelf sh = p.shelves.get(0); System.out.println("APL ALL " + k + " n=" + sh.items.size() + (sh.items.isEmpty() ? "" : " first=" + sh.items.get(0).title + " / " + sh.items.get(0).artist + " last=" + sh.items.get(sh.items.size() - 1).title)); }
             catch (Throwable e) { System.out.println("APL ALL " + k + " FAILED " + e); }
         }
+        try { for (MItem m : AppleWeb.seeAll("1456793166", "appears").shelves.get(0).items) System.out.println("APL APPEARS " + m.title + " | " + m.artist + " | " + m.subtitle); } catch (Throwable e) { System.out.println("APL APPEARS FAILED " + e); }
+        try { for (MItem m : AppleWeb.seeAll("1456793166", "singles").shelves.get(0).items) System.out.println("APL SINGLE " + m.title + " | " + m.artist + " | " + m.subtitle); } catch (Throwable e) { System.out.println("APL SINGLE FAILED " + e); }
         try { System.out.println("APL BIO " + AppleWeb.artist("1456793166").description.length()); } catch (Throwable e) { System.out.println("APL BIO FAILED " + e); }
         // Matching: the top 25 chart songs, each with what it matched on YouTube Music.
         try {
