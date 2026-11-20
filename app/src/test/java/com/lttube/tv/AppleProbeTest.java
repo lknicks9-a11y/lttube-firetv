@@ -34,6 +34,28 @@ public class AppleProbeTest {
         }
     }
 
+    @Test public void seeAll() throws Exception {
+        java.lang.reflect.Method pm = AppleWeb.class.getDeclaredMethod("page", String.class);
+        pm.setAccessible(true);
+        java.lang.reflect.Method sm = AppleWeb.class.getDeclaredMethod("sections", Object.class);
+        sm.setAccessible(true);
+        for (String sec : new String[]{"full-albums", "singles", "appears-on-albums", "top-songs", "compilation-albums", "live-albums"}) {
+            try {
+                Object[] pg = (Object[]) pm.invoke(null, "https://music.apple.com/us/artist/x/1456793166/see-all?section=" + sec);
+                java.util.List<?> secs = (java.util.List<?>) sm.invoke(null, pg[1]);
+                StringBuilder b = new StringBuilder();
+                for (Object o : secs) {
+                    java.lang.reflect.Field items = o.getClass().getDeclaredField("items"); items.setAccessible(true);
+                    java.lang.reflect.Field kind = o.getClass().getDeclaredField("kind"); kind.setAccessible(true);
+                    java.util.List<?> it = (java.util.List<?>) items.get(o);
+                    b.append(" | ").append(kind.get(o)).append(" n=").append(it.size());
+                    if (!it.isEmpty()) { MItem m = (MItem) it.get(0); b.append(" first=").append(m.title).append("/").append(m.artist); }
+                }
+                System.out.println("APL SEEALL " + sec + b);
+            } catch (Throwable e) { System.out.println("APL SEEALL " + sec + " FAILED " + e.getCause()); }
+        }
+    }
+
     @Test public void check() {
         org.schabi.newpipe.extractor.NewPipe.init(NpDownloader.get(), new org.schabi.newpipe.extractor.localization.Localization("en", "US"), new org.schabi.newpipe.extractor.localization.ContentCountry("US"));
         try { dump("BROWSE", AppleWeb.browse()); } catch (Throwable e) { System.out.println("APL BROWSE FAILED " + e); }
