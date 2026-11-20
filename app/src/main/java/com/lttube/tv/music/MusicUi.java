@@ -39,7 +39,8 @@ import java.util.Map;
  */
 public final class MusicUi {
     public static final int BG_TOP = 0xFF34363A, BG_BOTTOM = 0xFF17181A;
-    public static final int TEXT2 = 0xB3FFFFFF, TEXT3 = 0x80FFFFFF;
+    /** Text: main (92% white), secondary (64%), tertiary (40%), as on the big music apps. */
+    public static final int TEXT = 0xEBFFFFFF, TEXT2 = 0xA3FFFFFF, TEXT3 = 0x66FFFFFF;
     /** LT Music's accent (its own pink, for things that are on). */
     public static final int PINK = 0xFFFF4F7B;
     /** Safe margins: TVs crop the edges, so nothing sits closer than this. */
@@ -54,6 +55,17 @@ public final class MusicUi {
         t.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
         t.setIncludeFontPadding(false);
         return t;
+    }
+
+    /** Semi-bold (titles on cards, labels, buttons). */
+    public static TextView medium(Context c, float sp, int color) {
+        TextView t = text(c, sp, color, false);
+        t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        return t;
+    }
+
+    public static int screenDp(Context a) {
+        return Math.round(a.getResources().getDisplayMetrics().widthPixels / a.getResources().getDisplayMetrics().density);
     }
 
     public static TextView line(Context c, float sp, int color, boolean bold) {
@@ -71,7 +83,9 @@ public final class MusicUi {
     }
 
     /** The page colour: one even charcoal, so pictures can fade into it without seams. */
-    public static final int BG = 0xFF2B2D30;
+    public static final int BG = 0xFF1F1F1F;
+    /** An empty cover's grey. */
+    public static final int EMPTY = 0xFF323232;
 
     public static GradientDrawable background() {
         return new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{BG, BG});
@@ -203,25 +217,26 @@ public final class MusicUi {
         col.setClipChildren(false);
         ImageView iv = new ImageView(a);
         iv.setFocusable(true);
-        int w = wide ? Math.round(size * 1.6f) : size, h = size;
-        if (round) circle(iv, m.thumb); else art(iv, m.thumb, dp(a, 6));
+        // Videos are 16:9 and a little wider than a cover; covers have just-rounded corners.
+        int w = wide ? Math.round(size * 1.54f) : size, h = wide ? Math.round(size * 1.54f * 9f / 16f) : size;
+        if (round) circle(iv, m.thumb); else art(iv, m.thumb, dp(a, 5));
         if (round && !m.thumb.contains("mzstatic.com")) artistPhoto(iv, m);
-        iv.setOnFocusChangeListener((x, has) -> { markFocus(x, has, dp(a, 6), round, 1.05f); if (has && hover != null) hover.on(m); });
+        iv.setOnFocusChangeListener((x, has) -> { markFocus(x, has, dp(a, 5), round, 1.05f); if (has && hover != null) hover.on(m); });
         iv.setOnClickListener(v -> open.open(m, ctx));
         iv.setOnKeyListener((v, k, e) -> {
             if (k == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP) { options(a, m); return true; }
             return false;
         });
         col.addView(iv, new LinearLayout.LayoutParams(w, h));
-        TextView t = line(a, 15, Color.WHITE, true);
+        TextView t = line(a, 14, TEXT, false);
         t.setText(m.title);
         t.setGravity(round ? Gravity.CENTER : Gravity.START);
-        t.setPadding(0, dp(a, 9), 0, 0);
+        t.setPadding(0, dp(a, 8), 0, 0);
         col.addView(t, new LinearLayout.LayoutParams(w, -2));
         TextView s = line(a, 13, TEXT2, false);
         s.setText(kindLine(m));
         s.setGravity(round ? Gravity.CENTER : Gravity.START);
-        s.setPadding(0, dp(a, 3), 0, 0);
+        s.setPadding(0, dp(a, 2), 0, 0);
         col.addView(s, new LinearLayout.LayoutParams(w, -2));
         return col;
     }
@@ -241,65 +256,69 @@ public final class MusicUi {
     }
 
     /**
-     * Top Picks: big cards, each with a small line above it saying why it's there ("Heavy Rotation", "Made For
-     * You", "Featuring …", "New Release"), the cover on top and a band in the cover's colour with the name.
+     * Top Picks: tall 3:4 cards. The cover fills the top, and the bottom takes on the cover's colour, with a small
+     * label saying why it's there ("Heavy Rotation", "Made For You", "Featuring …", "New Release") over the name.
      */
     public static View pickRow(Activity a, List<Object[]> picks, Opener open, Hover hover) {
         LinearLayout row = new LinearLayout(a);
         row.setClipChildren(false);
-        int W = Math.round(a.getResources().getDisplayMetrics().widthPixels / a.getResources().getDisplayMetrics().density);
-        int w = (W - PAD * 2 - 22 * 3) / 4;
+        int gap = 14, w = (screenDp(a) - PAD * 2 - gap * 4) / 5, h = Math.round(w * 4f / 3f);
         List<MItem> ctx = new java.util.ArrayList<>();
         for (Object[] p : picks) ctx.add((MItem) p[1]);
         for (Object[] p : picks) {
             final MItem m = (MItem) p[1];
-            LinearLayout col = new LinearLayout(a);
-            col.setOrientation(LinearLayout.VERTICAL);
-            TextView label = line(a, 15, 0xB3FFFFFF, false);
-            label.setText((String) p[0]);
-            label.setPadding(dp(a, 2), 0, 0, dp(a, 8));
-            col.addView(label, new LinearLayout.LayoutParams(dp(a, w), -2));
-            final LinearLayout card = new LinearLayout(a);
-            card.setOrientation(LinearLayout.VERTICAL);
+            FrameLayout card = new FrameLayout(a);
             card.setFocusable(true);
             card.setClipToOutline(true);
-            final GradientDrawable bg = round(0xFF3A3C40, dp(a, 10));
+            final GradientDrawable bg = round(EMPTY, dp(a, 8));
             card.setBackground(bg);
             ImageView iv = new ImageView(a);
             if (MItem.ARTIST.equals(m.type)) {
-                // An artist: their round photo on the band colour.
-                FrameLayout box = new FrameLayout(a);
-                box.addView(iv, new FrameLayout.LayoutParams(dp(a, w * 0.7f), dp(a, w * 0.7f), Gravity.CENTER));
+                int cs = Math.round(w * 0.62f);
+                FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(dp(a, cs), dp(a, cs), Gravity.CENTER_HORIZONTAL | Gravity.TOP);
+                cl.topMargin = dp(a, (w - cs) / 2f);
+                card.addView(iv, cl);
                 circle(iv, m.thumb);
                 if (!m.thumb.contains("mzstatic.com")) artistPhoto(iv, m);
-                card.addView(box, new LinearLayout.LayoutParams(dp(a, w), dp(a, w)));
             } else {
                 art(iv, m.thumb, 0);
-                card.addView(iv, new LinearLayout.LayoutParams(dp(a, w), dp(a, w)));
+                card.addView(iv, new FrameLayout.LayoutParams(dp(a, w), dp(a, w), Gravity.TOP));
             }
-            LinearLayout band = new LinearLayout(a);
-            band.setOrientation(LinearLayout.VERTICAL);
-            band.setGravity(Gravity.CENTER);
-            band.setPadding(dp(a, 12), dp(a, 8), dp(a, 12), dp(a, 10));
-            TextView t = text(a, 16, Color.WHITE, true);
+            // The cover melts into the colour below it.
+            final View melt = new View(a);
+            FrameLayout.LayoutParams ml = new FrameLayout.LayoutParams(-1, dp(a, w * 0.34f), Gravity.TOP);
+            ml.topMargin = dp(a, w * 0.66f + 1);
+            card.addView(melt, ml);
+            LinearLayout txt = new LinearLayout(a);
+            txt.setOrientation(LinearLayout.VERTICAL);
+            txt.setGravity(Gravity.BOTTOM);
+            txt.setPadding(dp(a, 10), 0, dp(a, 10), dp(a, 10));
+            TextView eye = line(a, 11, Color.WHITE, false);
+            eye.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            eye.setText((String) p[0]);
+            txt.addView(eye);
+            TextView t = line(a, 14, Color.WHITE, false);
+            t.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
             t.setText(m.title);
-            t.setGravity(Gravity.CENTER);
-            t.setMaxLines(2);
-            t.setEllipsize(TextUtils.TruncateAt.END);
-            band.addView(t, new LinearLayout.LayoutParams(-1, -2));
-            TextView sub = line(a, 14, 0xD9FFFFFF, false);
-            sub.setText(MItem.ARTIST.equals(m.type) ? "Artist" : m.artist.isEmpty() ? kindLine(m) : m.artist);
-            sub.setGravity(Gravity.CENTER);
-            sub.setPadding(0, dp(a, 3), 0, 0);
-            band.addView(sub, new LinearLayout.LayoutParams(-1, -2));
-            card.addView(band, new LinearLayout.LayoutParams(dp(a, w), dp(a, w * 0.40f)));
-            colorOf(a, m.thumb, c -> bg.setColor(c));
-            card.setOnFocusChangeListener((x, has) -> { markFocus(x, has, dp(a, 10), false, 1f); if (has && hover != null) hover.on(m); });
+            t.setPadding(0, dp(a, 2), 0, 0);
+            txt.addView(t);
+            TextView sub = text(a, 12, 0xEBFFFFFF, false);
+            sub.setMaxLines(2);
+            sub.setEllipsize(TextUtils.TruncateAt.END);
+            sub.setText(MItem.ARTIST.equals(m.type) ? "Artist" : !m.artist.isEmpty() ? m.artist : !m.subtitle.isEmpty() ? m.subtitle : kindLine(m));
+            sub.setPadding(0, dp(a, 2), 0, 0);
+            txt.addView(sub);
+            card.addView(txt, new FrameLayout.LayoutParams(-1, dp(a, h - w * 0.86f), Gravity.BOTTOM));
+            colorOf(a, m.thumb, c -> {
+                int chin = blend(c, 0xFF000000, 0.18f);
+                bg.setColor(chin);
+                melt.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{chin & 0x00FFFFFF, chin}));
+            });
+            card.setOnFocusChangeListener((x, has) -> { markFocus(x, has, dp(a, 8), false, 1f); if (has && hover != null) hover.on(m); });
             card.setOnClickListener(v -> open.open(m, ctx));
-            col.addView(card);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-            lp.rightMargin = dp(a, 22);
-            row.addView(col, lp);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(a, w), dp(a, h));
+            lp.rightMargin = dp(a, gap);
+            row.addView(card, lp);
         }
         return hscroll(a, row);
     }
@@ -371,9 +390,34 @@ public final class MusicUi {
         return t;
     }
 
+    /** The main button: white, with dark text ("Play"). */
+    public static TextView playPill(Context c, String label) {
+        TextView t = medium(c, 16, 0xFF000000);
+        t.setText(label);
+        t.setFocusable(true);
+        t.setGravity(Gravity.CENTER);
+        t.setPadding(dp(c, 20), 0, dp(c, 24), 0);
+        Drawable d = c.getDrawable(R.drawable.ic_m_play).mutate();
+        d.setBounds(0, 0, dp(c, 16), dp(c, 16));
+        d.setTint(0xFF000000);
+        t.setCompoundDrawables(d, null, null, null);
+        t.setCompoundDrawablePadding(dp(c, 6));
+        t.setMinWidth(dp(c, 124));
+        t.setTag(R.id.tag_tint, "white");
+        paintPill(t, false);
+        t.setOnFocusChangeListener((v, has) -> paintPill((TextView) v, has));
+        return t;
+    }
+
     private static void paintPill(TextView t, boolean focus) {
         Context c = t.getContext();
-        GradientDrawable g = round(focus ? 0x59FFFFFF : 0x40FFFFFF, dp(c, 24));
+        if ("white".equals(t.getTag(R.id.tag_tint))) {
+            GradientDrawable g = round(focus ? Color.WHITE : 0xF2FFFFFF, dp(c, 24));
+            if (focus) g.setStroke(dp(c, 3), 0xFF9A9A9A);
+            t.setBackground(g);
+            return;
+        }
+        GradientDrawable g = round(focus ? 0x59FFFFFF : 0x26FFFFFF, dp(c, 24));
         if (focus) g.setStroke(dp(c, 3), Color.WHITE);
         t.setBackground(g);
     }
@@ -396,7 +440,7 @@ public final class MusicUi {
         boolean f = b.hasFocus();
         GradientDrawable g = new GradientDrawable();
         g.setShape(GradientDrawable.OVAL);
-        g.setColor(f ? 0x66FFFFFF : 0x40FFFFFF);
+        g.setColor(f ? 0x66FFFFFF : 0x26FFFFFF);
         if (f) g.setStroke(dp(c, 3), Color.WHITE);
         b.setBackground(g);
         b.setColorFilter(b.isActivated() ? PINK : Color.WHITE);
@@ -433,14 +477,20 @@ public final class MusicUi {
     }
 
     /** One song in a list: number or cover, title and artist, album, length. */
-    public static View songRow(Context a, MItem m, int number, boolean withTime) {
+    public static View songRow(Context a, MItem m, int number, boolean withTime) { return songRow(a, m, number, withTime, true); }
+
+    /**
+     * One song in a list. withTime: the full-width page list (song | artist | album | time, or on an album
+     * number | song | time); otherwise the compact kind (cover, title over artist) used in rows of songs.
+     */
+    public static View songRow(Context a, MItem m, int number, boolean withTime, boolean withArt) {
         LinearLayout r = new LinearLayout(a);
         r.setGravity(Gravity.CENTER_VERTICAL);
         r.setFocusable(true);
         r.setPadding(dp(a, 12), 0, dp(a, 16), 0);
         r.setBackground(round(0, dp(a, 6)));
         r.setOnFocusChangeListener((v, has) -> {
-            GradientDrawable g = round(has ? 0x40FFFFFF : 0, dp(a, 6));
+            GradientDrawable g = round(has ? 0x33FFFFFF : 0, dp(a, 6));
             if (has) g.setStroke(dp(a, 2), Color.WHITE);
             v.setBackground(g);
         });
@@ -450,30 +500,63 @@ public final class MusicUi {
             n.setGravity(Gravity.CENTER);
             r.addView(n, new LinearLayout.LayoutParams(dp(a, 34), -2));
         }
-        ImageView iv = new ImageView(a);
-        art(iv, m.thumb, dp(a, 4));
-        LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(dp(a, 46), dp(a, 46));
-        il.leftMargin = number > 0 ? dp(a, 6) : 0;
-        r.addView(iv, il);
+        if (withArt) {
+            ImageView iv = new ImageView(a);
+            art(iv, m.thumb, dp(a, 4));
+            int s = withTime ? 42 : 46;
+            LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(dp(a, s), dp(a, s));
+            il.leftMargin = number > 0 ? dp(a, 6) : 0;
+            r.addView(iv, il);
+        }
         LinearLayout txt = new LinearLayout(a);
         txt.setOrientation(LinearLayout.VERTICAL);
-        txt.setPadding(dp(a, 14), 0, dp(a, 12), 0);
-        TextView t = line(a, 16, Color.WHITE, true);
+        txt.setPadding(dp(a, withArt || number > 0 ? 14 : 4), 0, dp(a, 12), 0);
+        TextView t = line(a, 16, TEXT, false);
         t.setText(m.title);
         txt.addView(t);
-        TextView s = line(a, 13, TEXT2, false);
-        s.setText(m.artist.isEmpty() ? m.subtitle : m.artist);
-        s.setPadding(0, dp(a, 3), 0, 0);
-        txt.addView(s);
+        String who = m.artist.isEmpty() ? m.subtitle : m.artist;
+        boolean columns = withTime && withArt;
+        if (!columns && !who.isEmpty()) {
+            TextView s = line(a, 13, TEXT2, false);
+            s.setText(who);
+            s.setPadding(0, dp(a, 3), 0, 0);
+            txt.addView(s);
+        }
         r.addView(txt, new LinearLayout.LayoutParams(0, -2, 1.4f));
-        if (withTime) {
-            TextView al = line(a, 14, TEXT2, false);
+        if (columns) {
+            TextView ar = line(a, 15, TEXT2, false);
+            ar.setText(who);
+            ar.setPadding(0, 0, dp(a, 12), 0);
+            r.addView(ar, new LinearLayout.LayoutParams(0, -2, 1f));
+            TextView al = line(a, 15, TEXT2, false);
             al.setText(m.album);
+            al.setPadding(0, 0, dp(a, 12), 0);
             r.addView(al, new LinearLayout.LayoutParams(0, -2, 1f));
-            TextView d = text(a, 14, TEXT2, false);
+        }
+        if (withTime) {
+            TextView d = text(a, 15, TEXT2, false);
             d.setText(m.seconds > 0 ? MItem.time(m.seconds) : "");
             d.setGravity(Gravity.END);
             r.addView(d, new LinearLayout.LayoutParams(dp(a, 56), -2));
+        }
+        return r;
+    }
+
+    /** The column names over a playlist's songs. */
+    public static View songHeader(Context a, boolean numbered) {
+        LinearLayout r = new LinearLayout(a);
+        r.setGravity(Gravity.CENTER_VERTICAL);
+        r.setPadding(dp(a, 12), 0, dp(a, 16), 0);
+        String[] names = numbered ? new String[]{"Song", "Time"} : new String[]{"Song", "Artist", "Album", "Time"};
+        for (int i = 0; i < names.length; i++) {
+            TextView t = medium(a, 13, TEXT2);
+            t.setText(names[i]);
+            boolean last = i == names.length - 1;
+            if (last) t.setGravity(Gravity.END);
+            LinearLayout.LayoutParams lp = last ? new LinearLayout.LayoutParams(dp(a, 56), -2)
+                    : new LinearLayout.LayoutParams(0, -2, i == 0 ? 1.4f : 1f);
+            if (i == 0) t.setPadding(numbered ? dp(a, 38) : 0, 0, 0, 0);
+            r.addView(t, lp);
         }
         return r;
     }
@@ -492,7 +575,7 @@ public final class MusicUi {
         row.setClipChildren(false);
         for (MItem m : items) {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-            lp.rightMargin = dp(a, 18);
+            lp.rightMargin = dp(a, 14);
             row.addView(card(a, m, dp(a, size), items, open, hover), lp);
         }
         if (more != null) row.addView(seeAll(a, more, dp(a, size), open));
@@ -604,9 +687,9 @@ public final class MusicUi {
     }
 
     public static TextView heading(Context a, String title) {
-        TextView h = text(a, 20, Color.WHITE, true);
+        TextView h = text(a, 19, TEXT, true);
         h.setText(title);
-        h.setPadding(dp(a, PAD), dp(a, 18), dp(a, PAD), dp(a, 2));
+        h.setPadding(dp(a, PAD), dp(a, 22), dp(a, PAD), dp(a, 0));
         h.setMaxLines(1);
         h.setEllipsize(TextUtils.TruncateAt.END);
         return h;
@@ -627,15 +710,20 @@ public final class MusicUi {
 
     /** Song lists as rows of songs in columns of four. */
     public static void addSongs(Activity a, LinearLayout into, String title, List<MItem> songs, Opener open, Hover hover) {
+        addSongs(a, into, title, songs, open, hover, 4);
+    }
+
+    /** Song lists in columns of `rows` (an artist's Top Songs: three to a column, three columns across). */
+    public static void addSongs(Activity a, LinearLayout into, String title, List<MItem> songs, Opener open, Hover hover, int rows) {
         if (songs.isEmpty()) return;
         if (title != null && !title.isEmpty()) into.addView(heading(a, title));
         LinearLayout row = new LinearLayout(a);
         LinearLayout col = null;
         for (int i = 0; i < songs.size(); i++) {
-            if (i % 4 == 0) {
+            if (i % rows == 0) {
                 col = new LinearLayout(a);
                 col.setOrientation(LinearLayout.VERTICAL);
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(a, 360), -2);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(a, (screenDp(a) - PAD * 2 - 32) / 3), -2);
                 lp.rightMargin = dp(a, 16);
                 row.addView(col, lp);
             }
@@ -671,7 +759,8 @@ public final class MusicUi {
                     more.browseId = s.moreId;
                     more.params = s.moreParams;
                 }
-                addRow(a, into, title, s.items, videos ? 118 : 136, open, hover, more);
+                boolean people = MItem.ARTIST.equals(s.items.get(0).type);
+                addRow(a, into, title, s.items, videos ? 138 : people ? 112 : 138, open, hover, more);
             }
         }
     }
@@ -680,7 +769,7 @@ public final class MusicUi {
     public static void addTiles(Activity a, LinearLayout into, String title, List<MItem> tiles, Opener open) {
         if (title != null && !title.isEmpty()) into.addView(heading(a, title));
         int W = Math.round(a.getResources().getDisplayMetrics().widthPixels / a.getResources().getDisplayMetrics().density);
-        int gap = 16, w = (W - PAD * 2 - gap * 3) / 4, h = Math.round(w * 0.52f);
+        int gap = 16, w = (W - PAD * 2 - gap * 3) / 4, h = Math.round(w * 9f / 16f);
         LinearLayout grid = new LinearLayout(a);
         grid.setOrientation(LinearLayout.VERTICAL);
         grid.setPadding(dp(a, PAD), dp(a, 12), dp(a, PAD), dp(a, 6));

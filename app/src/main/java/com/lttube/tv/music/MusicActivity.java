@@ -222,43 +222,59 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
 
     // ---------------------------------------------------------------- Listen Now
     private void listenNow() {
-        content.addView(spacer(80));
+        content.addView(spacer(76));
         final int my = seq;
         spinner.setVisibility(View.VISIBLE);
         Bg.run(() -> {
             List<Object[]> picks = new ArrayList<>();   // {label, item}
             List<Ytm.Shelf> browse = new ArrayList<>();
             try { browse = AppleWeb.browse(); } catch (Exception ignored) { }
-            // Top Picks: from what you play (Heavy Rotation, Made For You, an artist you love, their newest release),
-            // then the newest and most-played from the catalogue.
+            // Top Picks: from what you play (Heavy Rotation, Made For You, an artist you love, their newest
+            // release), then the catalogue's newest.
             List<MItem> made = Mixes.cards(this);
-            for (MItem m : made) picks.add(new Object[]{m.browseId.equals(Mixes.HEAVY) ? "Heavy Rotation" : "Made For You", m});
-            List<MItem> top = Mixes.topArtists(this, 2);
+            for (MItem m : made) if (m.browseId.equals(Mixes.HEAVY)) picks.add(new Object[]{"Heavy Rotation", m});
+            List<MItem> newFor = new ArrayList<>(), fansLike = new ArrayList<>();
+            String fansOf = "";
+            List<MItem> top = Mixes.topArtists(this, 6);
+            int n = 0;
             for (MItem a : top) {
                 try {
                     String id = AppleMusic.artistId(a.title);
                     if (id == null) continue;
                     Ytm.Page ap = AppleWeb.artist(id);
+                    String name = ap.title.isEmpty() ? a.title : ap.title;
+                    MItem latest = null;
                     for (Ytm.Shelf s : ap.shelves) {
                         String t = s.title.toLowerCase(java.util.Locale.US);
-                        if (!s.list && t.contains("album") && !s.items.isEmpty()) { picks.add(new Object[]{"New Release", s.items.get(0)}); break; }
+                        if (!s.list && (t.contains("latest") || t.contains("album") || t.contains("single")) && !s.items.isEmpty() && latest == null) latest = s.items.get(0);
+                        if (fansLike.isEmpty() && t.contains("similar")) { fansLike.addAll(s.items); fansOf = name; }
                     }
-                    MItem art = new MItem();
-                    art.type = MItem.ARTIST;
-                    art.browseId = "AMA:" + id;
-                    art.title = ap.title.isEmpty() ? a.title : ap.title;
-                    art.subtitle = "Artist";
-                    art.thumb = ap.thumb;
-                    picks.add(new Object[]{"Featuring " + art.title, art});
+                    if (latest != null) {
+                        if (latest.artist.isEmpty()) latest.artist = name;
+                        newFor.add(latest);
+                    }
+                    if (n < 2) {
+                        if (latest != null) picks.add(new Object[]{"New Release", latest});
+                        MItem art = new MItem();
+                        art.type = MItem.ARTIST;
+                        art.browseId = "AMA:" + id;
+                        art.title = name + " & Similar Artists";
+                        art.subtitle = "Artist";
+                        art.thumb = ap.thumb;
+                        picks.add(new Object[]{"Featuring " + name, art});
+                    }
+                    n++;
                 } catch (Exception ignored) { }
             }
+            for (MItem m : made) if (!m.browseId.equals(Mixes.HEAVY)) picks.add(new Object[]{"Made For You", m});
             for (Ytm.Shelf s : browse) {
-                String label = s.title.toLowerCase(java.util.Locale.US).contains("playlist") ? "Updated Playlist" : s.list ? "New Song" : "New Release";
-                for (MItem m : s.items) { if (picks.size() >= 10) break; if (!m.playable() && picks.size() < 10) { picks.add(new Object[]{label, m}); break; } }
+                if (picks.size() >= 10) break;
+                String label = s.title.toLowerCase(java.util.Locale.US).contains("playlist") ? "Updated Playlist" : "New Release";
+                for (MItem m : s.items) if (!m.playable()) { picks.add(new Object[]{label, m}); break; }
             }
             List<Ytm.Shelf> charts = new ArrayList<>();
             try { charts = AppleWeb.charts(); } catch (Exception ignored) { }
-            return new Object[]{picks, browse, charts};
+            return new Object[]{picks, browse, charts, newFor, fansLike, fansOf};
         }, (r, e) -> {
             if (my != seq) return;
             spinner.setVisibility(View.GONE);
@@ -266,19 +282,46 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
             @SuppressWarnings("unchecked") List<Object[]> picks = (List<Object[]>) r[0];
             @SuppressWarnings("unchecked") List<Ytm.Shelf> browse = (List<Ytm.Shelf>) r[1];
             @SuppressWarnings("unchecked") List<Ytm.Shelf> charts = (List<Ytm.Shelf>) r[2];
+            @SuppressWarnings("unchecked") List<MItem> newFor = (List<MItem>) r[3];
+            @SuppressWarnings("unchecked") List<MItem> fansLike = (List<MItem>) r[4];
+            String fansOf = (String) r[5];
             if (!picks.isEmpty()) {
-                content.addView(MusicUi.heading(this, "Top Picks"));
+                content.addView(MusicUi.heading(this, "Top Picks for You"));
                 content.addView(MusicUi.pickRow(this, picks, opener(), this::hover));
             }
             List<MItem> places = Mixes.places(this);
-            if (!places.isEmpty()) MusicUi.addRow(this, content, "Recently Played", places.subList(0, Math.min(14, places.size())), 150, opener(), this::hover);
+            if (!places.isEmpty()) MusicUi.addRow(this, content, "Recently Played", places.subList(0, Math.min(14, places.size())), 138, opener(), this::hover);
+            if (!newFor.isEmpty()) MusicUi.addRow(this, content, "New Releases for You", newFor, 138, opener(), this::hover);
             List<MItem> made = Mixes.cards(this);
-            if (!made.isEmpty()) MusicUi.addRow(this, content, "Made For You", made, 150, opener(), this::hover);
+            if (!made.isEmpty()) {
+                List<Object[]> mp = new ArrayList<>();
+                for (MItem m : made) mp.add(new Object[]{"Made For You", m});
+                content.addView(MusicUi.heading(this, "Playlists Made for You"));
+                content.addView(MusicUi.pickRow(this, mp, opener(), this::hover));
+            }
+            List<MItem> stations = stations();
+            if (!stations.isEmpty()) MusicUi.addRow(this, content, "Stations for You", stations, 138, opener(), this::hover);
+            if (!fansLike.isEmpty()) MusicUi.addRow(this, content, fansOf + " Fans Like", fansLike, 112, opener(), this::hover);
             for (Ytm.Shelf c : charts) if (c.list) { while (c.items.size() > 20) c.items.remove(c.items.size() - 1); }
             MusicUi.addShelves(this, content, charts, opener(), this::hover);
             MusicUi.addShelves(this, content, browse, opener(), this::hover);
             content.addView(spacer(40));
         });
+    }
+
+    /** A station for each artist you play most (their songs and songs like them). */
+    private List<MItem> stations() {
+        List<MItem> l = new ArrayList<>();
+        for (Mixes.Entry e : topSongsByArtist()) {
+            MItem st = new MItem();
+            st.type = MItem.PLAYLIST;
+            st.title = e.item.artist + " Station";
+            st.subtitle = "Radio";
+            st.playlistId = "RDAMVM" + e.item.videoId;
+            st.thumb = e.item.thumb;
+            l.add(st);
+        }
+        return l;
     }
 
     // ---------------------------------------------------------------- Browse
@@ -330,17 +373,8 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
     private void radio() {
         content.addView(spacer(80));
         // Stations: one for each artist you play most (their songs and songs like them), then by genre.
-        List<MItem> stations = new ArrayList<>();
-        for (Mixes.Entry e : topSongsByArtist()) {
-            MItem st = new MItem();
-            st.type = MItem.PLAYLIST;
-            st.title = e.item.artist + " Station";
-            st.subtitle = "Radio";
-            st.playlistId = "RDAMVM" + e.item.videoId;
-            st.thumb = e.item.thumb;
-            stations.add(st);
-        }
-        if (!stations.isEmpty()) MusicUi.addRow(this, content, "Your Stations", stations, 150, opener(), this::hover);
+        List<MItem> stations = stations();
+        if (!stations.isEmpty()) MusicUi.addRow(this, content, "Stations for You", stations, 138, opener(), this::hover);
         List<MItem> g = AppleWeb.genres();
         MusicUi.addTiles(this, content, "Stations by Genre", g, opener());
         tilePictures(g);
