@@ -343,6 +343,70 @@ public final class MusicUi {
         return hscroll(a, row);
     }
 
+    /**
+     * Search's Top Results: wide tiles three across, each a picture (round for an artist) beside the name and
+     * "Song · Artist" / "Album · Artist" / "Artist", on a faint glassy panel.
+     */
+    public static void addTopResults(Activity a, LinearLayout into, String title, List<MItem> items, Opener open) {
+        if (items.isEmpty()) return;
+        into.addView(heading(a, title));
+        int gap = 12, cols = 3, w = (screenDp(a) - PAD * 2 - gap * (cols - 1)) / cols, h = 76;
+        LinearLayout grid = new LinearLayout(a);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        grid.setPadding(dp(a, PAD), dp(a, 12), dp(a, PAD), dp(a, 4));
+        grid.setClipChildren(false);
+        LinearLayout row = null;
+        int n = Math.min(items.size(), 6);
+        for (int i = 0; i < n; i++) {
+            final MItem m = items.get(i);
+            if (i % cols == 0) {
+                row = new LinearLayout(a);
+                row.setClipChildren(false);
+                LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-1, -2);
+                rl.bottomMargin = dp(a, gap);
+                grid.addView(row, rl);
+            }
+            LinearLayout t = new LinearLayout(a);
+            t.setGravity(Gravity.CENTER_VERTICAL);
+            t.setFocusable(true);
+            t.setPadding(dp(a, 10), 0, dp(a, 12), 0);
+            t.setBackground(round(0x1AFFFFFF, dp(a, 8)));
+            ImageView iv = new ImageView(a);
+            boolean person = ARTIST_TYPE(m);
+            if (person) { circle(iv, m.thumb); if (!m.thumb.contains("mzstatic.com")) artistPhoto(iv, m); }
+            else art(iv, m.thumb, dp(a, 5));
+            t.addView(iv, new LinearLayout.LayoutParams(dp(a, 56), dp(a, 56)));
+            LinearLayout tx = new LinearLayout(a);
+            tx.setOrientation(LinearLayout.VERTICAL);
+            tx.setPadding(dp(a, 12), 0, 0, 0);
+            TextView nm = line(a, 15, TEXT, false);
+            nm.setText(m.title);
+            tx.addView(nm);
+            TextView sb = line(a, 12, TEXT2, false);
+            sb.setText(person ? "Artist" : (m.playable() ? "Song" : MItem.PLAYLIST.equals(m.type) ? "Playlist" : "Album") + (m.artist.isEmpty() ? "" : " \u00B7 " + m.artist));
+            sb.setPadding(0, dp(a, 2), 0, 0);
+            tx.addView(sb);
+            t.addView(tx, new LinearLayout.LayoutParams(0, -2, 1));
+            t.setOnFocusChangeListener((v, has) -> {
+                GradientDrawable g = round(has ? 0x40FFFFFF : 0x1AFFFFFF, dp(a, 8));
+                if (has) g.setStroke(dp(a, 2), Color.WHITE);
+                v.setBackground(g);
+            });
+            final List<MItem> ctx = items;
+            t.setOnClickListener(v -> open.open(m, m.playable() ? java.util.Collections.singletonList(m) : ctx));
+            t.setOnKeyListener((v, k, e) -> {
+                if (k == KeyEvent.KEYCODE_MENU && e.getAction() == KeyEvent.ACTION_UP) { options(a, m); return true; }
+                return false;
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(a, w), dp(a, h));
+            if (i % cols != cols - 1) lp.rightMargin = dp(a, gap);
+            row.addView(t, lp);
+        }
+        into.addView(grid);
+    }
+
+    private static boolean ARTIST_TYPE(MItem m) { return MItem.ARTIST.equals(m.type); }
+
     /** A compact tile: small cover on the left, the name beside it (the quick picks on Home). */
     public static View tile(Activity a, MItem m, int w, int h, List<MItem> ctx, Opener open, Hover hover) {
         LinearLayout t = new LinearLayout(a);
@@ -765,6 +829,7 @@ public final class MusicUi {
     public static void addShelves(Activity a, LinearLayout into, List<Ytm.Shelf> shelves, Opener open, Hover hover) {
         for (Ytm.Shelf s : shelves) {
             if (s.items.isEmpty()) continue;
+            if ("TOP".equals(s.moreId)) { addTopResults(a, into, s.title, s.items, open); continue; }
             boolean videos = s.title.toLowerCase(java.util.Locale.US).contains("video");
             if (videos) for (MItem m : s.items) if (m.playable()) m.video = true;
             String title = s.title.isEmpty() ? s.strap : s.title;

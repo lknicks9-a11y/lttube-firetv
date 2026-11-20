@@ -187,6 +187,12 @@ public final class AppleWeb {
                 m.browseId = "AMP:" + url;
                 m.subtitle = m.artist.isEmpty() ? "Playlist" : m.artist;
                 break;
+            case "song":
+                m.type = MItem.SONG;
+                m.appleId = id;
+                m.subtitle = m.artist;
+                m.mvType = "";
+                return id.isEmpty() || m.title.isEmpty() ? null : m;
             case "artist":
                 m.type = MItem.ARTIST;
                 m.browseId = "AMA:" + id;
@@ -565,6 +571,29 @@ public final class AppleWeb {
     }
 
     // ------------------------------------------------------------------ search
+    /**
+     * Search exactly as Apple Music's own search page has it: Top Results (artists, songs and albums mixed, best
+     * first), Artists, Albums, Songs, Playlists. Falls back to the catalogue search if the page can't be read.
+     */
+    public static Ytm.Page searchAll(String q) throws Exception {
+        try {
+            Object[] pg = page("https://music.apple.com/us/search?term=" + java.net.URLEncoder.encode(q, "UTF-8"));
+            Ytm.Page p = new Ytm.Page();
+            for (Section s : sections(pg[1])) {
+                String t = s.title.toLowerCase(java.util.Locale.US);
+                if (s.items.isEmpty() || !(t.contains("top") || t.equals("artists") || t.equals("albums") || t.equals("songs") || t.equals("playlists"))) continue;
+                Ytm.Shelf sh = new Ytm.Shelf();
+                sh.title = s.title;
+                sh.items.addAll(s.items);
+                sh.list = t.equals("songs");
+                if (t.contains("top")) sh.moreId = "TOP";
+                p.shelves.add(sh);
+            }
+            if (!p.shelves.isEmpty()) return p;
+        } catch (Exception ignored) { }
+        return search(q);
+    }
+
     /** Search: songs, albums and artists from Apple Music's catalogue. */
     public static Ytm.Page search(String q) throws Exception {
         Ytm.Page p = new Ytm.Page();

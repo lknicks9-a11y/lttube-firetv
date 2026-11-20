@@ -32,7 +32,18 @@ public final class AppleMusic {
     }
 
     /** Apple's id for an artist, by name (the one whose name matches best). */
+    private static final java.util.Map<String, String> ids = new java.util.concurrent.ConcurrentHashMap<>();
+
     public static String artistId(String name) {
+        if (name == null) return null;
+        String hit = ids.get(name);
+        if (hit != null) return hit.isEmpty() ? null : hit;
+        String id = artistIdLookup(name);
+        ids.put(name, id == null ? "" : id);
+        return id;
+    }
+
+    private static String artistIdLookup(String name) {
         try {
             JSONArray a = get(HttpUrl.parse("https://itunes.apple.com/search").newBuilder().addQueryParameter("term", name)
                     .addQueryParameter("entity", "musicArtist").addQueryParameter("limit", "5").addQueryParameter("country", COUNTRY).build());
@@ -118,31 +129,16 @@ public final class AppleMusic {
             } else if ("track".equals(o.optString("wrapperType"))) tracks.add(o);
         }
         tracks.sort((x, y) -> x.optInt("discNumber") != y.optInt("discNumber") ? x.optInt("discNumber") - y.optInt("discNumber") : x.optInt("trackNumber") - y.optInt("trackNumber"));
-        // Find every track's official release on YouTube Music, several at once.
-        ExecutorService ex = Executors.newFixedThreadPool(6);
-        List<Future<MItem>> fs = new ArrayList<>();
-        for (JSONObject t : tracks) {
-            Imports.Track tr = new Imports.Track();
-            tr.title = t.optString("trackName");
-            tr.artist = t.optString("artistName");
-            tr.album = t.optString("collectionName").replaceAll(" - (Single|EP)$", "");
-            tr.seconds = (int) (t.optLong("trackTimeMillis") / 1000);
-            fs.add(ex.submit(() -> Imports.find(tr)));
-        }
+        // The tracks straight from Apple Music: each finds its recording on YouTube Music only when it plays
+        // (and the next few ahead of it), so the album opens at once.
         Ytm.Shelf s = new Ytm.Shelf();
         s.list = true;
-        for (int i = 0; i < fs.size(); i++) {
-            MItem m = null;
-            try { m = fs.get(i).get(30, java.util.concurrent.TimeUnit.SECONDS); } catch (Exception ignored) { }
-            if (m == null) continue;
-            JSONObject t = tracks.get(i);
-            m.title = t.optString("trackName", m.title);
+        for (JSONObject t : tracks) {
+            MItem m = AppleWeb.song(t);
             m.album = p.title;
             m.thumb = p.thumb.replace("1000x1000bb", "300x300bb");
-            if (m.seconds == 0) m.seconds = (int) (t.optLong("trackTimeMillis") / 1000);
             s.items.add(m);
         }
-        ex.shutdownNow();
         p.shelves.add(s);
         return p;
     }

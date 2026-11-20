@@ -139,9 +139,13 @@ public class PageActivity extends Activity {
         // It goes in Recently Played only once you play something from it (opening it isn't enough).
         place = seen;
         boolean artist = MItem.ARTIST.equals(item.type) || item.browseId.startsWith("UC");
-        if (!pg.banner.isEmpty()) hero.set(pg.banner, true);
+        // An artist with motion artwork: it plays across the whole top (their photo shows until it starts).
+        // Without it, their photo sits in a circle instead (below), on the page's colour.
+        boolean moving = artist && !pg.motion.isEmpty();
+        if (artist && !moving) hero.setVisibility(View.GONE);
+        else if (!pg.banner.isEmpty()) hero.set(pg.banner, true);
         else if (!pg.thumb.isEmpty()) hero.set(MItem.art(pg.thumb, 1080), false);
-        if (artist) hero.setMotion(pg.motion);
+        if (moving) hero.setMotion(pg.motion);
         exact(pg.bgColor);
         // Only official releases (the songs on Spotify / Apple Music) — no uploads or clips.
         final List<MItem> songs = new ArrayList<>();
@@ -152,15 +156,41 @@ public class PageActivity extends Activity {
         final String title = pg.title.isEmpty() ? item.title : pg.title;
         View play;
         if (artist) {
-            // An artist: their photo across the whole top, fading into the page's colour, with their name and a
-            // big round Play centred near the bottom.
+            // An artist: their name and Play at the bottom left, out of the way of the motion artwork (or, with
+            // only a photo, under their photo in a circle on the page's colour).
+            FrameLayout headBox = new FrameLayout(this);
+            if (!moving) {
+                String ph = !pg.thumb.isEmpty() ? pg.thumb : item.thumb;
+                int cs = Math.round(H * 0.36f);
+                View glow = new View(this);
+                GradientDrawable gg = new GradientDrawable();
+                gg.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+                gg.setGradientRadius(dp(cs * 0.95f));
+                gg.setColors(new int[]{0x2EFFFFFF, 0x00FFFFFF});
+                glow.setBackground(gg);
+                FrameLayout.LayoutParams gl = new FrameLayout.LayoutParams(dp(cs * 2), dp(cs * 2), Gravity.CENTER_HORIZONTAL | Gravity.TOP);
+                gl.topMargin = dp(MusicUi.TOP + 26 - cs / 2f);
+                headBox.addView(glow, gl);
+                ImageView circle = new ImageView(this);
+                circle.setElevation(dp(14));
+                circle.setOutlineProvider(android.view.ViewOutlineProvider.BACKGROUND);
+                GradientDrawable ring = new GradientDrawable();
+                ring.setShape(GradientDrawable.OVAL);
+                ring.setColor(0x33000000);
+                circle.setBackground(ring);
+                MusicUi.circle(circle, MItem.art(ph, 800).replace("bb.jpg", "cc.jpg"));
+                FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(dp(cs), dp(cs), Gravity.CENTER_HORIZONTAL | Gravity.TOP);
+                cl.topMargin = dp(MusicUi.TOP + 26);
+                headBox.addView(circle, cl);
+            }
             LinearLayout head = new LinearLayout(this);
             head.setOrientation(LinearLayout.VERTICAL);
-            head.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+            head.setGravity(Gravity.BOTTOM | Gravity.START);
             head.setPadding(dp(MusicUi.PAD), 0, dp(MusicUi.PAD), dp(14));
             TextView t = MusicUi.text(this, 40, Color.WHITE, true);
             t.setText(title);
-            t.setGravity(Gravity.CENTER);
+            t.setShadowLayer(dp(10), 0, dp(1), 0x66000000);
+            t.setGravity(Gravity.START);
             t.setMaxLines(1);
             t.setEllipsize(TextUtils.TruncateAt.END);
             head.addView(t, new LinearLayout.LayoutParams(-1, -2));
@@ -200,7 +230,8 @@ public class PageActivity extends Activity {
                 btns.addView(sp, new LinearLayout.LayoutParams(dp(40), dp(40)));
             }
             head.addView(btns, new LinearLayout.LayoutParams(-2, -2));
-            content.addView(head, new LinearLayout.LayoutParams(-1, dp(Math.round(H * 0.63f))));
+            headBox.addView(head, new FrameLayout.LayoutParams(-1, -1));
+            content.addView(headBox, new LinearLayout.LayoutParams(-1, dp(Math.round(H * (moving ? 0.66f : 0.62f)))));
         } else {
             // An album or playlist: the cover on the left; beside it the name, who it's by, a line about it, and
             // Shuffle / Play under them. No big picture behind: the page takes on the cover's colour.
@@ -221,12 +252,13 @@ public class PageActivity extends Activity {
             final Motion mo = new Motion(this);
             coverBox.addView(mo, new FrameLayout.LayoutParams(-1, -1));
             motion = mo;
-            if (!pg.motion.isEmpty()) mo.play(pg.motion);
+            // The motion starts a moment after the page is up, small (it's only a cover), so it never holds anything up.
+            if (!pg.motion.isEmpty()) mo.postDelayed(() -> { if (!isFinishing()) mo.play(pg.motion, 540, 540); }, 900);
             else if (item.browseId.startsWith("AM:")) {
                 final String aid = item.browseId.substring(3);
                 Bg.run(() -> AppleWeb.albumLook(aid), (u, e) -> {
                     if (u == null || isFinishing()) return;
-                    if (!((String) u[0]).isEmpty()) mo.play((String) u[0]);
+                    if (!((String) u[0]).isEmpty()) mo.postDelayed(() -> { if (!isFinishing()) mo.play((String) u[0], 540, 540); }, 600);
                     exact((Integer) u[1]);
                 });
             }

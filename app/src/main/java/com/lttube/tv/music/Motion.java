@@ -26,10 +26,15 @@ public class Motion extends FrameLayout {
         setAlpha(0f);
     }
 
-    public void play(String url) {
+    public void play(String url) { play(url, 1280, 720); }
+
+    /** maxW x maxH: the largest picture worth decoding for where it shows (a cover needs far less than a header). */
+    public void play(String url, int maxW, int maxH) {
         if (url == null || url.isEmpty() || player != null) return;
         try {
-            player = new ExoPlayer.Builder(getContext()).build();
+            androidx.media3.exoplayer.trackselection.DefaultTrackSelector ts = new androidx.media3.exoplayer.trackselection.DefaultTrackSelector(getContext());
+            ts.setParameters(ts.buildUponParameters().setMaxVideoSize(maxW, maxH).setMaxVideoBitrate(2_500_000));
+            player = new ExoPlayer.Builder(getContext()).setTrackSelector(ts).build();
             player.setVolume(0f);
             player.setRepeatMode(Player.REPEAT_MODE_ALL);
             player.setVideoTextureView(tv);

@@ -228,61 +228,137 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
     private void listenNow() {
         content.addView(spacer(76));
         final int my = seq;
+        // Home shows at once from last time, while a fresh one loads for next time; the first time it loads here.
+        Object[] cached = homeFromCache();
+        if (cached != null) {
+            renderHome(cached);
+            Bg.run(this::loadHome, (r, e) -> { if (r != null) saveHome(r); });
+            return;
+        }
         spinner.setVisibility(View.VISIBLE);
-        Bg.run(() -> {
+        Bg.run(this::loadHome, (r, e) -> {
+            if (my != seq) return;
+            spinner.setVisibility(View.GONE);
+            if (r == null) { content.addView(note("Couldn't load this" + (e == null ? "" : ": " + Bg.message(e)))); return; }
+            saveHome(r);
+            renderHome(r);
+        });
+    }
+
+    /** Everything Home needs, fetched side by side (not one after another). {picks, browse, charts, newFor, fansLike, fansOf} */
+    private Object[] loadHome() throws Exception {
+        java.util.concurrent.ExecutorService ex = java.util.concurrent.Executors.newFixedThreadPool(6);
+        try {
+            java.util.concurrent.Future<List<Ytm.Shelf>> fBrowse = ex.submit(AppleWeb::browse);
+            java.util.concurrent.Future<List<Ytm.Shelf>> fCharts = ex.submit(AppleWeb::charts);
+            List<MItem> top = Mixes.topArtists(this, 5);
+            List<java.util.concurrent.Future<Object[]>> fArtists = new ArrayList<>();
+            for (MItem a : top) fArtists.add(ex.submit(() -> {
+                String id = AppleMusic.artistId(a.title);
+                return id == null ? null : new Object[]{id, AppleWeb.artist(id), a.title};
+            }));
             List<Object[]> picks = new ArrayList<>();   // {label, item}
-            List<Ytm.Shelf> browse = new ArrayList<>();
-            try { browse = AppleWeb.browse(); } catch (Exception ignored) { }
-            // Top Picks: from what you play (Heavy Rotation, Made For You, an artist you love, their newest
-            // release), then the catalogue's newest.
             List<MItem> made = Mixes.cards(this);
             for (MItem m : made) if (m.browseId.equals(Mixes.HEAVY)) picks.add(new Object[]{"Heavy Rotation", m});
             List<MItem> newFor = new ArrayList<>(), fansLike = new ArrayList<>();
             String fansOf = "";
-            List<MItem> top = Mixes.topArtists(this, 6);
             int n = 0;
-            for (MItem a : top) {
-                try {
-                    String id = AppleMusic.artistId(a.title);
-                    if (id == null) continue;
-                    Ytm.Page ap = AppleWeb.artist(id);
-                    String name = ap.title.isEmpty() ? a.title : ap.title;
-                    MItem latest = null;
-                    for (Ytm.Shelf s : ap.shelves) {
-                        String t = s.title.toLowerCase(java.util.Locale.US);
-                        if (!s.list && (t.contains("latest") || t.contains("album") || t.contains("single")) && !s.items.isEmpty() && latest == null) latest = s.items.get(0);
-                        if (fansLike.isEmpty() && t.contains("similar")) { fansLike.addAll(s.items); fansOf = name; }
-                    }
-                    if (latest != null) {
-                        if (latest.artist.isEmpty()) latest.artist = name;
-                        newFor.add(latest);
-                    }
-                    if (n < 2) {
-                        if (latest != null) picks.add(new Object[]{"New Release", latest});
-                        MItem art = new MItem();
-                        art.type = MItem.ARTIST;
-                        art.browseId = "AMA:" + id;
-                        art.title = name + " & Similar Artists";
-                        art.subtitle = "Artist";
-                        art.thumb = ap.thumb;
-                        picks.add(new Object[]{"Featuring " + name, art});
-                    }
-                    n++;
-                } catch (Exception ignored) { }
+            for (java.util.concurrent.Future<Object[]> f : fArtists) {
+                Object[] r;
+                try { r = f.get(12, java.util.concurrent.TimeUnit.SECONDS); } catch (Exception e) { continue; }
+                if (r == null) continue;
+                String id = (String) r[0];
+                Ytm.Page ap = (Ytm.Page) r[1];
+                String name = ap.title.isEmpty() ? (String) r[2] : ap.title;
+                MItem latest = null;
+                for (Ytm.Shelf s : ap.shelves) {
+                    String t = s.title.toLowerCase(java.util.Locale.US);
+                    if (!s.list && (t.contains("latest") || t.contains("album") || t.contains("single")) && !s.items.isEmpty() && latest == null) latest = s.items.get(0);
+                    if (fansLike.isEmpty() && t.contains("similar")) { fansLike.addAll(s.items); fansOf = name; }
+                }
+                if (latest != null) { if (latest.artist.isEmpty()) latest.artist = name; newFor.add(latest); }
+                if (n < 2) {
+                    if (latest != null) picks.add(new Object[]{"New Release", latest});
+                    MItem art = new MItem();
+                    art.type = MItem.ARTIST;
+                    art.browseId = "AMA:" + id;
+                    art.title = name + " & Similar Artists";
+                    art.subtitle = "Artist";
+                    art.thumb = ap.thumb;
+                    picks.add(new Object[]{"Featuring " + name, art});
+                }
+                n++;
             }
             for (MItem m : made) if (!m.browseId.equals(Mixes.HEAVY)) picks.add(new Object[]{"Made For You", m});
+            List<Ytm.Shelf> browse = new ArrayList<>(), charts = new ArrayList<>();
+            try { browse = fBrowse.get(15, java.util.concurrent.TimeUnit.SECONDS); } catch (Exception ignored) { }
+            try { charts = fCharts.get(10, java.util.concurrent.TimeUnit.SECONDS); } catch (Exception ignored) { }
             for (Ytm.Shelf s : browse) {
                 if (picks.size() >= 10) break;
                 String label = s.title.toLowerCase(java.util.Locale.US).contains("playlist") ? "Updated Playlist" : "New Release";
                 for (MItem m : s.items) if (!m.playable()) { picks.add(new Object[]{label, m}); break; }
             }
-            List<Ytm.Shelf> charts = new ArrayList<>();
-            try { charts = AppleWeb.charts(); } catch (Exception ignored) { }
+            if (browse.isEmpty() && charts.isEmpty() && picks.isEmpty()) throw new Exception("No connection");
             return new Object[]{picks, browse, charts, newFor, fansLike, fansOf};
-        }, (r, e) -> {
-            if (my != seq) return;
-            spinner.setVisibility(View.GONE);
-            if (r == null) { content.addView(note("Couldn't load this" + (e == null ? "" : ": " + Bg.message(e)))); return; }
+        } finally { ex.shutdownNow(); }
+    }
+
+    // ---- Home kept on the TV between visits
+    private static org.json.JSONArray itemsJson(List<MItem> l) { org.json.JSONArray a = new org.json.JSONArray(); for (MItem m : l) a.put(m.toJson()); return a; }
+
+    private static List<MItem> itemsOf(org.json.JSONArray a) { List<MItem> l = new ArrayList<>(); if (a != null) for (int i = 0; i < a.length(); i++) l.add(MItem.fromJson(a.optJSONObject(i))); return l; }
+
+    private static org.json.JSONArray shelvesJson(List<Ytm.Shelf> l) throws org.json.JSONException {
+        org.json.JSONArray a = new org.json.JSONArray();
+        for (Ytm.Shelf s : l) a.put(new org.json.JSONObject().put("t", s.title).put("l", s.list).put("m", s.moreId).put("i", itemsJson(s.items)));
+        return a;
+    }
+
+    private static List<Ytm.Shelf> shelvesOf(org.json.JSONArray a) {
+        List<Ytm.Shelf> l = new ArrayList<>();
+        if (a != null) for (int i = 0; i < a.length(); i++) {
+            org.json.JSONObject o = a.optJSONObject(i);
+            Ytm.Shelf s = new Ytm.Shelf();
+            s.title = o.optString("t");
+            s.list = o.optBoolean("l");
+            s.moreId = o.optString("m");
+            s.items.addAll(itemsOf(o.optJSONArray("i")));
+            l.add(s);
+        }
+        return l;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void saveHome(Object[] r) {
+        try {
+            org.json.JSONArray picks = new org.json.JSONArray();
+            for (Object[] p : (List<Object[]>) r[0]) picks.put(new org.json.JSONObject().put("l", p[0]).put("i", ((MItem) p[1]).toJson()));
+            org.json.JSONObject o = new org.json.JSONObject().put("at", System.currentTimeMillis()).put("picks", picks)
+                    .put("browse", shelvesJson((List<Ytm.Shelf>) r[1])).put("charts", shelvesJson((List<Ytm.Shelf>) r[2]))
+                    .put("newFor", itemsJson((List<MItem>) r[3])).put("fans", itemsJson((List<MItem>) r[4])).put("fansOf", r[5]);
+            getSharedPreferences("music", MODE_PRIVATE).edit().putString("home", o.toString()).apply();
+        } catch (Exception ignored) { }
+    }
+
+    private Object[] homeFromCache() {
+        try {
+            org.json.JSONObject o = new org.json.JSONObject(getSharedPreferences("music", MODE_PRIVATE).getString("home", "{}"));
+            if (System.currentTimeMillis() - o.optLong("at") > 2 * 24 * 3600_000L) return null;
+            List<Object[]> picks = new ArrayList<>();
+            org.json.JSONArray pa = o.optJSONArray("picks");
+            if (pa != null) for (int i = 0; i < pa.length(); i++) picks.add(new Object[]{pa.optJSONObject(i).optString("l"), MItem.fromJson(pa.optJSONObject(i).optJSONObject("i"))});
+            // Your own mixes always as they are now.
+            List<Object[]> fresh = new ArrayList<>();
+            for (Object[] p : picks) if (!((MItem) p[1]).browseId.startsWith("MIX:")) fresh.add(p);
+            List<MItem> made = Mixes.cards(this);
+            for (MItem m : made) if (m.browseId.equals(Mixes.HEAVY)) fresh.add(0, new Object[]{"Heavy Rotation", m});
+            for (MItem m : made) if (!m.browseId.equals(Mixes.HEAVY)) fresh.add(Math.min(fresh.size(), 5), new Object[]{"Made For You", m});
+            return new Object[]{fresh, shelvesOf(o.optJSONArray("browse")), shelvesOf(o.optJSONArray("charts")),
+                    itemsOf(o.optJSONArray("newFor")), itemsOf(o.optJSONArray("fans")), o.optString("fansOf")};
+        } catch (Exception e) { return null; }
+    }
+
+    private void renderHome(Object[] r) {
             @SuppressWarnings("unchecked") List<Object[]> picks = (List<Object[]>) r[0];
             @SuppressWarnings("unchecked") List<Ytm.Shelf> browse = (List<Ytm.Shelf>) r[1];
             @SuppressWarnings("unchecked") List<Ytm.Shelf> charts = (List<Ytm.Shelf>) r[2];
@@ -310,7 +386,6 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
             MusicUi.addShelves(this, content, charts, opener(), this::hover);
             MusicUi.addShelves(this, content, browse, opener(), this::hover);
             content.addView(spacer(40));
-        });
     }
 
     /** A station for each artist you play most (their songs and songs like them). */

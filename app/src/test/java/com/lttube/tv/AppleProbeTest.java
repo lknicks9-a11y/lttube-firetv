@@ -64,6 +64,7 @@ public class AppleProbeTest {
         try { Ytm.Page a = AppleWeb.artist("1456793166"); System.out.println("APL ARTIST [" + a.title + "] banner=" + a.banner); dump("ARTIST", a.shelves); } catch (Throwable e) { System.out.println("APL ARTIST FAILED " + e); }
         try { Ytm.Page p = AppleWeb.playlist("https://music.apple.com/us/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb"); System.out.println("APL PLAYLIST [" + p.title + "] " + p.subtitle + " thumb=" + p.thumb + " desc=" + p.description.length()); dump("PLAYLIST", p.shelves); } catch (Throwable e) { System.out.println("APL PLAYLIST FAILED " + e); }
         try { dump("SEARCH", AppleWeb.search("drake").shelves); } catch (Throwable e) { System.out.println("APL SEARCH FAILED " + e); }
+        try { dump("SEARCHALL", com.lttube.tv.music.AppleWeb.searchAll("sofaygo").shelves); } catch (Throwable e) { System.out.println("APL SEARCHALL FAILED " + e); }
         try {
             java.util.List<Ytm.Shelf> c = AppleWeb.charts();
             MItem s = c.get(0).items.get(0);
