@@ -122,7 +122,7 @@ public class MusicActivity extends Activity implements MusicPlayer.Listener {
         for (String[] t : TABS) {
             final String key = t[0];
             TextView tv = MusicUi.text(this, 16, 0xE6FFFFFF, false);
-            tv.setTypeface(MusicUi.font(600));
+            MusicUi.type(tv, 600);
             tv.setText(t[1]);
             tv.setTag(key);
             tv.setFocusable(true);

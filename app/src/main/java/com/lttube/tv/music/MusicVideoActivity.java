@@ -115,7 +115,7 @@ public class MusicVideoActivity extends Activity {
         tt.setPadding(dp(14), 0, 0, 0);
         title = MusicUi.line(this, 22, Color.WHITE, true);
         artist = MusicUi.line(this, 16, MusicUi.TEXT2, false);
-        artist.setTypeface(MusicUi.font(600));
+        MusicUi.type(artist, 600);
         tt.addView(title);
         tt.addView(artist);
         top.addView(tt, new LinearLayout.LayoutParams(0, -2, 1));

@@ -366,9 +366,9 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         LinearLayout tt = new LinearLayout(this);
         tt.setOrientation(LinearLayout.VERTICAL);
         lyTitle = MusicUi.line(this, 15, Color.WHITE, false);
-        lyTitle.setTypeface(MusicUi.font(600));
+        MusicUi.type(lyTitle, 600);
         lyArtist = MusicUi.line(this, 14, 0xE6FFFFFF, false);
-        lyArtist.setTypeface(MusicUi.font(600));
+        MusicUi.type(lyArtist, 600);
         lyArtist.setPadding(0, dp(2), 0, 0);
         tt.addView(lyTitle);
         tt.addView(lyArtist);
@@ -393,10 +393,10 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         lyBar.setFocusable(true);
         lyricsBox.addView(lyBar, at(ax, ay + a + 52, a, 16));
         lyElapsed = MusicUi.text(this, 11, 0xCCFFFFFF, false);
-        lyElapsed.setTypeface(MusicUi.font(500));
+        MusicUi.type(lyElapsed, 500);
         lyricsBox.addView(lyElapsed, at(ax, ay + a + 70, -2, -2));
         lyLeft = MusicUi.text(this, 11, 0xCCFFFFFF, false);
-        lyLeft.setTypeface(MusicUi.font(500));
+        MusicUi.type(lyLeft, 500);
         lyLeft.setGravity(Gravity.END);
         lyricsBox.addView(lyLeft, at(ax, ay + a + 70, a, -2));
 
@@ -418,14 +418,15 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
         lyricsBox.addView(lyCtlRow, at(ax, ay + a + 88, a, 54));
 
         // The lyrics: a narrow column in the right half; the sung line rests a little above the middle.
-        int lx = Math.round(W * 0.505f) - 44;
+        // Apple: the words start just left of the middle (49% across) in a column 35% of the screen wide.
+        int lx = Math.round(W * 0.49f) - 48;
         lyWindow = new FadeFrame(this, dp(110), dp(110));
         lyLines = new LinearLayout(this);
         lyLines.setOrientation(LinearLayout.VERTICAL);
         lyLines.setClipChildren(false);
         lyLines.setClipToPadding(false);
         lyWindow.addView(lyLines, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
-        lyricsBox.addView(lyWindow, at(lx, 0, Math.round(W * 0.37f) + 44, H));
+        lyricsBox.addView(lyWindow, at(lx, 0, Math.round(W * 0.35f) + 62, H));
 
         lyControls.add(lyBar);
         lyControls.add(lyElapsed);
@@ -823,15 +824,17 @@ public class NowPlayingActivity extends Activity implements MusicPlayer.Listener
 
     private void addLine(String s, boolean timed) {
         LyricLine t = new LyricLine(this);
-        t.setTextSize(34);
-        t.setTypeface(MusicUi.font(700));
+        // Apple's size: lyrics about 5.8% of the screen's height, bold, in the Display cut, tight lines.
+        t.setTextSize(Math.max(26f, Math.min(42f, H * 0.058f)));
+        MusicUi.type(t, 700);
         t.setIncludeFontPadding(false);
         t.setTextColor(Color.WHITE);
         t.setAlpha(timed ? 0.45f : 0.9f);
         t.setText(Lyrics.censor(s));
-        t.setLineSpacing(0, 1.08f);
-        // Room on both sides: the first letters (and their soft blur) never touch the edge.
-        t.setPadding(dp(48), dp(12), dp(14), dp(12));
+        t.setLineSpacing(0, 1.0f);
+        // Room on both sides: the first letters (and their soft blur) never touch the edge. Between lyrics, Apple's
+        // gap: about one line's height.
+        t.setPadding(dp(48), dp(18), dp(14), dp(18));
         t.setPivotX(0);
         // A soft shadow under the words, so they stand off the bright artwork behind.
         t.setShadowLayer(dp(10), 0, dp(2), 0x66000000);

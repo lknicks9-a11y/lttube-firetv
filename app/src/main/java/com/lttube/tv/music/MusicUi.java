@@ -55,14 +55,38 @@ public final class MusicUi {
      * LT Music's typeface: Inter (regular 400, medium 500, semibold 600, bold 700) — open-licence and drawn to sit
      * very close to Apple's SF Pro. The system font if it isn't there.
      */
-    public static Typeface font(int weight) {
-        Typeface t = fonts.get(weight);
+    public static Typeface font(int weight) { return font(weight, false); }
+
+    /**
+     * Apple's type system: one family in two cuts. Big text (20 sp and up) uses the Display cut, drawn tighter
+     * for large sizes (Apple: SF Pro Display; here Inter Display); smaller text uses the Text cut (SF Pro Text / Inter).
+     */
+    public static Typeface font(int weight, boolean display) {
+        int key = display ? weight + 10_000 : weight;
+        Typeface t = fonts.get(key);
         if (t != null) return t;
-        String name = weight >= 700 ? "Bold" : weight >= 600 ? "SemiBold" : weight >= 500 ? "Medium" : "Regular";
-        try { if (assets != null) t = Typeface.createFromAsset(assets, "fonts/Inter-" + name + ".ttf"); } catch (Throwable ignored) { }
+        String name = weight >= 800 ? "ExtraBold" : weight >= 700 ? "Bold" : weight >= 600 ? "SemiBold" : weight >= 500 ? "Medium" : "Regular";
+        if (!display && weight >= 800) name = "Bold";
+        try { if (assets != null) t = Typeface.createFromAsset(assets, "fonts/" + (display ? "InterDisplay-" : "Inter-") + name + ".ttf"); } catch (Throwable ignored) { }
+        if (t == null && display) return font(weight, false);
         if (t == null) t = Typeface.create(weight >= 500 && weight < 700 ? "sans-serif-medium" : "sans-serif", weight >= 700 ? Typeface.BOLD : Typeface.NORMAL);
-        else fonts.put(weight, t);
+        else fonts.put(key, t);
         return t;
+    }
+
+    /**
+     * Sets a text's weight the way Apple does: the cut by its size, and letter spacing tuned to the size
+     * (looser when small, tighter when big; Inter's own size-based tracking, like SF Pro's tracking table).
+     */
+    public static void type(TextView t, int weight) {
+        float sp = t.getTextSize() / t.getResources().getDisplayMetrics().scaledDensity;
+        t.setTypeface(font(weight, sp >= 20));
+        t.setLetterSpacing(tracking(sp));
+    }
+
+    /** Letter spacing in ems for a size (Inter's dynamic metrics: -0.0223 + 0.185·e^(-0.1745·size)). */
+    public static float tracking(float sp) {
+        return (float) (-0.0223 + 0.185 * Math.exp(-0.1745 * sp));
     }
 
     public static TextView text(Context c, float sp, int color, boolean bold) {
@@ -70,7 +94,7 @@ public final class MusicUi {
         TextView t = new TextView(c);
         t.setTextSize(sp);
         t.setTextColor(color);
-        t.setTypeface(font(bold ? 700 : 400));
+        type(t, bold ? 700 : 400);
         t.setIncludeFontPadding(false);
         return t;
     }
@@ -78,7 +102,7 @@ public final class MusicUi {
     /** Semi-bold (titles on cards, labels, buttons). */
     public static TextView medium(Context c, float sp, int color) {
         TextView t = text(c, sp, color, false);
-        t.setTypeface(font(600));
+        type(t, 600);
         return t;
     }
 
@@ -366,11 +390,11 @@ public final class MusicUi {
             txt.setGravity(Gravity.BOTTOM);
             txt.setPadding(dp(a, 10), 0, dp(a, 10), dp(a, 10));
             TextView eye = line(a, 11, Color.WHITE, false);
-            eye.setTypeface(font(600));
+            type(eye, 600);
             eye.setText((String) p[0]);
             txt.addView(eye);
             TextView t = line(a, 14, Color.WHITE, false);
-            t.setTypeface(font(600));
+            type(t, 600);
             t.setText(m.title);
             t.setPadding(0, dp(a, 2), 0, 0);
             txt.addView(t);
